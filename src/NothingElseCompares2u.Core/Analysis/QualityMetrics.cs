@@ -81,7 +81,9 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
-    public async Task<MetricResult> RunAsync(MediaTitle reference, MediaTitle distorted, double distortedOffset, MetricOptions opt, IProgress<(double Fraction, string Text)>? progress = null, CancellationToken ct = default)
+    /// <param name="distortedOffset">Source time of the distorted title at reference time 0.</param>
+    /// <param name="distortedSpeed">Distorted seconds per reference second (≠ 1 for a PAL speed-up: frames then pair one to one).</param>
+    public async Task<MetricResult> RunAsync(MediaTitle reference, MediaTitle distorted, double distortedOffset, MetricOptions opt, IProgress<(double Fraction, string Text)>? progress = null, CancellationToken ct = default, double distortedSpeed = 1)
     {
         var rv = reference.Info?.Video ?? throw new InvalidOperationException("Reference has no video.");
         var dv = distorted.Info?.Video ?? throw new InvalidOperationException("Distorted source has no video.");
@@ -110,9 +112,13 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
             notes.Add($"encode {dv.Width}×{dv.Height} scaled to {rw}×{rh} (bicubic)");
         var deep = rv.BitDepth > 8 || dv.BitDepth > 8;
         var fmt = deep ? "yuv420p10le" : "yuv420p";
-        var fpsFix = Math.Abs(rv.FrameRate - dv.FrameRate) > 0.01 ? $"fps={rv.FrameRate.ToString("0.######", Inv)}," : "";
+        // same frames at another speed (PAL): pair frame by frame; otherwise resample a different frame rate
+        var oneToOne = Math.Abs(rv.FrameRate - dv.FrameRate * distortedSpeed) < 0.01;
+        var fpsFix = !oneToOne && Math.Abs(rv.FrameRate - dv.FrameRate) > 0.01 ? $"fps={rv.FrameRate.ToString("0.######", Inv)}," : "";
         if (fpsFix.Length > 0)
             notes.Add($"frame rates differ ({dv.FrameRateText} vs {rv.FrameRateText}): encode resampled — expect low scores");
+        else if (Math.Abs(distortedSpeed - 1) > 1e-6)
+            notes.Add($"speed ×{distortedSpeed:0.#####}: frames paired one to one");
 
         // anchor on the reference's real first frame, then open both half a frame early so their first frames pair up
         var r0 = await new Screenshotter(tools, tempDir).FrameTimeAtAsync(reference, start, ct).ConfigureAwait(false);
@@ -122,7 +128,7 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
         var halfD = 0.5 / Math.Max(1, dv.FrameRate);
         res.Start = r0;
         var refIn = InputBuilder.Input(reference, Math.Max(0, r0 - halfR), length, tempDir);
-        var disIn = InputBuilder.Input(distorted, Math.Max(0, r0 + distortedOffset - halfD), length, tempDir);
+        var disIn = InputBuilder.Input(distorted, Math.Max(0, r0 * distortedSpeed + distortedOffset - halfD), length * distortedSpeed, tempDir);
         var refChain = refIn.TrimFilter + (opt.DeinterlaceReference ? "bwdif=mode=send_frame:deint=all," : "") +
                        (crop != null ? $"crop={rw}:{rh}:{crop.Left}:{crop.Top}," : "") +
                        $"settb=AVTB,setpts=N/FRAME_RATE/TB,trim=duration={InputBuilder.S(length)},format={fmt}";

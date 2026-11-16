@@ -305,24 +305,34 @@ static async Task SyncAsync(List<CompareItem> items, FfTools tools, string temp,
             Console.WriteLine($"Sync [{i + 1}]: no audio to match.");
             continue;
         }
-        var r = await new SyncDetector(tools, temp).DetectAsync(items[0].Title, items[i].Title, max, 3, progress, ct);
+        var sopt = new SyncOptions { MaxShift = max, WholeTitle = cli.Has("whole"), DetectEdits = cli.Has("edits") };
+        var r = await new SyncDetector(tools, temp).DetectAsync(items[0].Title, items[i].Title, sopt, progress, ct);
         foreach (var p in r.Probes)
-            await Console.Error.WriteLineAsync($"    at {Format.Time(p.RefTime, false)}: {p.Offset:+0.000;-0.000} s (confidence {p.Confidence:0.0})");
+            await Console.Error.WriteLineAsync($"    at {Format.Time(p.RefTime, false)}: {p.Offset:+0.000;-0.000;0.000} s (confidence {p.Confidence:0.0}, ncc {p.Ncc:0.00})");
         Console.WriteLine($"Sync [{i + 1}] {items[i].Name}: {r.Summary}");
         if (r.Reliable)
-            items[i].Offset = r.Offset + items[0].Offset;
+            Apply(items[i], r);
     }
+}
+
+static void Apply(CompareItem item, SyncResult r)
+{
+    item.Sections.Clear();
+    item.Speed = r.Speed;
+    item.Offset = r.Offset;
+    item.Sections.AddRange(r.Sections);
 }
 
 static async Task<List<ShotRow>> ShotsAsync(List<CompareItem> items, FfTools tools, string temp, string outDir, CliArgs cli, CancellationToken ct)
 {
     var count = cli.Get("n") is { } n ? int.Parse(n, CultureInfo.InvariantCulture) : 6;
-    var common = items.Min(i => i.Title.Duration - Math.Max(0, i.Offset));
+    var start = items.Max(i => i.Coverage().Start);
+    var common = items.Min(i => i.Coverage().End) - Math.Max(0, start);
     var times = cli.Get("at") is { } at
         ? at.Split(',').Select(s => Format.TryParseTime(s, out var t) ? t : throw new ArgumentException("Bad time " + s)).ToList()
-        : cli.Has("random") ? InputBuilder.RandomPoints(common, count, cli.Get("seed") is { } sd ? int.Parse(sd, CultureInfo.InvariantCulture) : 2024)
+        : cli.Has("random") ? InputBuilder.RandomPoints(common, count, cli.Get("seed") is { } sd ? int.Parse(sd, CultureInfo.InvariantCulture) : 2024).Select(t => t + Math.Max(0, start)).ToList()
         : cli.Has("chapters") ? items[0].Title.Info!.Chapters.Select(c => c.Start + 10).Where(t => t < common).ToList()
-        : InputBuilder.EvenPoints(common, count);
+        : InputBuilder.EvenPoints(common, count).Select(t => t + Math.Max(0, start)).ToList();
     var opt = new ShotOptions
     {
         CorrectAspect = !cli.Has("no-aspect"),
@@ -415,7 +425,7 @@ static async Task<MetricResult> RunMetricsAsync(CompareItem rf, CompareItem ds, 
             Console.Error.Write($"\r  {ds.Name}: {pct}%   ");
         }
     });
-    var res = await new QualityMetrics(tools, temp).RunAsync(rf.Title, ds.Title, ds.Offset - rf.Offset, opt, prog, ct);
+    var res = await new QualityMetrics(tools, temp).RunAsync(rf.Title, ds.Title, ds.Offset - rf.Offset, opt, prog, ct, ds.Speed);
     await Console.Error.WriteLineAsync();
     return res;
 }

@@ -31,6 +31,9 @@ public sealed class AppSettings
     public int MetricSubsample { get; set; } = 1;
     public bool IncludeShortPlaylists { get; set; }
 
+    /// <summary>"Near" (±90 s), "Whole" (whole title) or "Edits" (whole title, sections for a different edit).</summary>
+    public string SyncMode { get; set; } = "Near";
+
     public double WindowWidth { get; set; } = 1500;
     public double WindowHeight { get; set; } = 920;
     public bool Maximized { get; set; }

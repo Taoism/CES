@@ -137,7 +137,7 @@ public sealed partial class MainWindow
                     SetProgress((kk + p.Fraction) / others.Count);
                     SetStatus($"{d.Name} vs {refItem.Name}: {p.Text}");
                 });
-                var res = await qm.RunAsync(refItem.Title, d.Title, d.Offset - refItem.Offset, opt, prog, ct);
+                var res = await qm.RunAsync(refItem.Title, d.Title, d.Offset - refItem.Offset, opt, prog, ct, d.Speed);
                 _metrics.Add((refItem, d, res));
                 RefreshMetricResults();
                 k++;

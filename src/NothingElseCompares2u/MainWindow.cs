@@ -156,8 +156,27 @@ public sealed partial class MainWindow : Window
         ToolTip.SetTip(sync, "Find each source's time offset against source 1 by matching their audio.");
         sync.Click += async (_, _) => await AutoSyncAsync();
         _busyDisabled.AddRange([addFiles, addFolder, sync]);
+        var syncMode = new ComboBox
+        {
+            ItemsSource = new[] { "Sync: near (±90 s)", "Sync: whole title", "Sync: whole title + edits" },
+            SelectedIndex = _settings.SyncMode switch
+            {
+                "Whole" => 1,
+                "Edits" => 2,
+                _ => 0,
+            },
+            FontSize = 12,
+        };
+        ToolTip.SetTip(syncMode, "Near: same moment ±90 s (fast).\nWhole title: finds any offset (decodes the other source's audio once).\nEdits: also maps different cuts — sections with their own offset, parts that are missing.");
+        syncMode.SelectionChanged += (_, _) => _settings.SyncMode = syncMode.SelectedIndex switch
+        {
+            1 => "Whole",
+            2 => "Edits",
+            _ => "Near",
+        };
+        _busyDisabled.Add(syncMode);
         var srcButtons = new WrapPanel { Orientation = Orientation.Horizontal, ItemSpacing = 6, LineSpacing = 6 };
-        srcButtons.Children.AddRange([addFiles, addFolder, sync]);
+        srcButtons.Children.AddRange([addFiles, addFolder, sync, syncMode]);
         var srcHeader = new TextBlock { Text = "Sources", Classes = { "h2" } };
         var hint = new TextBlock
         {
@@ -422,12 +441,12 @@ public sealed partial class MainWindow : Window
         if (index > 0)
         {
             var fps = _items[0].Title.Info?.Video?.FrameRate is > 0 and var f ? f : 24000 / 1001.0;
-            var offset = new TextBox { Text = item.Offset.ToString("0.000", CultureInfo.InvariantCulture), Width = 92, HorizontalContentAlignment = HorizontalAlignment.Right };
+            var offset = new TextBox { Text = item.Offset.ToString("0.000#", CultureInfo.InvariantCulture), Width = 92, HorizontalContentAlignment = HorizontalAlignment.Right };
             ToolTip.SetTip(offset, "Offset in seconds: the same moment comes this much later in this source (negative = earlier). Enter applies.");
             async Task Apply(double value)
             {
                 item.Offset = Math.Round(value, 6);
-                offset.Text = item.Offset.ToString("0.000", CultureInfo.InvariantCulture);
+                offset.Text = item.Offset.ToString("0.000#", CultureInfo.InvariantCulture);
                 RefreshSpecs();
                 await RetakeSourceAsync(_items.IndexOf(item));
             }
@@ -437,7 +456,7 @@ public sealed partial class MainWindow : Window
             debounce.Tick += async (_, _) =>
             {
                 debounce.Stop();
-                if (Format.TryParseTime(offset.Text, out var val) && Math.Abs(val - item.Offset) > 1e-6)
+                if (Format.TryParseTime(offset.Text, out var val) && Math.Abs(val - item.Offset) > 0.0006)
                     await Apply(val);
             };
             offset.TextChanged += (_, _) =>
@@ -461,6 +480,65 @@ public sealed partial class MainWindow : Window
             _cardControls.AddRange([minus, plus]);
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { new TextBlock { Text = "Offset", VerticalAlignment = VerticalAlignment.Center, Classes = { "muted" } }, offset, minus, plus } };
             body.Children.Add(row);
+
+            // speed: same frames played faster/slower (PAL speed-up)
+            var speeds = new (string Name, double Value)[]
+            {
+                ("Speed: same", 1),
+                ("PAL speed-up (23.976 → 25)", 24000 / 1001.0 / 25),
+                ("PAL speed-up (24 → 25)", 24 / 25.0),
+                ("Slowed to 23.976 (25 → 23.976)", 25 / (24000 / 1001.0)),
+                ("Slowed to 24 (25 → 24)", 25 / 24.0),
+            };
+            var speedBox = new ComboBox { ItemsSource = speeds.Select(x => x.Name).ToList(), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Stretch };
+            var si = Array.FindIndex(speeds, x => Math.Abs(x.Value - item.Speed) < 1e-5);
+            if (si < 0)
+            {
+                speedBox.ItemsSource = speeds.Select(x => x.Name).Append($"Speed ×{item.Speed:0.#####}").ToList();
+                si = speeds.Length;
+            }
+            speedBox.SelectedIndex = si;
+            ToolTip.SetTip(speedBox, "Source seconds per reference second. Auto-sync detects a PAL speed-up from the frame rates.");
+            speedBox.SelectionChanged += async (_, _) =>
+            {
+                if (speedBox.SelectedIndex >= 0 && speedBox.SelectedIndex < speeds.Length && Math.Abs(speeds[speedBox.SelectedIndex].Value - item.Speed) > 1e-9)
+                {
+                    item.Speed = speeds[speedBox.SelectedIndex].Value;
+                    RefreshSpecs();
+                    await RetakeSourceAsync(_items.IndexOf(item));
+                }
+            };
+            _cardControls.Add(speedBox);
+            body.Children.Add(speedBox);
+
+            if (item.Sections.Count > 0)
+            {
+                var lines = item.Sections.Select((s, k) =>
+                    $"{Format.Time(s.Start, false)} – {(k + 1 < item.Sections.Count ? Format.Time(item.Sections[k + 1].Start, false) : "end")}: " +
+                    (s.Offset is { } o ? $"{o:+0.000;-0.000;0.000} s" : "not in this source"));
+                var missing = item.Sections.Count(s => s.Offset == null);
+                var edit = new TextBlock
+                {
+                    Text = $"Different edit: {item.Sections.Count} sections{(missing > 0 ? $", {missing} missing" : "")}",
+                    Foreground = new SolidColorBrush(Color.Parse("#FFE0A040")),
+                    FontSize = 12,
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                ToolTip.SetTip(edit, string.Join("\n", lines));
+                var clear = new Button { Content = "Clear", Classes = { "small" } };
+                ToolTip.SetTip(clear, "Forget the sections and use one offset for the whole title.");
+                clear.Click += async (_, _) =>
+                {
+                    var keep = item.Offset;
+                    item.Sections.Clear();
+                    item.Offset = keep;
+                    RebuildSourceCards();
+                    RefreshSpecs();
+                    await RetakeSourceAsync(_items.IndexOf(item));
+                };
+                _cardControls.Add(clear);
+                body.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { edit, clear } });
+            }
         }
         else
         {
@@ -505,11 +583,23 @@ public sealed partial class MainWindow : Window
                 }
                 SetStatus($"Matching audio of source {i + 1}…");
                 var prog = new Progress<string>(SetStatus);
-                var r = await detector.DetectAsync(_items[0].Title, _items[i].Title, 90, 3, prog, ct);
+                var sopt = new Analysis.SyncOptions
+                {
+                    MaxShift = 90,
+                    WholeTitle = _settings.SyncMode is "Whole" or "Edits",
+                    DetectEdits = _settings.SyncMode == "Edits",
+                };
+                var r = await detector.DetectAsync(_items[0].Title, _items[i].Title, sopt, prog, ct);
                 foreach (var p in r.Probes)
-                    AppendLog($"sync {i + 1} at {Format.Time(p.RefTime, false)}: {p.Offset:+0.000;-0.000} s (confidence {p.Confidence:0.0})");
+                    AppendLog($"sync {i + 1} at {Format.Time(p.RefTime, false)}: {p.Offset:+0.000;-0.000;0.000} s (confidence {p.Confidence:0.0})");
                 if (r.Reliable)
-                    _items[i].Offset = Math.Round(r.Offset + _items[0].Offset, 3);
+                {
+                    var it = _items[i];
+                    it.Sections.Clear();
+                    it.Speed = r.Speed;
+                    it.Offset = Math.Round(r.Offset, 4);
+                    it.Sections.AddRange(r.Sections);
+                }
                 lines.Add($"{i + 1}. {_items[i].Name}: {r.Summary}");
             }
             RebuildSourceCards();

@@ -191,7 +191,7 @@ public sealed partial class MainWindow
 
     /// <summary>Part of the reference timeline that every source covers: t with 0 ≤ t + offsetᵢ ≤ durationᵢ.</summary>
     private (double Start, double End) TimelineRange() =>
-        _items.Count == 0 ? (0, 0) : (Math.Max(0, _items.Max(i => -i.Offset)), _items.Min(i => i.Title.Duration - i.Offset));
+        _items.Count == 0 ? (0, 0) : (Math.Max(0, _items.Max(i => i.Coverage().Start)), _items.Min(i => i.Coverage().End));
 
     private async Task TakeShotsAsync(bool replace)
     {

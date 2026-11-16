@@ -3,14 +3,44 @@ using NothingElseCompares2u.Model;
 
 namespace NothingElseCompares2u.Compare;
 
-/// <summary>One column of a comparison: a source, the title picked from it and its time offset.</summary>
+/// <summary>
+/// A stretch of the reference timeline (from <see cref="Start"/> to the next section) and where it is in a source:
+/// source time = reference time × speed + <see cref="Offset"/>. Offset null = this part is not in the source (cut).
+/// </summary>
+public sealed class SyncSection
+{
+    public double Start { get; set; }
+    public double? Offset { get; set; }
+}
+
+/// <summary>One column of a comparison: a source, the title picked from it and how its time maps to the reference.</summary>
 public sealed class CompareItem
 {
     public required MediaSource Source { get; init; }
     public required MediaTitle Title { get; set; }
 
-    /// <summary>Seconds added to the common timeline to reach the same moment in this source.</summary>
-    public double Offset { get; set; }
+    /// <summary>Source time at reference time 0 (for the first section when there are several).</summary>
+    public double Offset
+    {
+        get => Sections.Count > 0 ? Sections.FirstOrDefault(s => s.Offset != null)?.Offset ?? field : field;
+        set
+        {
+            // moving the base offset moves every section with it (frame nudges keep the edit map)
+            var delta = value - Offset;
+            field = value;
+            foreach (var s in Sections)
+            {
+                if (s.Offset is { } o)
+                    s.Offset = o + delta;
+            }
+        }
+    }
+
+    /// <summary>Source seconds per reference second: 1 normally, 23.976/25 for a PAL speed-up of a film reference.</summary>
+    public double Speed { get; set; } = 1;
+
+    /// <summary>Different edits: piecewise offsets along the reference timeline (empty = one offset for everything).</summary>
+    public List<SyncSection> Sections { get; } = [];
 
     public string Label { get; set; } = "";
 
@@ -18,6 +48,45 @@ public sealed class CompareItem
     public List<AudioReport> Audio { get; } = [];
 
     public string Name => Label.Length > 0 ? Label : Source.DisplayName;
+
+    /// <summary>Where reference time <paramref name="t"/> is in this source, or null when that part was cut from it.</summary>
+    public double? SourceTime(double t)
+    {
+        var off = Offset;
+        if (Sections.Count > 0)
+        {
+            var sec = Sections.LastOrDefault(x => x.Start <= t) ?? Sections[0];
+            if (sec.Offset is not { } o)
+                return null;
+            off = o;
+        }
+        return t * Speed + off;
+    }
+
+    /// <summary>Reference time of a moment in this source (inverse of <see cref="SourceTime"/>, using the base offset).</summary>
+    public double TimelineTime(double sourceTime) => (sourceTime - Offset) / Speed;
+
+    /// <summary>Part of the reference timeline this source covers.</summary>
+    public (double Start, double End) Coverage()
+    {
+        var first = Sections.Count > 0 ? Sections.First(s => s.Offset != null).Offset!.Value : Offset;
+        var last = Sections.Count > 0 ? Sections.Last(s => s.Offset != null).Offset!.Value : Offset;
+        return (-first / Speed, (Title.Duration - last) / Speed);
+    }
+
+    /// <summary>Short description of the time map for cards, specs and reports.</summary>
+    public string MapSummary
+    {
+        get
+        {
+            var parts = new List<string> { $"{Offset:+0.000;-0.000;0.000} s" };
+            if (Math.Abs(Speed - 1) > 1e-6)
+                parts.Add($"speed ×{Speed:0.#####}");
+            if (Sections.Count > 1 || Sections.Any(s => s.Offset == null))
+                parts.Add($"{Sections.Count} sections ({Sections.Count(s => s.Offset == null)} missing)");
+            return string.Join(", ", parts);
+        }
+    }
 
     public override string ToString() => Name;
 }
@@ -38,13 +107,17 @@ public static class FrameMatch
     /// ffmpeg returns the first frame at or after the requested time, so a few milliseconds of offset error (or frame
     /// grids with a different phase) can pick the next frame. Once the reference frame's real time is known, ask the
     /// other source for half a frame before its matching frame: that always lands on the nearest one.
+    /// Returns null when the moment is not in that source (a cut in a different edit).
     /// </summary>
-    public static double TargetTime(CompareItem reference, double? referenceFrameTime, double rowTime, CompareItem item)
+    public static double? TargetTime(CompareItem reference, double? referenceFrameTime, double rowTime, CompareItem item)
     {
         if (item == reference || referenceFrameTime is not { } rt || double.IsNaN(rt))
-            return rowTime + item.Offset;
+            return item.SourceTime(rowTime);
+        var t = reference.TimelineTime(rt);
+        if (item.SourceTime(t) is not { } st)
+            return null;
         var fps = item.Title.Info?.Video?.FrameRate is > 0 and var f ? f : 24000 / 1001.0;
-        return Math.Max(0, rt - reference.Offset + item.Offset - 0.5 / fps);
+        return Math.Max(0, st - 0.5 / fps);
     }
 }
 
@@ -79,7 +152,7 @@ public static class SpecTable
         Add("General", "Size", (_, m) => Format.Size(m.SizeBytes));
         Add("General", "Overall bitrate", (_, m) => Format.BitRate(m.OverallBitRate));
         Add("General", "Chapters", (_, m) => m.Chapters.Count > 0 ? m.Chapters.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) : "none");
-        Add("General", "Sync offset", (i, _) => i.Offset != 0 ? $"{i.Offset:+0.000;-0.000} s" : "0");
+        Add("General", "Time map", (i, _) => i.MapSummary);
         Add("General", "Encoder", (_, m) => m.Encoder);
 
         Add("Video", "Codec", (_, m) => m.Video?.CodecDisplay ?? "");

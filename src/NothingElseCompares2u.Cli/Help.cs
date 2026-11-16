@@ -17,6 +17,8 @@ internal static class Help
                       --all-playlists  include Blu-ray playlists shorter than a minute
           sync      Find the time offset of each source against the first (audio cross-correlation)
                       --max-shift S    search ±S seconds (default 60)
+                      --whole          search the whole title (any offset; decodes all audio)
+                      --edits          map a different edit: offsets per section, cut parts
           shots     Screenshots of the same frames in every source
                       -n N             number of evenly spread points (default 6)
                       --at T,T,…       explicit times (1:02:03.5, 3723.5)

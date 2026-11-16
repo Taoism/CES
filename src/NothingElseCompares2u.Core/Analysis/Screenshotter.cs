@@ -60,6 +60,12 @@ public sealed partial class Screenshotter(FfTools tools, string tempDir)
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
+    /// <summary>As <see cref="TakeAsync(MediaTitle, double, string, ShotOptions, CancellationToken)"/>; a null time means the moment was cut from this source.</summary>
+    public Task<ShotResult> TakeAsync(MediaTitle title, double? time, string outPng, ShotOptions opt, CancellationToken ct = default) =>
+        time is { } t
+            ? TakeAsync(title, t, outPng, opt, ct)
+            : Task.FromResult(new ShotResult { ImagePath = outPng, RequestedTime = double.NaN, Error = "Not in this source (cut from this edit)." });
+
     public async Task<ShotResult> TakeAsync(MediaTitle title, double time, string outPng, ShotOptions opt, CancellationToken ct = default)
     {
         var info = title.Info;
