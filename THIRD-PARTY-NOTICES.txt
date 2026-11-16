@@ -1,0 +1,15 @@
+NothingElseCompares2u uses third-party software.
+
+Not bundled — used from your system (install them separately):
+  FFmpeg / ffprobe (https://ffmpeg.org/) - LGPL 2.1+ / GPL depending on the build.
+  MediaInfo CLI (https://mediaarea.net/MediaInfo) - BSD-2-Clause, optional.
+
+Bundled .NET libraries:
+  Avalonia (https://avaloniaui.net/) - MIT License, Copyright (c) AvaloniaUI OÜ and contributors.
+  SkiaSharp / HarfBuzzSharp - MIT License, Copyright (c) Microsoft Corporation / .NET Foundation.
+  Inter font - SIL Open Font License 1.1, Copyright (c) The Inter Project Authors.
+  .NET runtime - MIT License, Copyright (c) .NET Foundation and Contributors.
+
+Online service (only when you choose to upload):
+  slow.pics (https://slow.pics) - screenshot comparison hosting; uploads are public to anyone with the link.
+

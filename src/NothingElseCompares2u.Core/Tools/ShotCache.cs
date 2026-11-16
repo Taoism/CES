@@ -30,14 +30,18 @@ public static class ShotCache
     private static string BuildId()
     {
         var asm = typeof(ShotCache).Assembly;
+#pragma warning disable IL3000 // empty in single-file builds: handled below
         try
         {
-            return asm.GetName().Version + "-" + File.GetLastWriteTimeUtc(asm.Location).Ticks.ToString(CultureInfo.InvariantCulture);
+            // single-file builds have no assembly path: the executable's date identifies the build then
+            var path = string.IsNullOrEmpty(asm.Location) ? Environment.ProcessPath ?? "" : asm.Location;
+            return asm.GetName().Version + "-" + (path.Length > 0 ? File.GetLastWriteTimeUtc(path).Ticks.ToString(CultureInfo.InvariantCulture) : "0");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
         {
             return asm.GetName().Version?.ToString() ?? "0";
         }
+#pragma warning restore IL3000
     }
 
     public static string? Key(MediaTitle title, double time, string options)
