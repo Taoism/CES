@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\NothingElseCompares2u.Core\NothingElseCompares2u.Core.csproj" />
+    <ProjectReference Include="..\..\src\NothingElseCompares2u\NothingElseCompares2u.csproj" />
   </ItemGroup>
 
 </Project>

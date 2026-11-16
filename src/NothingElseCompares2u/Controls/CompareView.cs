@@ -327,7 +327,7 @@ public sealed class CompareView : Control
         var b = _images[WipeOther];
         if (a == null || b == null)
             return null;
-        if (_diff != null && ReferenceEquals(_diffKey.A, a) && ReferenceEquals(_diffKey.B, b) && _diffKey.Gain == DiffGain)
+        if (_diff != null && ReferenceEquals(_diffKey.A, a) && ReferenceEquals(_diffKey.B, b) && Math.Abs(_diffKey.Gain - DiffGain) < 1e-9)
             return _diff;
         var pa = Pixels(a);
         var pb = Pixels(b);

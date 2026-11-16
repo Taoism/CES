@@ -71,6 +71,7 @@ public sealed partial class MainWindow : Window
             WindowState = WindowState.Maximized;
 
         Content = BuildLayout();
+        RebuildRecentMenu();
         DragDrop.SetAllowDrop(this, true);
         DragDrop.AddDragOverHandler(this, (_, e) => e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None);
         DragDrop.AddDropHandler(this, async (_, e) =>
@@ -111,6 +112,11 @@ public sealed partial class MainWindow : Window
                         MenuItemFor("Add _files…", AddFilesAsync, new KeyGesture(Key.O, KeyModifiers.Control)),
                         MenuItemFor("Add disc _folder (BDMV / VIDEO_TS)…", AddFolderAsync, new KeyGesture(Key.O, KeyModifiers.Control | KeyModifiers.Shift)),
                         MenuItemFor("Add folder of _releases…", AddReleaseFolderAsync),
+                        new Separator(),
+                        MenuItemFor("_Open comparison…", OpenSessionAsync, new KeyGesture(Key.L, KeyModifiers.Control)),
+                        (_recentMenu = new MenuItem { Header = "Recent comparisons" }),
+                        MenuItemFor("_Save comparison", () => SaveSessionAsync(false), new KeyGesture(Key.S, KeyModifiers.Control)),
+                        MenuItemFor("Save comparison _as…", () => SaveSessionAsync(true)),
                         new Separator(),
                         MenuItemFor("Export HTML _report…", ExportReportAsync, new KeyGesture(Key.E, KeyModifiers.Control)),
                         MenuItemFor("Save _screenshots…", ExportShotsAsync),
@@ -245,6 +251,7 @@ public sealed partial class MainWindow : Window
 
         Anywhere
           Ctrl+O           add files      Ctrl+Shift+O  add disc folder
+          Ctrl+S           save comparison    Ctrl+L  open comparison
           Ctrl+E           export HTML report
         """;
 
@@ -328,7 +335,7 @@ public sealed partial class MainWindow : Window
             Title = "Folder with the releases to compare",
             SuggestedStartLocation = await StartFolderAsync(),
         });
-        var dir = folders.FirstOrDefault()?.TryGetLocalPath();
+        var dir = folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
         if (dir == null)
             return;
         var paths = SourceOpener.ExpandFolder(dir);
@@ -347,6 +354,12 @@ public sealed partial class MainWindow : Window
     {
         if (paths.Count == 0 || _tools == null)
             return;
+        var session = paths.FirstOrDefault(p => p.EndsWith(SessionExtension, StringComparison.OrdinalIgnoreCase));
+        if (session != null)
+        {
+            await LoadSessionAsync(session);
+            return;
+        }
         await RunJobAsync("Opening sources", async ct =>
         {
             foreach (var p in paths)

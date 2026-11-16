@@ -34,6 +34,8 @@ public sealed class AppSettings
     /// <summary>"Near" (±90 s), "Whole" (whole title) or "Edits" (whole title, sections for a different edit).</summary>
     public string SyncMode { get; set; } = "Near";
 
+    public List<string> RecentSessions { get; set; } = [];
+
     public double WindowWidth { get; set; } = 1500;
     public double WindowHeight { get; set; } = 920;
     public bool Maximized { get; set; }

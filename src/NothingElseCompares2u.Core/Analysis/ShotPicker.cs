@@ -22,7 +22,7 @@ public sealed partial class ShotPicker(FfTools tools, string tempDir)
     /// Samples <paramref name="samples"/> keyframes spread over the title (a fast seek each, a few in parallel):
     /// seconds even for a 50 GB disc, where decoding every keyframe would have to read the whole file.
     /// </summary>
-    public async Task<List<KeyframeInfo>> ScanAsync(MediaTitle title, IProgress<double>? progress = null, CancellationToken ct = default, int samples = 150)
+    public async Task<List<KeyframeInfo>> ScanAsync(MediaTitle title, IProgress<double>? progress = null, int samples = 150, CancellationToken ct = default)
     {
         var points = InputBuilder.EvenPoints(title.Duration, samples, 1, 3);
         var results = new KeyframeInfo?[points.Count];

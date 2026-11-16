@@ -111,7 +111,7 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
 
     /// <param name="distortedOffset">Source time of the distorted title at reference time 0.</param>
     /// <param name="distortedSpeed">Distorted seconds per reference second (≠ 1 for a PAL speed-up: frames then pair one to one).</param>
-    public async Task<MetricResult> RunAsync(MediaTitle reference, MediaTitle distorted, double distortedOffset, MetricOptions opt, IProgress<(double Fraction, string Text)>? progress = null, CancellationToken ct = default, double distortedSpeed = 1)
+    public async Task<MetricResult> RunAsync(MediaTitle reference, MediaTitle distorted, double distortedOffset, MetricOptions opt, IProgress<(double Fraction, string Text)>? progress = null, double distortedSpeed = 1, CancellationToken ct = default)
     {
         var rv = reference.Info?.Video ?? throw new InvalidOperationException("Reference has no video.");
         var dv = distorted.Info?.Video ?? throw new InvalidOperationException("Distorted source has no video.");

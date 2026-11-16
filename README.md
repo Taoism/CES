@@ -13,10 +13,16 @@ command line, `nec2u`.
 - **Frame-exact screenshots** of the same moment in every source: evenly spaced, random (seeded), per chapter or at given
   times; aspect correction for anamorphic video, HDR→SDR tone-mapping, optional deinterlace. The reference frame decides
   the time and every other source is aimed at its nearest matching frame, so MPEG-TS seek overshoot and frame-grid
-  phase cannot shift a source by one frame. Viewer: single (1–9 to switch), wipe, side by side; synced zoom/pan with
-  nearest-neighbour pixels; frame stepping; frame type and signal stats per shot.
-- **Sync**: audio cross-correlation at several points, then refined on the picture to the exact frame. Reports drift
-  (different speed/edit) and refuses unreliable matches.
+  phase cannot shift a source by one frame. Viewer: single (1–9 to switch), wipe, side by side, **difference**
+  (|A − B| × gain, with mean/changed share) and **flicker** (A ↔ B automatically); synced zoom/pan with
+  nearest-neighbour pixels; frame stepping; frame type and signal stats per shot. **Detailed shots** mode samples
+  keyframes across source 1 and picks well-lit, detailed moments instead of evenly spaced times.
+- **Sync**: audio cross-correlation at several points, then refined on the picture to the exact frame. Search near the
+  same time (±90 s) or the **whole title** (any offset). **Speed**: PAL speed-ups (23.976/24 → 25) are detected from the
+  frame rates and handled everywhere (frames paired one to one). **Different edits**: probes along the whole title build
+  sections with their own offset and mark parts that are missing from a source (cuts located to ~1–2 s).
+- **Comparisons are saved** as `.nec2u` files (sources, titles, time maps, screenshot times, analysis, metrics, ranking);
+  screenshots are re-grabbed on open. Recent comparisons in the File menu.
 - **Specs**: side-by-side table (container, bitrates, codec/profile, resolution, DAR/SAR, bit depth, chroma, colour,
   HDR10/HDR10+/Dolby Vision, mastering display, MaxCLL/FALL, audio tracks, subtitles…), differences highlighted.
 - **Video analysis**: effective bit depth (8-bit padded into 10-bit), native resolution / upscale detection (least-squares
@@ -27,6 +33,8 @@ command line, `nec2u`.
   spectrogram.
 - **Quality metrics**: PSNR, SSIM, VMAF, XPSNR against a reference, with automatic scaling and crop of bars, per-frame
   chart, worst frames → screenshots.
+- **Rank releases**: point it at a folder of releases (File › Add folder of releases); every release is synced and
+  measured against the reference in several windows across the title, then ranked (VMAF, 1 % low, PSNR, SSIM, bitrate).
 - **HTML report**: specs, findings, metrics charts and click/1–9 switchable screenshots.
 
 ## Requirements
@@ -38,15 +46,16 @@ ffmpeg + ffprobe (with libvmaf for VMAF; zscale for HDR tone-mapping), optionall
 
 ```
 nec2u info   <source…> [--titles]
-nec2u sync   <reference> <other…>
-nec2u shots  <source…> [-n 6 | --at 1:02:03,… | --random | --chapters] [--auto-sync] [--out DIR]
+nec2u sync   <reference> <other…> [--whole] [--edits]
+nec2u shots  <source…> [-n 6 | --at 1:02:03,… | --random | --chapters | --smart] [--auto-sync] [--out DIR]
 nec2u video  <source…> [--points 8] [--curve]
 nec2u audio  <source…> [--track 1|all] [--full] [--out DIR]
 nec2u metrics <reference> <other…> [--metrics psnr,ssim,vmaf,xpsnr] [--start T] [--length 60]
+nec2u rank   <reference> <release… | folder> [--windows 5] [--length 20] [--edits]
 nec2u report <source…> [--metrics] [--out DIR]
 ```
 
-Pick a disc title with `path@00800.mpls` or `path@3`; offsets with `--offset 2=-5.005`. See `nec2u --help`.
+Pick a disc title with `path@00800.mpls` or `path@3`; offsets with `--offset 2=-5.005`, speed with `--speed 2=pal`. See `nec2u --help`.
 
 ## Build
 

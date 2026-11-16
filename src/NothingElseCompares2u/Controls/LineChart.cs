@@ -110,14 +110,18 @@ public sealed class LineChart : Control
                     var started = false;
                     // thin out very long series to about two points per pixel
                     var step = Math.Max(1, s.X.Length / Math.Max(1, (int)(plot.Width * 2)));
+                    // separate windows (ranking) are not joined: break where the spacing jumps
+                    var gaps = Enumerable.Range(1, s.X.Length - 1).Select(i => s.X[i] - s.X[i - 1]).Where(d => d > 0).Order().ToList();
+                    var maxGap = gaps.Count > 0 ? gaps[gaps.Count / 2] * step * 8 : double.MaxValue;
+                    var prevX = double.NaN;
                     for (var i = 0; i < s.X.Length; i += step)
                     {
                         var y = s.Y[i];
-                        if (double.IsNaN(y) || double.IsInfinity(y))
-                        {
+                        if (double.IsNaN(y) || double.IsInfinity(y) || (!double.IsNaN(prevX) && s.X[i] - prevX > maxGap))
                             started = false;
+                        prevX = s.X[i];
+                        if (double.IsNaN(y) || double.IsInfinity(y))
                             continue;
-                        }
                         var pt = new Point(Px(s.X[i]), Py(Math.Clamp(y, y0, y1)));
                         if (!started)
                         {

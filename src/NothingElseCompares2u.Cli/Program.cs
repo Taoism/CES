@@ -376,7 +376,7 @@ static async Task<List<ShotRow>> ShotsAsync(List<CompareItem> items, FfTools too
     var times = cli.Get("at") is { } at
         ? at.Split(',').Select(s => Format.TryParseTime(s, out var t) ? t : throw new ArgumentException("Bad time " + s)).ToList()
         : cli.Has("random") ? InputBuilder.RandomPoints(common, count, cli.Get("seed") is { } sd ? int.Parse(sd, CultureInfo.InvariantCulture) : 2024).Select(t => t + Math.Max(0, start)).ToList()
-        : cli.Has("smart") ? ShotPicker.Pick(await new ShotPicker(tools, temp).ScanAsync(items[0].Title, null, ct), count, Math.Max(0, start), Math.Max(0, start) + common).Select(p => p.Time).ToList()
+        : cli.Has("smart") ? ShotPicker.Pick(await new ShotPicker(tools, temp).ScanAsync(items[0].Title, null, ct: ct), count, Math.Max(0, start), Math.Max(0, start) + common).Select(p => p.Time).ToList()
         : cli.Has("chapters") ? items[0].Title.Info!.Chapters.Select(c => c.Start + 10).Where(t => t < common).ToList()
         : InputBuilder.EvenPoints(common, count).Select(t => t + Math.Max(0, start)).ToList();
     var opt = new ShotOptions
@@ -474,7 +474,7 @@ static async Task<MetricResult> RunMetricsAsync(CompareItem rf, CompareItem ds, 
     // offset of the distorted source for the measured window (its section, when it is a different edit)
     var t0 = double.IsNaN(opt.Start) ? rf.Title.Duration / 2 : opt.Start;
     var off = ds.SourceTime(t0) is { } st ? st - (rf.SourceTime(t0) ?? t0) * ds.Speed : ds.Offset - rf.Offset;
-    var res = await new QualityMetrics(tools, temp).RunAsync(rf.Title, ds.Title, off, opt, prog, ct, ds.Speed);
+    var res = await new QualityMetrics(tools, temp).RunAsync(rf.Title, ds.Title, off, opt, prog, ds.Speed, ct);
     await Console.Error.WriteLineAsync();
     return res;
 }

@@ -94,7 +94,7 @@ public static class Ranker
                     progress?.Report(((kk + (ww + p.Fraction) / starts.Count) / others.Count, $"{item.Name}: window {ww + 1}/{starts.Count} · {p.Text}")));
                 try
                 {
-                    var r = await qm.RunAsync(reference.Title, item.Title, off, o, prog, ct, item.Speed).ConfigureAwait(false);
+                    var r = await qm.RunAsync(reference.Title, item.Title, off, o, prog, item.Speed, ct).ConfigureAwait(false);
                     // report frame times on the shared timeline
                     for (var i = 0; i < r.FrameTimes.Count; i++)
                         r.FrameTimes[i] = reference.TimelineTime(r.FrameTimes[i]);

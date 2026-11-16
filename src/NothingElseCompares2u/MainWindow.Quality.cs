@@ -149,7 +149,7 @@ public sealed partial class MainWindow
                 // offset for the measured window (its section, when the source is a different edit)
                 var t0 = double.IsNaN(opt.Start) ? refItem.TimelineTime(refItem.Title.Duration / 2) : refItem.TimelineTime(opt.Start);
                 var off = d.SourceTime(t0) is { } st ? st - (refItem.SourceTime(t0) ?? t0) * d.Speed : d.Offset - refItem.Offset;
-                var res = await qm.RunAsync(refItem.Title, d.Title, off, opt, prog, ct, d.Speed);
+                var res = await qm.RunAsync(refItem.Title, d.Title, off, opt, prog, d.Speed, ct);
                 for (var i = 0; i < res.FrameTimes.Count; i++)
                     res.FrameTimes[i] = refItem.TimelineTime(res.FrameTimes[i]);
                 _metrics.Add((refItem, d, res));

@@ -311,7 +311,7 @@ public sealed partial class MainWindow
                     SetProgress(f);
                     SetStatus($"Scanning keyframes of {_items[0].Name}: {f:P0}");
                 });
-                scanned = await new ShotPicker(_tools!, _temp).ScanAsync(title, prog, ct);
+                scanned = await new ShotPicker(_tools!, _temp).ScanAsync(title, prog, ct: ct);
             });
             if (!ok || scanned == null || scanned.Count == 0)
                 return null;
@@ -549,7 +549,7 @@ public sealed partial class MainWindow
             {
                 var st = s.Stats;
                 var max = st != null ? (1 << st.BitDepth) - 1 : 255;
-                text = $"{Format.Time(row.Row.Time + _items[i].Offset)}  ·  {s.PictType}-frame  ·  {s.Width}×{s.Height}" +
+                text = $"{Format.Time(!double.IsNaN(s.FrameTime) ? s.FrameTime : _items[i].SourceTime(row.Row.Time) ?? double.NaN)}  ·  {s.PictType}-frame  ·  {s.Width}×{s.Height}" +
                        (st == null ? "" : $"  ·  Y {st.YMin:0}–{st.YMax:0} (of {max}) avg {st.YAvg:0.0}  ·  sat {st.SatAvg:0.0}" +
                                           (double.IsNaN(st.Blur) ? "" : $"  ·  blur {st.Blur:0.00}") + (double.IsNaN(st.Block) ? "" : $"  ·  blockiness {st.Block:0.00}"));
             }
