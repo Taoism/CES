@@ -254,7 +254,8 @@ public sealed partial class MainWindow : Window
         }
         SaveShotSettings();
         _settings.Save();
-        _cts?.Cancel();
+        if (_cts != null)
+            await _cts.CancelAsync();
         DisposeShotBitmaps();
         try
         {

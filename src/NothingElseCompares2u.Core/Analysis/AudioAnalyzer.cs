@@ -195,7 +195,7 @@ public sealed partial class AudioAnalyzer(FfTools tools, string tempDir)
         for (var i = from; i + band < n; i += band / 2)
             floor = Math.Min(floor, sm.Skip(i).Take(band).Average());
         var reference = sm.Skip((int)(1000 / binHz)).Take((int)(3000 / binHz)).Average();
-        if (floor == double.MaxValue || reference - floor < 20)
+        if (floor >= double.MaxValue || reference - floor < 20)
             return (rate / 2.0, double.NaN); // content all the way up (or flat noise)
         var threshold = floor + Math.Min(10, (reference - floor) / 4);
         var cut = n - 1;
@@ -266,7 +266,7 @@ public sealed partial class AudioAnalyzer(FfTools tools, string tempDir)
         {
             "stereo" => ["L", "R"],
             "mono" => ["C"],
-            "5.1" or "5.1(side)" => ["L", "R", "C", "LFE", layout == "5.1" ? "Ls" : "Ls", "Rs"],
+            "5.1" or "5.1(side)" => ["L", "R", "C", "LFE", "Ls", "Rs"],
             "7.1" => ["L", "R", "C", "LFE", "Lb", "Rb", "Ls", "Rs"],
             "6.1" => ["L", "R", "C", "LFE", "Cs", "Ls", "Rs"],
             _ => [],

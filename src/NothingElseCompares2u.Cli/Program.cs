@@ -30,14 +30,14 @@ try
 }
 catch (ArgumentException ex)
 {
-    Console.Error.WriteLine("nec2u: " + ex.Message);
+    await Console.Error.WriteLineAsync("nec2u: " + ex.Message);
     return 2;
 }
 
 var (tools, err) = await FfTools.LocateAsync(cli.Get("ffmpeg"), cli.Get("mediainfo"));
 if (tools == null)
 {
-    Console.Error.WriteLine("nec2u: " + err);
+    await Console.Error.WriteLineAsync("nec2u: " + err);
     return 2;
 }
 if (cli.Has("verbose"))
@@ -157,7 +157,7 @@ try
             {
                 foreach (var it in items.Where(i => i.Title.Info?.Video != null))
                 {
-                    Console.Error.WriteLine($"Video analysis: {it.Name}");
+                    await Console.Error.WriteLineAsync($"Video analysis: {it.Name}");
                     it.Video = await new VideoAnalyzer(tools, temp).AnalyzeAsync(it.Title, it.Offset, VideoOptions(cli), progress, cts.Token);
                 }
             }
@@ -165,7 +165,7 @@ try
             {
                 foreach (var it in items.Where(i => i.Title.Info?.Audio.Any() == true))
                 {
-                    Console.Error.WriteLine($"Audio analysis: {it.Name}");
+                    await Console.Error.WriteLineAsync($"Audio analysis: {it.Name}");
                     foreach (var track in Tracks(it, cli))
                         it.Audio.Add(await new AudioAnalyzer(tools, temp).AnalyzeAsync(it.Title, track, it.Offset, AudioOptions(cli), progress, cts.Token));
                 }
@@ -185,19 +185,19 @@ try
         }
 
         default:
-            Console.Error.WriteLine($"nec2u: unknown command '{args[0]}' (see nec2u --help)");
+            await Console.Error.WriteLineAsync($"nec2u: unknown command '{args[0]}' (see nec2u --help)");
             return 2;
     }
     return 0;
 }
 catch (OperationCanceledException)
 {
-    Console.Error.WriteLine("Cancelled.");
+    await Console.Error.WriteLineAsync("Cancelled.");
     return 130;
 }
 catch (Exception ex) when (ex is IOException or InvalidDataException or ArgumentException or InvalidOperationException or UnauthorizedAccessException or FormatException or System.ComponentModel.Win32Exception)
 {
-    Console.Error.WriteLine("nec2u: " + ex.Message);
+    await Console.Error.WriteLineAsync("nec2u: " + ex.Message);
     return 1;
 }
 finally
@@ -307,7 +307,7 @@ static async Task SyncAsync(List<CompareItem> items, FfTools tools, string temp,
         }
         var r = await new SyncDetector(tools, temp).DetectAsync(items[0].Title, items[i].Title, max, 3, progress, ct);
         foreach (var p in r.Probes)
-            Console.Error.WriteLine($"    at {Format.Time(p.RefTime, false)}: {p.Offset:+0.000;-0.000} s (confidence {p.Confidence:0.0})");
+            await Console.Error.WriteLineAsync($"    at {Format.Time(p.RefTime, false)}: {p.Offset:+0.000;-0.000} s (confidence {p.Confidence:0.0})");
         Console.WriteLine($"Sync [{i + 1}] {items[i].Name}: {r.Summary}");
         if (r.Reliable)
             items[i].Offset = r.Offset + items[0].Offset;
@@ -351,7 +351,7 @@ static async Task<List<ShotRow>> ShotsAsync(List<CompareItem> items, FfTools too
             if (i == 0 && r.Error == null)
                 refFrame = r.FrameTime;
             row.Shots.Add(r);
-            Console.Error.WriteLine($"  {Format.Time(t)} [{i + 1}] {r.Error ?? $"{r.PictType}-frame {r.Width}×{r.Height}"}");
+            await Console.Error.WriteLineAsync($"  {Format.Time(t)} [{i + 1}] {r.Error ?? $"{r.PictType}-frame {r.Width}×{r.Height}"}");
         }
         rows.Add(row);
     }
@@ -416,7 +416,7 @@ static async Task<MetricResult> RunMetricsAsync(CompareItem rf, CompareItem ds, 
         }
     });
     var res = await new QualityMetrics(tools, temp).RunAsync(rf.Title, ds.Title, ds.Offset - rf.Offset, opt, prog, ct);
-    Console.Error.WriteLine();
+    await Console.Error.WriteLineAsync();
     return res;
 }
 

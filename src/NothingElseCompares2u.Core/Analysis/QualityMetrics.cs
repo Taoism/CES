@@ -246,7 +246,7 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
     internal static List<double> ParseKeyed(string text, string key)
     {
         var values = new List<double>();
-        var rx = new Regex(@"(?:^|\s)" + Regex.Escape(key) + @":\s*([-\d.]+|inf)", RegexOptions.Multiline);
+        var rx = new Regex(@"(?:^|\s)" + Regex.Escape(key) + @":\s*([-\d.]+|inf)", RegexOptions.Multiline, TimeSpan.FromSeconds(2));
         foreach (var line in text.Split('\n'))
         {
             var m = rx.Match(line);

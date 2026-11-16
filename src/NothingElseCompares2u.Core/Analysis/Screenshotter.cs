@@ -124,7 +124,7 @@ public sealed partial class Screenshotter(FfTools tools, string tempDir)
         var metaPath = Path.Combine(tempDir, metaName);
         if (File.Exists(metaPath))
         {
-            result.Stats = ParseMeta(File.ReadAllText(metaPath), video?.BitDepth ?? 8);
+            result.Stats = ParseMeta(await File.ReadAllTextAsync(metaPath, ct).ConfigureAwait(false), video?.BitDepth ?? 8);
             TryDelete(metaPath);
         }
         (result.Width, result.Height) = PngSize(outPng);
