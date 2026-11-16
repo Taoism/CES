@@ -6,7 +6,7 @@ internal sealed class CliArgs
     private static readonly HashSet<string> Flags =
     [
         "titles", "verbose", "auto-sync", "curve", "full", "random", "chapters", "no-aspect", "deinterlace", "no-native",
-        "all-playlists", "no-sync", "no-video", "no-audio", "no-crop", "whole", "edits", "smart", "hw", "no-cache",
+        "all-playlists", "no-sync", "no-video", "no-audio", "no-crop", "whole", "edits", "smart", "hw", "no-cache", "slowpics", "public",
     ];
 
     private readonly Dictionary<string, List<string>> _opts = new(StringComparer.Ordinal);

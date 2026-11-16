@@ -373,7 +373,7 @@ public sealed partial class MainWindow
         await RunJobAsync("Writing report", ct =>
         {
             ct.ThrowIfCancellationRequested();
-            html = HtmlReport.Write(outDir, title, _items, _rows.Select(r => r.Row).ToList(), _metrics);
+            html = HtmlReport.Write(outDir, title, _items, _rows.Select(r => r.Row).ToList(), _metrics, _subReports, _slowPicsUrl);
             return Task.CompletedTask;
         });
         if (html != null)

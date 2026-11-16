@@ -90,7 +90,14 @@ public sealed partial class MainWindow
         _busyDisabled.AddRange([take, add, clear]);
 
         var bar1 = new WrapPanel { Orientation = Orientation.Horizontal, ItemSpacing = 8, LineSpacing = 6 };
-        bar1.Children.AddRange([_shotMode, _shotCount, _shotTimes, _shotAspect, _shotDeint, _shotTone, take, add, clear]);
+        ToolTip.SetTip(_shotSubs, "Burn subtitles into the screenshots: each source uses its own track in that language (PGS, VobSub and text).");
+        Avalonia.Automation.AutomationProperties.SetName(_shotSubs, "Screenshot subtitles");
+        _shotSubs.SelectionChanged += async (_, _) =>
+        {
+            if (_rows.Count > 0 && !Busy)
+                await RetakeAllAsync();
+        };
+        bar1.Children.AddRange([_shotMode, _shotCount, _shotTimes, _shotAspect, _shotDeint, _shotTone, _shotSubs, take, add, clear]);
         foreach (var c in bar1.Children.OfType<Control>())
             c.VerticalAlignment = VerticalAlignment.Center;
 
@@ -455,7 +462,7 @@ public sealed partial class MainWindow
                 {
                     var png = Path.Combine(shotDir, $"{Guid.NewGuid():N}.png");
                     var target = FrameMatch.TargetTime(items[0], refFrame, row.Row.Time, items[i]);
-                    var res = await shooter.TakeAsync(items[i].Title, target, png, opt, ct);
+                    var res = await shooter.TakeAsync(items[i].Title, target, png, ShotOptsFor(opt, items[i]), ct);
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         if (i >= row.Row.Shots.Count || !_rows.Contains(row))

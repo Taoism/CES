@@ -12,7 +12,8 @@ public static class HtmlReport
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
-    public static string Write(string outDir, string title, IReadOnlyList<CompareItem> items, IReadOnlyList<ShotRow> shots, IReadOnlyList<(CompareItem Reference, CompareItem Distorted, MetricResult Result)> metrics)
+    public static string Write(string outDir, string title, IReadOnlyList<CompareItem> items, IReadOnlyList<ShotRow> shots, IReadOnlyList<(CompareItem Reference, CompareItem Distorted, MetricResult Result)> metrics,
+        IReadOnlyList<SubtitleTimingReport>? subtitles = null, string? slowPicsUrl = null)
     {
         Directory.CreateDirectory(outDir);
         var imgDir = Path.Combine(outDir, "images");
@@ -21,7 +22,10 @@ public static class HtmlReport
         sb.Append("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
         sb.Append("<title>").Append(H(title)).Append("</title><style>").Append(Css).Append("</style></head><body>");
         sb.Append("<header><h1>").Append(H(title)).Append("</h1><p class=\"muted\">NothingElseCompares2u · ")
-          .Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm", Inv)).Append("</p></header>");
+          .Append(DateTime.Now.ToString("yyyy-MM-dd HH:mm", Inv));
+        if (slowPicsUrl != null)
+            sb.Append(" · <a href=\"").Append(H(slowPicsUrl)).Append("\" style=\"color:var(--accent)\">screenshots on slow.pics</a>");
+        sb.Append("</p></header>");
 
         // sources
         sb.Append("<section><h2>Sources</h2><ol class=\"sources\">");
@@ -55,13 +59,19 @@ public static class HtmlReport
         sb.Append("</tbody></table></div><p class=\"muted\">Highlighted rows differ between sources.</p></section>");
 
         // findings
-        if (items.Any(i => i.Video != null || i.Audio.Count > 0))
+        if (items.Any(i => i.Video != null || i.Audio.Count > 0) || subtitles is { Count: > 0 })
         {
             sb.Append("<section><h2>Findings</h2><div class=\"cards\">");
             for (var i = 0; i < items.Count; i++)
             {
                 var it = items[i];
                 var findings = (it.Video?.Findings ?? []).Concat(it.Audio.SelectMany(a => a.Findings.Select(f => new Finding { Area = $"Audio {a.TrackIndex + 1} · {f.Area}", Text = f.Text, Level = f.Level }))).ToList();
+                if (i > 0)
+                {
+                    findings.AddRange(CrossFindings.Video(items[0], it).Concat(CrossFindings.Audio(items[0], it)).Select(f => new Finding { Area = "vs 1 · " + f.Area, Text = f.Text, Level = f.Level }));
+                    foreach (var sr in subtitles?.Where(s => s.Item == it) ?? [])
+                        findings.AddRange(sr.Findings.Select(f => new Finding { Area = "Subtitles · " + f.Area, Text = f.Text, Level = f.Level }));
+                }
                 if (findings.Count == 0)
                     continue;
                 sb.Append("<div class=\"card\"><h3><span class=\"chip c").Append(i % 6).Append("\">").Append(i + 1).Append("</span> ").Append(H(it.Name)).Append("</h3><ul class=\"findings\">");

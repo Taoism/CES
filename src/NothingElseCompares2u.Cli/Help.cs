@@ -31,6 +31,8 @@ internal static class Help
                       --deinterlace    bwdif before grabbing
                       --height H       scale all shots to H pixels high
                       --subs LANG|N    burn in subtitles (each source's first track in LANG, or track N)
+                      --slowpics       upload the shots to slow.pics (public image host; unlisted unless --public)
+                      --summary bbcode|markdown   print a forum summary (with the slow.pics link)
           video     Image analysis: bit depth, upscale/native resolution, sharpness, black bars, HDR nits, interlacing
                       --points N       sampled frames (default 8)   --curve  print the native-res curve
                       --no-native      skip the native resolution test

@@ -36,6 +36,11 @@ public sealed class AppSettings
 
     public List<string> RecentSessions { get; set; } = [];
 
+    /// <summary>Hardware video decoding (D3D11VA on Windows); off by default — slower than software on fast CPUs.</summary>
+    public bool HardwareDecode { get; set; }
+
+    public int ShotCacheGb { get; set; } = 2;
+
     public double WindowWidth { get; set; } = 1500;
     public double WindowHeight { get; set; } = 920;
     public bool Maximized { get; set; }

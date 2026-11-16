@@ -14,9 +14,11 @@ namespace NothingElseCompares2u.Tools;
 /// </summary>
 public static class ShotCache
 {
-    /// <summary>Cache folder; null switches the cache off.</summary>
-    public static string? Dir { get; set; } =
+    public static readonly string DefaultDir =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NothingElseCompares2u", "cache", "shots");
+
+    /// <summary>Cache folder; null switches the cache off.</summary>
+    public static string? Dir { get; set; } = DefaultDir;
 
     /// <summary>Upper size of the cache; the least recently used shots go first.</summary>
     public static long MaxBytes { get; set; } = 2L * 1024 * 1024 * 1024;

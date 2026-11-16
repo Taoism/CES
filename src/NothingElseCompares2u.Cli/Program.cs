@@ -115,6 +115,18 @@ try
             var outDir = cli.Get("out") ?? Path.Combine(Environment.CurrentDirectory, "nec2u-shots");
             var rows = await ShotsAsync(items, tools, temp, outDir, cli, cts.Token);
             Console.WriteLine($"{rows.Count} × {items.Count} screenshots in {outDir}");
+            string? url = null;
+            if (cli.Has("slowpics"))
+            {
+                // an explicit flag: the user asked to publish these pictures
+                using var sp = new NothingElseCompares2u.Share.SlowPics();
+                var prog = new Progress<(double Fraction, string Text)>(p => Console.Error.Write($"  {p.Text}      "));
+                url = await sp.UploadAsync(cli.Get("title") ?? string.Join(" vs ", items.Select(i => i.Name)), NothingElseCompares2u.Share.SlowPics.FromRows(items, rows), cli.Has("public"), prog, cts.Token);
+                await Console.Error.WriteLineAsync();
+                Console.WriteLine("slow.pics: " + url);
+            }
+            if (cli.Get("summary") is { } sf)
+                Console.WriteLine(NothingElseCompares2u.Share.Summary.Build(sf.StartsWith("m", StringComparison.OrdinalIgnoreCase) ? NothingElseCompares2u.Share.SummaryFormat.Markdown : NothingElseCompares2u.Share.SummaryFormat.BBCode, items, null, url));
             break;
         }
 

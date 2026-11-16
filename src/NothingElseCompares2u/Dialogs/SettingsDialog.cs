@@ -21,6 +21,8 @@ public sealed class SettingsDialog : DialogWindow
     private readonly ComboBox _theme;
     private readonly CheckBox _short;
     private readonly NumericUpDown _seed;
+    private readonly CheckBox _hw;
+    private readonly NumericUpDown _cache;
 
     public SettingsDialog(AppSettings s) : base("Settings", 560)
     {
@@ -30,6 +32,15 @@ public sealed class SettingsDialog : DialogWindow
         _theme = new ComboBox { ItemsSource = new[] { "Dark", "Light", "Follow system" }, SelectedIndex = s.Theme switch { "Light" => 1, "System" => 2, _ => 0 }, Width = 180 };
         _short = new CheckBox { Content = "List Blu-ray playlists shorter than a minute", IsChecked = s.IncludeShortPlaylists };
         _seed = new NumericUpDown { Minimum = 0, Maximum = 999999, Value = s.RandomSeed, FormatString = "0", Width = 150 };
+        _hw = new CheckBox { Content = "Hardware video decoding (D3D11VA / auto)", IsChecked = s.HardwareDecode };
+        _cache = new NumericUpDown { Minimum = 0, Maximum = 100, Value = s.ShotCacheGb, FormatString = "0", Width = 120 };
+        var clear = new Button { Content = "Clear cache" };
+        var size = Label($"{Model.Format.Size(Tools.ShotCache.SizeBytes())} in use", muted: true);
+        clear.Click += (_, _) =>
+        {
+            Tools.ShotCache.Clear();
+            size.Text = $"{Model.Format.Size(Tools.ShotCache.SizeBytes())} in use";
+        };
         SetBody(Column(10,
             Label("ffmpeg folder (with ffmpeg and ffprobe)"),
             PathRow(_ffmpeg, async () =>
@@ -48,7 +59,11 @@ public sealed class SettingsDialog : DialogWindow
             Row(10, Label("Theme"), _theme),
             _short,
             Row(10, Label("Random screenshot seed"), _seed),
-            Label("The same seed picks the same random times again, so later comparisons use the same frames.", muted: true)));
+            Label("The same seed picks the same random times again, so later comparisons use the same frames.", muted: true),
+            Rule(),
+            _hw,
+            Label("Only frames copied back from the GPU can be analysed: on fast CPUs software decoding is quicker (measured: 4K HEVC 3.5 s vs 4.0 s per 10 s).", muted: true),
+            Row(10, Label("Screenshot cache (GB, 0 = off)"), _cache, clear, size)));
     }
 
     protected override Task<bool> ValidateAsync()
@@ -63,6 +78,8 @@ public sealed class SettingsDialog : DialogWindow
         };
         _s.IncludeShortPlaylists = _short.IsChecked == true;
         _s.RandomSeed = (int)(_seed.Value ?? 2024);
+        _s.HardwareDecode = _hw.IsChecked == true;
+        _s.ShotCacheGb = (int)(_cache.Value ?? 2);
         return Task.FromResult(true);
     }
 }

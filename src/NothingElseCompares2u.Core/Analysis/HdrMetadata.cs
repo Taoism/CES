@@ -33,21 +33,30 @@ public sealed class HdrMetadata(FfTools tools)
         var at = seg.InPoint.HasValue ? seg.InPoint.Value + (time - seg.TitleStart) : seg.SeekBase + (time - seg.TitleStart);
         var args = new List<string>
         {
-            "-v", "error", "-select_streams", "v:0", "-read_intervals", $"{at.ToString("0.###", Inv)}%+#1",
-            "-show_frames", "-show_entries", "frame=side_data_list", "-of", "json", seg.Url,
+            // the read starts at the keyframe before 'at': read up to it and keep the frame at that time
+            "-v", "error", "-select_streams", "v:0", "-read_intervals", $"{at.ToString("0.###", Inv)}%{(at + 0.1).ToString("0.###", Inv)}",
+            "-show_frames", "-show_entries", "frame=pts_time,side_data_list", "-of", "json", seg.Url,
         };
         var res = await ProcessRunner.RunAsync(tools.FFprobe, args, ct).ConfigureAwait(false);
-        return Parse(res.StdOutText);
+        return Parse(res.StdOutText, at);
     }
 
-    internal static DynamicHdr? Parse(string json)
+    internal static DynamicHdr? Parse(string json, double at = double.NaN)
     {
         try
         {
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("frames", out var frames))
                 return null;
-            foreach (var fr in frames.EnumerateArray())
+            // the last frame at or before the wanted time (or the first one when none is)
+            var list0 = frames.EnumerateArray().ToList();
+            var pick = list0;
+            if (!double.IsNaN(at) && list0.Count > 1)
+            {
+                var before = list0.Where(fr => fr.TryGetProperty("pts_time", out var pt) && double.TryParse(pt.GetString(), NumberStyles.Float, Inv, out var t) && t <= at + 0.001).ToList();
+                pick = before.Count > 0 ? [before[^1]] : [list0[0]];
+            }
+            foreach (var fr in pick)
             {
                 if (!fr.TryGetProperty("side_data_list", out var list))
                     continue;

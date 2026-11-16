@@ -152,10 +152,12 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
         if (rep.Frames.Count == 0)
             throw new IOException("No frames could be decoded.");
 
-        // crop: the smallest borders seen (bright shots reveal the real picture edge)
+        // crop: the smallest borders seen in reasonably bright frames (dark shots look like black bars)
+        var lit = rep.Frames.Where(f => f.Levels.Mean > (40 << Math.Max(0, v.BitDepth - 8))).ToList();
+        var cropFrom = lit.Count >= 2 ? lit : rep.Frames;
         rep.Crop = new CropBox(
-            rep.Frames.Min(f => f.Crop.Left), rep.Frames.Min(f => f.Crop.Top),
-            rep.Frames.Min(f => f.Crop.Right), rep.Frames.Min(f => f.Crop.Bottom));
+            cropFrom.Min(f => f.Crop.Left), cropFrom.Min(f => f.Crop.Top),
+            cropFrom.Min(f => f.Crop.Right), cropFrom.Min(f => f.Crop.Bottom));
 
         if (opt.NativeResolution)
         {
@@ -225,7 +227,7 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
             f.Add(new Finding { Area = "Levels", Level = 1, Text = $"Limited-range stream with values outside 16–235: {below:P1} below black, {above:P1} above white (full-range source or level shift?)." });
 
         // crop
-        if (rep.Crop is { } c && (c.Top + c.Bottom + c.Left + c.Right) > 4)
+        if (rep.Crop is { } c && (c.Top + c.Bottom + c.Left + c.Right) > 4 && rep.Frames.Count >= 3)
         {
             var w = c.Width(rep.Width);
             var h = c.Height(rep.Height);
@@ -250,13 +252,13 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
         {
             var peak = rep.Frames.Max(x => x.PeakNits);
             var avg = rep.Frames.Average(x => x.AvgNits);
-            var lvl = peak < 200 ? 2 : 0;
+            var lvl = peak < 120 && rep.Frames.Count >= 6 ? 1 : 0;
             f.Add(new Finding
             {
                 Area = "HDR",
                 Level = lvl,
                 Text = $"Measured luma peak ≈ {peak:0} nits, average ≈ {avg:0.0} nits over the samples" +
-                       (lvl == 2 ? " — PQ stream that never goes above SDR brightness (fake/flat HDR?)." : ".") +
+                       (lvl > 0 ? " — no sampled frame goes above SDR brightness: a very conservative grade or flat HDR (check bright shots)." : ".") +
                        (v.ContentLight.Length > 0 ? $" Metadata: {v.ContentLight}." : ""),
             });
         }

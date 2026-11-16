@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using NothingElseCompares2u.Analysis;
+using NothingElseCompares2u.Compare;
 using NothingElseCompares2u.Controls;
 using NothingElseCompares2u.Model;
 
@@ -102,7 +103,7 @@ public sealed partial class MainWindow
             if (rep == null)
                 continue;
             any = true;
-            _videoFindings.Children.Add(FindingsCard(i, _items[i].Name, rep.Findings));
+            _videoFindings.Children.Add(CrossCard(i, _items[i].Name, rep.Findings, i > 0 ? CrossFindings.Video(_items[0], _items[i]) : []));
         }
         if (!any)
             _videoFindings.Children.Add(Muted("Press “Analyse video”: frames are sampled across the timeline of each source (with its offset).", 13));
@@ -256,7 +257,8 @@ public sealed partial class MainWindow
         {
             foreach (var rep in _items[i].Audio)
             {
-                var card = FindingsCard(i, $"{_items[i].Name} · track {rep.TrackIndex + 1}: {rep.Stream.Label}", rep.Findings);
+                var first = _items[i].Audio.FirstOrDefault() == rep;
+                var card = CrossCard(i, $"{_items[i].Name} · track {rep.TrackIndex + 1}: {rep.Stream.Label}", rep.Findings, i > 0 && first ? CrossFindings.Audio(_items[0], _items[i]) : []);
                 if (card.Child is StackPanel sp && rep.Channels.Count > 0)
                 {
                     var table = new Grid { ColumnDefinitions = new ColumnDefinitions("60,110,110,110,110,*"), Margin = new Thickness(0, 6, 0, 0) };

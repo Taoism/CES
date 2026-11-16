@@ -121,6 +121,10 @@ public sealed partial class MainWindow : Window
                         MenuItemFor("Export HTML _report…", ExportReportAsync, new KeyGesture(Key.E, KeyModifiers.Control)),
                         MenuItemFor("Save _screenshots…", ExportShotsAsync),
                         new Separator(),
+                        MenuItemFor("_Upload screenshots to slow.pics…", UploadSlowPicsAsync),
+                        MenuItemFor("Copy summary (_BBCode)", () => CopySummaryAsync(Share.SummaryFormat.BBCode)),
+                        MenuItemFor("Copy summary (_Markdown)", () => CopySummaryAsync(Share.SummaryFormat.Markdown)),
+                        new Separator(),
                         MenuItemFor("_Settings…", ShowSettingsAsync),
                         new Separator(),
                         MenuItemFor("E_xit", () =>
@@ -204,6 +208,7 @@ public sealed partial class MainWindow : Window
         _tabs.Items.Add(new TabItem { Header = "Video analysis", Content = BuildVideoTab() });
         _tabs.Items.Add(new TabItem { Header = "Audio analysis", Content = BuildAudioTab() });
         _tabs.Items.Add(new TabItem { Header = "Quality metrics", Content = BuildQualityTab() });
+        _tabs.Items.Add(new TabItem { Header = "Subtitles", Content = BuildSubsTab() });
         _tabs.Items.Add(new TabItem { Header = "Discs", Content = BuildDiscTab() });
         _tabs.Items.Add(new TabItem { Header = "Log", Content = new Border { Classes = { "panel" }, Child = _log, Margin = new Thickness(0, 6, 0, 0) } });
 
@@ -255,8 +260,16 @@ public sealed partial class MainWindow : Window
           Ctrl+E           export HTML report
         """;
 
+    private void ApplyRuntimeSettings()
+    {
+        Tools.InputBuilder.HardwareDecode = _settings.HardwareDecode ? (OperatingSystem.IsWindows() ? "d3d11va" : "auto") : null;
+        Tools.ShotCache.Dir = _settings.ShotCacheGb > 0 ? Tools.ShotCache.DefaultDir : null;
+        Tools.ShotCache.MaxBytes = Math.Max(1, _settings.ShotCacheGb) * 1024L * 1024 * 1024;
+    }
+
     private async Task StartupAsync(string[] args)
     {
+        ApplyRuntimeSettings();
         SetStatus("Looking for ffmpeg…");
         var (tools, error) = await FfTools.LocateAsync(_settings.FFmpegFolder, _settings.MediaInfoPath);
         _tools = tools;
@@ -407,6 +420,9 @@ public sealed partial class MainWindow : Window
         RefreshAudioResults();
         RefreshQualitySetup();
         RefreshDiscTab();
+        RefreshSubtitleChoices();
+        RefreshSubsSetup();
+        RefreshSubResults();
     }
 
     private void RebuildSourceCards()
@@ -788,6 +804,7 @@ public sealed partial class MainWindow : Window
         {
             _settings.Save();
             App.ApplyTheme(_settings.Theme);
+            ApplyRuntimeSettings();
             var (tools, error) = await FfTools.LocateAsync(_settings.FFmpegFolder, _settings.MediaInfoPath);
             if (tools != null)
             {
