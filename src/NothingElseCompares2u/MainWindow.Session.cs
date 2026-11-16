@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using NothingElseCompares2u.Analysis;
 using NothingElseCompares2u.Compare;
 using NothingElseCompares2u.Dialogs;
 using NothingElseCompares2u.Disc;
@@ -51,6 +52,11 @@ public sealed partial class MainWindow
                 Sections = it.Sections.Select(x => new SyncSection { Start = x.Start, Offset = x.Offset }).ToList(),
                 Video = it.Video,
                 Audio = it.Audio,
+                GradeFrames = it.Grade?.Frames ?? [],
+                GradeFindings = it.Grade?.Findings ?? [],
+                TemporalFindings = it.Temporal?.Findings ?? [],
+                FrameEvents = it.Temporal?.Events ?? [],
+                Ivtc = it.Ivtc,
             };
             foreach (var a in it.Audio)
             {
@@ -132,6 +138,19 @@ public sealed partial class MainWindow
                     item.Sections.AddRange(ss.Sections);
                     item.Synced = ss.Synced;
                     item.Video = ss.Video;
+                    item.Ivtc = ss.Ivtc;
+                    if (ss.GradeFrames.Count > 0 || ss.GradeFindings.Count > 0)
+                    {
+                        item.Grade = new GradeReport { Item = item };
+                        item.Grade.Frames.AddRange(ss.GradeFrames);
+                        item.Grade.Findings.AddRange(ss.GradeFindings);
+                    }
+                    if (ss.TemporalFindings.Count > 0)
+                    {
+                        item.Temporal = new TemporalReport { Item = item };
+                        item.Temporal.Findings.AddRange(ss.TemporalFindings);
+                        item.Temporal.Events.AddRange(ss.FrameEvents);
+                    }
                     foreach (var a in ss.Audio)
                     {
                         if (ss.Spectrograms.TryGetValue(a.TrackIndex, out var b64))

@@ -233,10 +233,15 @@ try
                 var g = await gc.CompareAsync(items[0], items[i], times, progress, cts.Token);
                 Console.WriteLine($"== {items[i].Name} compared with {items[0].Name} ({g.Frames.Count} frames)");
                 PrintFindings(g.Findings);
+                if (!cli.Has("no-temporal"))
+                {
+                    var tr = await new TemporalCompare(tools, temp).CompareAsync(items[0], items[i], cli.Get("windows") is { } wn ? int.Parse(wn, CultureInfo.InvariantCulture) : 5, 4, progress, cts.Token);
+                    PrintFindings(tr.Findings);
+                }
                 if (cli.Has("curve"))
                 {
                     foreach (var fr in g.Frames)
-                        Console.WriteLine($"     {Format.Time(fr.Time, false)}  scale {fr.Scale:0.000}  shift {fr.ShiftX:+0.0;-0.0;0.0}/{fr.ShiftY:+0.0;-0.0;0.0} %  match {fr.Match:0.00}  sat {fr.SaturationRatio:0.00}  a {fr.DeltaA:+0.0;-0.0;0.0} b {fr.DeltaB:+0.0;-0.0;0.0}");
+                        Console.WriteLine($"     {Format.Time(fr.Time, false)}  scale {fr.Scale:0.000}  shift {fr.ShiftX:+0.0;-0.0;0.0}/{fr.ShiftY:+0.0;-0.0;0.0} %  match {fr.Match:0.00}  mid ΔL* {(fr.RefL.Length > 3 ? fr.OtherL[3] - fr.RefL[3] : double.NaN):+0.0;-0.0;0.0}  sat {fr.SaturationRatio:0.00}  a {fr.DeltaA:+0.0;-0.0;0.0} b {fr.DeltaB:+0.0;-0.0;0.0}");
                 }
             }
             break;

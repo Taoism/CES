@@ -126,3 +126,108 @@ public class SubtitleTimingTests
         Assert.InRange(r.DriftPerHour, 0.18, 0.22);
     }
 }
+
+public class GradeOverTimeTests
+{
+    private static GradeReport Report(params (double Mid, double Sat, double B)[] frames)
+    {
+        var item = new CompareItem
+        {
+            Source = new MediaSource { Path = "x.mkv", Kind = SourceKind.File },
+            Title = new MediaTitle { Name = "x" },
+        };
+        var r = new GradeReport { Item = item };
+        for (var i = 0; i < frames.Length; i++)
+        {
+            var (mid, sat, b) = frames[i];
+            r.Frames.Add(new GradeFrame
+            {
+                Time = i * 10,
+                Match = 0.6,
+                RefL = [5, 15, 30, 50, 70, 85, 95],
+                OtherL = [5, 15, 30, 50 + mid, 70, 85, 95],
+                SaturationRatio = sat,
+                ContrastRatio = 1,
+                DeltaA = 0,
+                DeltaB = b,
+            });
+        }
+        return r;
+    }
+
+    [Fact]
+    public void FlagsShotByShotGrade()
+    {
+        var r = Report((0, 1, 0), (0, 1, 0), (9, 1.3, 10), (9, 1.3, 11), (-9, 0.8, -5), (-9, 0.8, -5));
+        GradeCompare.BuildFindings(r);
+        var f = Assert.Single(r.Findings, x => x.Area == "Over time");
+        Assert.Equal(1, f.Level);
+        Assert.DoesNotContain(r.Findings, x => x.Text == "Same saturation.");
+    }
+
+    [Fact]
+    public void GlobalBoostIsSteady()
+    {
+        // one saturation boost reads as +19 … +53 % between pale and colourful shots: still one global grade
+        var r = Report((5, 1.19, 6), (5, 1.3, 6), (6, 1.53, 7), (5, 1.25, 6), (5, 1.4, 6), (6, 1.35, 7));
+        GradeCompare.BuildFindings(r);
+        Assert.Equal(0, Assert.Single(r.Findings, x => x.Area == "Over time").Level);
+        Assert.Contains(r.Findings, x => x.Area == "Grade" && x.Text.Contains("consistent", StringComparison.Ordinal));
+    }
+}
+
+public class TemporalTests
+{
+    private const int W = TemporalCompare.W;
+    private const int H = TemporalCompare.H;
+
+    private static float[] Texture(double dx, double dy)
+    {
+        var p = new float[W * H];
+        for (var y = 0; y < H; y++)
+        {
+            for (var x = 0; x < W; x++)
+            {
+                double u = x + dx, v = y + dy;
+                p[y * W + x] = (float)(128 + 40 * Math.Sin(u * 0.21) * Math.Cos(v * 0.17) + 30 * Math.Sin((u + v) * 0.09) + 20 * Math.Cos(u * 0.05 - v * 0.11));
+            }
+        }
+        return p;
+    }
+
+    private static List<GrayFrame> Frames(int n, Func<int, (double X, double Y)> shift) =>
+        Enumerable.Range(0, n).Select(i =>
+        {
+            var (x, y) = shift(i);
+            var px = Texture(x, y);
+            return new GrayFrame(i / 24.0, px, px.Average());
+        }).ToList();
+
+    [Fact]
+    public void WeaveIsJitterButAPanIsNot()
+    {
+        var pan = TemporalCompare.Jitter(Frames(24, i => (i * 2.0, 0)));
+        var weave = TemporalCompare.Jitter(Frames(24, i => (i * 2.0 + (i % 2 == 0 ? 1.5 : -1.5), i % 3 - 1.0)));
+        Assert.InRange(pan, 0, 0.3);
+        Assert.True(weave > 1, $"weave {weave}");
+    }
+
+    [Fact]
+    public void CountsTransientSpecks()
+    {
+        var clean = Frames(10, _ => (0, 0));
+        Assert.Equal(0, TemporalCompare.Specks(clean));
+        var rnd = new Random(1);
+        var dirty = clean.Select((f, i) =>
+        {
+            var px = (float[])f.Pixels.Clone();
+            if (i % 2 == 1)
+            {
+                for (var k = 0; k < 40; k++)
+                    px[rnd.Next(px.Length)] = 250;
+            }
+            return f with { Pixels = px };
+        }).ToList();
+        Assert.InRange(TemporalCompare.Specks(dirty), 15, 45);
+    }
+}

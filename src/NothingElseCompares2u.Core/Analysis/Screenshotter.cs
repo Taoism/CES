@@ -103,7 +103,7 @@ public sealed partial class Screenshotter(FfTools tools, string tempDir)
         // a subtitle shown now may have started seconds ago: decode from earlier so it is on screen
         var input = InputBuilder.Input(title, time, 2, tempDir, minPreroll: sub != null ? 10 : 0);
         var chain = new List<string>();
-        var sw = InputBuilder.SoftwareFormat(title);
+        var sw = InputBuilder.VideoPrefix(title);
         if (sw.Length > 0)
             chain.Add(sw.TrimEnd(','));
         if (input.Skip > 0)
@@ -168,7 +168,7 @@ public sealed partial class Screenshotter(FfTools tools, string tempDir)
         {
             // after an input -ss the target frame is at 0: pts_time is the distance from the requested time
             if (double.TryParse(m.Groups["t"].Value, NumberStyles.Float, Inv, out var pt))
-                result.FrameTime = time - input.Skip + pt;
+                result.FrameTime = time - input.Skip + pt - (input.VideoTrimStart - input.Skip);
             result.PictType = m.Groups["type"].Value;
             result.KeyFrame = m.Groups["key"].Value == "1";
         }
@@ -193,10 +193,10 @@ public sealed partial class Screenshotter(FfTools tools, string tempDir)
         var input = InputBuilder.Input(title, time, 2, tempDir);
         var args = new List<string> { "-hide_banner", "-nostdin" };
         args.AddRange(input.Args);
-        args.AddRange(["-map", "0:v:0", "-an", "-sn", "-dn", "-vf", input.TrimFilter + "showinfo", "-frames:v", "1", "-f", "null", "-"]);
+        args.AddRange(["-map", "0:v:0", "-an", "-sn", "-dn", "-vf", InputBuilder.VideoPrefix(title) + input.TrimFilter + "showinfo", "-frames:v", "1", "-f", "null", "-"]);
         var res = await ProcessRunner.RunAsync(tools.FFmpeg, args, ct).ConfigureAwait(false);
         var m = ShowInfoRegex().Match(res.StdErr);
-        return m.Success && double.TryParse(m.Groups["t"].Value, NumberStyles.Float, Inv, out var pt) ? time - input.Skip + pt : double.NaN;
+        return m.Success && double.TryParse(m.Groups["t"].Value, NumberStyles.Float, Inv, out var pt) ? time - input.Skip + pt - (input.VideoTrimStart - input.Skip) : double.NaN;
     }
 
     internal static FrameStats ParseMeta(string text, int bitDepth)

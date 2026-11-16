@@ -1,5 +1,6 @@
 using NothingElseCompares2u.Analysis;
 using NothingElseCompares2u.Model;
+using NothingElseCompares2u.Tools;
 
 namespace NothingElseCompares2u.Compare;
 
@@ -47,11 +48,21 @@ public sealed class CompareItem
     /// <summary>The time map was set by auto-sync or by hand (ranking syncs the others first).</summary>
     public bool Synced { get; set; }
 
+    /// <summary>Inverse telecine for this source's title (see <see cref="MediaTitle.Ivtc"/>).</summary>
+    public bool Ivtc
+    {
+        get => Title.Ivtc;
+        set => Title.Ivtc = value;
+    }
+
     public VideoReport? Video { get; set; }
     public List<AudioReport> Audio { get; } = [];
 
     /// <summary>Grade and framing compared with the reference (null until measured).</summary>
     public GradeReport? Grade { get; set; }
+
+    /// <summary>Frame timing, dirt and stabilisation compared with the reference (null until measured).</summary>
+    public TemporalReport? Temporal { get; set; }
 
     public string Name => Label.Length > 0 ? Label : Source.DisplayName;
 
@@ -143,7 +154,7 @@ public static class FrameMatch
         var t = reference.TimelineTime(rt);
         if (item.SourceTime(t) is not { } st)
             return null;
-        var fps = item.Title.Info?.Video?.FrameRate is > 0 and var f ? f : 24000 / 1001.0;
+        var fps = InputBuilder.FrameRate(item.Title) is > 0 and var f ? f : 24000 / 1001.0;
         return Math.Max(0, st - 0.5 / fps);
     }
 }

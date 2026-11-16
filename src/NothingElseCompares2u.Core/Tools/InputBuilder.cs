@@ -4,20 +4,27 @@ using NothingElseCompares2u.Model;
 
 namespace NothingElseCompares2u.Tools;
 
-/// <summary>Builds ffmpeg input arguments that start at a given title time, for files and disc titles alike.</summary>
 /// <summary>ffmpeg input arguments plus the seconds to discard after decoding (see <see cref="InputBuilder.Input"/>).</summary>
 public sealed record InputSpec(List<string> Args, double Skip)
 {
+    /// <summary>
+    /// Where the video trim cuts (after <see cref="InputBuilder.VideoPrefix"/>): the preroll, except after inverse
+    /// telecine — decimate re-times frames onto an even grid from the first decoded frame (about one film frame later
+    /// than their source time), so the cut moves by 1/23.976 − 1/59.94: the middle of that uncertainty.
+    /// </summary>
+    public double VideoTrimStart { get; init; } = Skip;
+
     /// <summary>Output-side "-ss" that drops the preroll (empty when there is none).</summary>
     public List<string> OutputSkip => Skip > 0 ? ["-ss", InputBuilder.S(Skip)] : [];
 
-    /// <summary>Filter prefix that drops the preroll inside a filter graph.</summary>
-    public string TrimFilter => Skip > 0 ? $"trim=start={InputBuilder.S(Skip)}," : "";
+    /// <summary>Filter prefix that drops the preroll inside a filter graph (video, after the video prefix).</summary>
+    public string TrimFilter => VideoTrimStart > 0 ? $"trim=start={InputBuilder.S(VideoTrimStart)}," : "";
 
     /// <summary>Audio filter prefix that drops the preroll.</summary>
     public string ATrimFilter => Skip > 0 ? $"atrim=start={InputBuilder.S(Skip)}," : "";
 }
 
+/// <summary>Builds ffmpeg input arguments that start at a given title time, for files and disc titles alike.</summary>
 public static class InputBuilder
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
@@ -35,6 +42,24 @@ public static class InputBuilder
         HardwareDecode != null && title.Info?.Video?.PixFmt is { Length: > 0 } pf ? $"format={pf}," : "";
 
     /// <summary>
+    /// Start of every video filter chain: back to software frames after hwaccel, then inverse telecine for titles
+    /// marked <see cref="MediaTitle.Ivtc"/> (field matching + dropping the duplicate of each 5).
+    /// </summary>
+    public static string VideoPrefix(MediaTitle title) =>
+        SoftwareFormat(title) + (title.Ivtc ? "fieldmatch=order=auto:combmatch=full,yadif=deint=interlaced,decimate," : "");
+
+    /// <summary>Frame rate of the video as the filters deliver it (4/5 of the stream's rate after inverse telecine).</summary>
+    public static double FrameRate(MediaTitle title)
+    {
+        var fr = title.Info?.Video?.FrameRate ?? 0;
+        return title.Ivtc ? fr * 4 / 5 : fr;
+    }
+
+    /// <summary>Looks like 3:2 pulldown material: 29.97 against a 23.976 partner.</summary>
+    public static bool PulldownPair(double streamFps, double otherFps) =>
+        Math.Abs(streamFps - 30000 / 1001.0) < 0.02 && Math.Abs(otherFps - 24000 / 1001.0) < 0.02;
+
+    /// <summary>
     /// Input arguments ("-ss …", "-i …") positioned at <paramref name="time"/> (title seconds), able to read
     /// <paramref name="length"/> seconds (null = to the end). Short reads inside one segment open that segment
     /// directly; longer reads go through a concat list in <paramref name="tempDir"/>.
@@ -46,6 +71,9 @@ public static class InputBuilder
         if (title.IsStill)
             return new InputSpec(["-i", title.Segments[0].Url], 0);
         time = Math.Max(0, time);
+        // inverse telecine needs a few cycles to lock onto the 3:2 pattern: start early, trim by time after it
+        if (title.Ivtc && exactSeek)
+            minPreroll = Math.Max(minPreroll, 1);
         var seg = SegmentAt(title, time);
         var args = new List<string>();
         var end = length.HasValue ? time + length.Value : double.MaxValue;
@@ -73,7 +101,7 @@ public static class InputBuilder
             if (seg.Format != null)
                 args.AddRange(["-f", seg.Format]);
             args.AddRange(["-i", seg.Url]);
-            return new InputSpec(args, skip);
+            return new InputSpec(args, skip) { VideoTrimStart = VideoTrim(title, skip) };
         }
 
         // spans segments: concat demuxer list starting at the segment that holds 'time'
@@ -94,7 +122,15 @@ public static class InputBuilder
         var listPath = Path.Combine(tempDir, $"concat-{Guid.NewGuid():N}.ffconcat");
         File.WriteAllText(listPath, list.ToString(), new UTF8Encoding(false));
         args.AddRange(["-f", "concat", "-safe", "0", "-protocol_whitelist", "file,subfile,concat,crypto,data", "-i", listPath]);
-        return new InputSpec(args, skip);
+        return new InputSpec(args, skip) { VideoTrimStart = VideoTrim(title, skip) };
+    }
+
+    private static double VideoTrim(MediaTitle title, double skip)
+    {
+        if (!title.Ivtc || skip <= 0)
+            return skip;
+        var stream = title.Info?.Video?.FrameRate is > 0 and var f ? f : 30000 / 1001.0;
+        return skip + 1 / (stream * 4 / 5) - 0.5 / stream;
     }
 
     private static bool IsTsOrPs(TitleSegment seg)

@@ -55,6 +55,12 @@ public sealed class MediaTitle
     /// <summary>A still image: one picture, the same at every time.</summary>
     public bool IsStill { get; set; }
 
+    /// <summary>
+    /// Inverse telecine: the video is 23.976 film with 3:2 pulldown in a 29.97 stream; every video filter chain starts
+    /// with fieldmatch + decimate so frames pair one to one with a 23.976 source.
+    /// </summary>
+    public bool Ivtc { get; set; }
+
     /// <summary>Filled by the prober.</summary>
     public MediaInfoSummary? Info { get; set; }
 

@@ -63,6 +63,13 @@ public sealed class GradeReport
         }
         return (r, o);
     }
+
+    /// <summary>Per matched frame, in time order: midtone ΔL*, chroma change in %, and Δb* (warm/cool).</summary>
+    public List<(double Time, double MidL, double ChromaPct, double DeltaB)> OverTime() =>
+        Frames.Where(x => x.Match > 0.1 && x.RefL.Length == Percentiles.Length)
+              .OrderBy(x => x.Time)
+              .Select(x => (x.Time, x.OtherL[3] - x.RefL[3], (x.SaturationRatio - 1) * 100, x.DeltaB))
+              .ToList();
 }
 
 /// <summary>
@@ -81,7 +88,7 @@ public sealed class GradeCompare(FfTools tools, string tempDir)
             return null;
         var input = InputBuilder.Input(title, time, 2, tempDir);
         var chain = new List<string>();
-        var sw = InputBuilder.SoftwareFormat(title);
+        var sw = InputBuilder.VideoPrefix(title);
         if (sw.Length > 0)
             chain.Add(sw.TrimEnd(','));
         if (input.Skip > 0)
@@ -208,7 +215,7 @@ public sealed class GradeCompare(FfTools tools, string tempDir)
     }
 
     /// <summary>Phase correlation (windowed, edges filled with the mean): shift of b relative to a and the peak height.</summary>
-    private static (double Dx, double Dy, double Peak) PhaseCorrelate(float[] a, float[] b, int w, int h)
+    internal static (double Dx, double Dy, double Peak) PhaseCorrelate(float[] a, float[] b, int w, int h)
     {
         var n = Fft.NextPow2(Math.Max(w, h));
         var ar = new double[n * n];
@@ -359,7 +366,7 @@ public sealed class GradeCompare(FfTools tools, string tempDir)
         return (116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz));
     }
 
-    private static void BuildFindings(GradeReport rep)
+    internal static void BuildFindings(GradeReport rep)
     {
         var f = rep.Findings;
         var good = rep.Frames.Where(x => x.Match > 0.1).ToList();
@@ -431,14 +438,66 @@ public sealed class GradeCompare(FfTools tools, string tempDir)
                 cast.Add(da > 0 ? $"more magenta (a* {da:+0.0;-0.0;0.0})" : $"greener (a* {da:+0.0;-0.0;0.0})");
             f.Add(new Finding { Area = "Colour", Level = cast.Count > 0 ? 1 : 0, Text = cast.Count > 0 ? "Colour cast: " + string.Join(", ", cast) + "." : "Same colour balance." });
         }
-        if (f.Count(x => x.Level > 0 && x.Area is "Tone" or "Contrast" or "Saturation" or "Colour") >= 2)
+        var varies = ShotVariation(rep, f);
+        // "same …" from the medians is misleading when shots go both ways
+        if (varies)
+            f.RemoveAll(x => x.Level == 0 && x.Area is "Tone" or "Saturation" or "Colour");
+        if (f.Count(x => x.Level > 0 && x.Area is "Tone" or "Contrast" or "Saturation" or "Colour" or "Over time") >= 2)
             f.Insert(0, new Finding
             {
                 Area = "Grade",
                 Level = 2,
-                Text = good.Count > 1
-                    ? "Re-graded: the colour/tone differences are consistent across shots — a different master or colour grade, not encoding loss."
-                    : "Re-graded: colour and tone differ beyond encoding loss — a different master or colour grade.",
+                Text = varies
+                    ? "Re-graded shot by shot: colour and tone differ beyond encoding loss, and by different amounts in different shots."
+                    : good.Count > 1
+                        ? "Re-graded: the colour/tone differences are consistent across shots — a different master or colour grade, not encoding loss."
+                        : "Re-graded: colour and tone differ beyond encoding loss — a different master or colour grade.",
             });
+    }
+
+    /// <summary>
+    /// Grade over time: when the per-shot differences spread widely, the new grade was done shot by shot (or the
+    /// master differs per reel) rather than as one global adjustment. Adds a finding and returns true in that case.
+    /// </summary>
+    private static bool ShotVariation(GradeReport rep, List<Finding> f)
+    {
+        var t = rep.OverTime();
+        if (t.Count < 4)
+            return false;
+        // trimmed range (drop the single most extreme frame on each side) so one odd match does not decide
+        static (double Lo, double Hi, int LoAt, int HiAt) Range(List<double> v)
+        {
+            var idx = Enumerable.Range(0, v.Count).Where(i => !double.IsNaN(v[i])).OrderBy(i => v[i]).ToList();
+            if (idx.Count < 4)
+                return (0, 0, -1, -1);
+            return (v[idx[1]], v[idx[^2]], idx[1], idx[^2]);
+        }
+        var parts = new List<string>();
+        int? at = null;
+        void Check(string name, List<double> v, double limit, string unit)
+        {
+            var (lo, hi, loAt, hiAt) = Range(v);
+            // chroma is a factor: one global boost spreads in % between pale and colourful shots, so compare factors
+            var spread = unit == " %" ? (1 + hi / 100) / Math.Max(0.01, 1 + lo / 100) : hi - lo;
+            if (spread < limit)
+                return;
+            parts.Add($"{name} {lo:+0.0;-0.0;0.0} … {hi:+0.0;-0.0;0.0}{unit}");
+            at ??= Math.Abs(hi) > Math.Abs(lo) ? hiAt : loAt;
+        }
+        Check("midtones", t.Select(x => x.MidL).ToList(), 6, " L*");
+        Check("chroma", t.Select(x => x.ChromaPct).ToList(), 1.4, " %");
+        Check("warmth", t.Select(x => x.DeltaB).ToList(), 4, " b*");
+        if (parts.Count == 0)
+        {
+            f.Add(new Finding { Area = "Over time", Level = 0, Text = $"The difference is steady across the {t.Count} points (one global grade)." });
+            return false;
+        }
+        f.Add(new Finding
+        {
+            Area = "Over time",
+            Level = 1,
+            Text = $"Differs by shot: {string.Join(", ", parts)} across {t.Count} points" + (at is { } i ? $" (largest near {Format.Time(t[i].Time)})" : "") + ".",
+        });
+        return true;
     }
 }

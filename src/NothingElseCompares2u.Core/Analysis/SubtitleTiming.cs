@@ -37,19 +37,24 @@ public sealed class SubtitleTiming(FfTools tools)
     /// <summary>Events of subtitle stream <paramref name="track"/> (index among subtitle streams), in title time.</summary>
     public async Task<List<SubtitleEvent>> ReadAsync(MediaTitle title, int track, IProgress<double>? progress = null, CancellationToken ct = default)
     {
-        var codec = title.Info?.Subtitles.ElementAtOrDefault(track)?.Codec ?? "";
+        var stream = title.Info?.Subtitles.ElementAtOrDefault(track);
+        var codec = stream?.Codec ?? "";
         var bitmap = codec is "hdmv_pgs_subtitle" or "dvd_subtitle" or "dvb_subtitle";
         var events = new List<SubtitleEvent>();
         foreach (var seg in title.Segments)
         {
             ct.ThrowIfCancellationRequested();
-            if (seg.Format == "mpeg")
-                throw new InvalidOperationException("Subtitle timing is not available for DVD titles yet.");
-            var args = new List<string> { "-v", "error", "-select_streams", $"s:{track}", "-show_entries", "packet=pts_time,duration_time,size", "-of", "csv=p=0" };
-            args.Add(seg.Url);
+            var mpeg = seg.Format == "mpeg";
+            // DVD cells: which subpicture streams a cell holds varies, so pick the stream by its MPEG id (0x20…)
+            var select = mpeg && stream?.Id is { Length: > 0 } id ? $"i:{id}" : $"s:{track}";
+            var args = new List<string> { "-v", "error" };
+            if (mpeg)
+                args.AddRange(["-f", "mpeg", "-analyzeduration", "50M", "-probesize", "50M"]);
+            args.AddRange(["-select_streams", select, "-show_entries", "packet=pts_time,duration_time,size", "-of", "csv=p=0", seg.Url]);
             var res = await ProcessRunner.RunAsync(tools.FFprobe, args, ct).ConfigureAwait(false);
             // title time of a packet: segment start + (packet time − where the segment's play range begins)
-            var origin = seg.InPoint ?? await StartTimeAsync(seg.Url, ct).ConfigureAwait(false);
+            var origin = seg.InPoint ?? await StartTimeAsync(seg.Url, mpeg, ct).ConfigureAwait(false);
+            var lastPts = double.NaN;
             foreach (var line in res.StdOutText.Split('\n'))
             {
                 var p = line.Trim().Split(',');
@@ -63,6 +68,10 @@ public sealed class SubtitleTiming(FfTools tools)
                 // MP4 text tracks fill the gaps between lines with empty samples
                 if (!bitmap && size <= 2)
                     continue;
+                // a DVD subpicture can span several PES packets with the same time: one line
+                if (Math.Abs(pts - lastPts) < 1e-6)
+                    continue;
+                lastPts = pts;
                 var t = seg.TitleStart + pts - origin;
                 if (t >= seg.TitleStart - 0.5 && t <= seg.TitleStart + seg.Duration + 0.5)
                     events.Add(new SubtitleEvent(t, dur));
@@ -72,9 +81,13 @@ public sealed class SubtitleTiming(FfTools tools)
         return events.OrderBy(e => e.Start).ToList();
     }
 
-    private async Task<double> StartTimeAsync(string url, CancellationToken ct)
+    private async Task<double> StartTimeAsync(string url, bool mpeg, CancellationToken ct)
     {
-        var res = await ProcessRunner.RunAsync(tools.FFprobe, ["-v", "error", "-show_entries", "format=start_time", "-of", "csv=p=0", url], ct).ConfigureAwait(false);
+        List<string> args = ["-v", "error"];
+        if (mpeg)
+            args.AddRange(["-f", "mpeg", "-analyzeduration", "50M", "-probesize", "50M"]);
+        args.AddRange(["-show_entries", "format=start_time", "-of", "csv=p=0", url]);
+        var res = await ProcessRunner.RunAsync(tools.FFprobe, args, ct).ConfigureAwait(false);
         return double.TryParse(res.StdOutText.Trim(), NumberStyles.Float, Inv, out var s) ? s : 0;
     }
 
@@ -90,7 +103,7 @@ public sealed class SubtitleTiming(FfTools tools)
             ReferenceEvents = refEvents.Count,
         };
         var other = events.Select(e => item.TimelineOf(e.Start)).OfType<double>().Order().ToArray();
-        var fps = reference.Title.Info?.Video?.FrameRate is > 0 and var f ? f : 24;
+        var fps = InputBuilder.FrameRate(reference.Title) is > 0 and var f ? f : 24;
         var used = new bool[other.Length];
         foreach (var e in refEvents)
         {

@@ -53,6 +53,12 @@ public sealed class SyncResult
     /// <summary>Different edits: piecewise offsets (empty when one offset fits the whole title).</summary>
     public List<SyncSection> Sections { get; } = [];
 
+    /// <summary>Which side got inverse telecine (3:2 pulldown removed), null when none.</summary>
+    public string? Ivtc { get; set; }
+
+    /// <summary>How many cut points were placed on the exact frame by the picture.</summary>
+    public int FrameExactCuts { get; set; }
+
     public string Summary
     {
         get
@@ -66,13 +72,15 @@ public sealed class SyncResult
                 s += $", speed ×{Speed:0.#####} ({SpeedName(Speed)})";
             if (VideoCorrection is { } vc)
                 s += Math.Abs(vc) > 0.001 ? $", picture-matched (audio alone said {AudioOffset:+0.000;-0.000;0.000} s)" : ", picture-matched";
+            if (Ivtc != null)
+                s += $", 3:2 pulldown removed on {Ivtc} (inverse telecine)";
             if (Sections.Count > 0)
             {
-                s += $"\nDifferent edit — {Sections.Count} sections:";
+                s += $"\nDifferent edit — {Sections.Count} sections" + (FrameExactCuts > 0 ? $" ({FrameExactCuts} cut{(FrameExactCuts == 1 ? "" : "s")} on the exact frame)" : "") + ":";
                 for (var i = 0; i < Sections.Count; i++)
                 {
-                    var end = i + 1 < Sections.Count ? Format.Time(Sections[i + 1].Start, false) : "end";
-                    s += $"\n  {Format.Time(Sections[i].Start, false)} – {end}: " + (Sections[i].Offset is { } o ? $"{o:+0.000;-0.000;0.000} s" : "not in this source");
+                    var end = i + 1 < Sections.Count ? Format.Time(Sections[i + 1].Start) : "end";
+                    s += $"\n  {Format.Time(Sections[i].Start)} – {end}: " + (Sections[i].Offset is { } o ? $"{o:+0.000;-0.000;0.000} s" : "not in this source");
                 }
             }
             else if (Math.Abs(Drift) > 0.08)
@@ -127,10 +135,28 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
                 return result;
         }
 
+        // 29.97 with 3:2 pulldown against 23.976 film: remove the pulldown so frames pair one to one
+        foreach (var (tel, film) in new[] { (other, reference), (reference, other) })
+        {
+            if (!tel.Ivtc && tel.Info?.Video is { } tv && film.Info?.Video is { } fv && InputBuilder.PulldownPair(tv.FrameRate, fv.FrameRate))
+            {
+                progress?.Report("Checking for 3:2 pulldown…");
+                var il = await new VideoAnalyzer(tools, tempDir).DetectInterlaceAsync(tel, tel.Duration / 2, ct).ConfigureAwait(false);
+                var frames = il.Tff + il.Bff + il.Progressive + il.Undetermined;
+                // telecine: about 2 of 5 frames combed, or repeated fields
+                var combed = il.Tff + il.Bff;
+                if (frames > 50 && (il.RepeatedFields > frames * 0.15 || (combed > frames * 0.2 && combed < frames * 0.6)))
+                {
+                    tel.Ivtc = true;
+                    result.Ivtc = tel == other ? "this source" : "the reference";
+                }
+            }
+        }
+
         // speed: same, or the frame-rate ratio (PAL speed-up keeps every frame and plays it faster)
         var speeds = new List<double> { 1 };
-        var fr = reference.Info?.Video?.FrameRate ?? 0;
-        var fo = other.Info?.Video?.FrameRate ?? 0;
+        var fr = InputBuilder.FrameRate(reference);
+        var fo = InputBuilder.FrameRate(other);
         if (fr > 0 && fo > 0 && Math.Abs(fr - fo) > 0.01 && Math.Abs(fr / fo - 1) < 0.06)
             speeds.Add(fr / fo);
         var speed = 1.0;
@@ -160,7 +186,9 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
             return await DetectEditsAsync(reference, other, speed, full!, opt, result, progress, ct).ConfigureAwait(false);
 
         var count = whole ? Math.Max(opt.Probes, 5) : opt.Probes;
-        foreach (var t in InputBuilder.EvenPoints(reference.Duration, count, 12, 12))
+        // near search: the probes must fall where both sources have material
+        var span = whole ? reference.Duration : Math.Min(reference.Duration, other.Duration / Math.Max(0.5, speed));
+        foreach (var t in InputBuilder.EvenPoints(span, count, 12, 12))
         {
             ct.ThrowIfCancellationRequested();
             progress?.Report($"Matching audio at {Format.Time(t, false)}…");
@@ -182,8 +210,9 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
             result.Confidence = pick.Average(p => p.Confidence);
         }
         result.Reliable = cluster.Count >= 2 || (cluster.Count == 1 && result.Probes.Count == 1 && cluster[0].Confidence >= 30);
-        if (result.Probes.Count >= 2)
-            result.Drift = result.Probes[^1].Offset - result.Probes[0].Offset;
+        // drift from the confident probes only: a failed probe (no material there) is not a drift
+        if (strong.Count >= 2)
+            result.Drift = strong[^1].Offset - strong[0].Offset;
         result.AudioOffset = result.Offset;
 
         // audio is only as exact as each file's own A/V sync: snap to the frame that really matches
@@ -378,6 +407,13 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
                     if (await RefineWithVideoAsync(reference, other, o, speed, times, ct).ConfigureAwait(false) is { } r)
                         result.Sections[i].Offset = r;
                 }
+                // with exact offsets, put every cut on its frame
+                for (var i = 1; i < result.Sections.Count; i++)
+                {
+                    progress?.Report($"Placing cut {i} on the exact frame…");
+                    if (await RefineCutAsync(reference, other, speed, result.Sections, i, ct).ConfigureAwait(false))
+                        result.FrameExactCuts++;
+                }
                 result.Offset = result.Sections.First(s => s.Offset != null).Offset!.Value;
             }
         }
@@ -412,8 +448,8 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
     /// </summary>
     public async Task<double?> RefineWithVideoAsync(MediaTitle reference, MediaTitle other, double offset, double speed, IReadOnlyList<double> times, CancellationToken ct)
     {
-        var fr = reference.Info!.Video!.FrameRate;
-        var fo = other.Info!.Video!.FrameRate;
+        var fr = InputBuilder.FrameRate(reference);
+        var fo = InputBuilder.FrameRate(other);
         // frames pair one to one only when the other source shows the same frames per reference second
         if (fr <= 0 || fo <= 0 || Math.Abs(fr - fo * speed) > 0.01)
             return null;
@@ -455,49 +491,80 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
         return group.Select(g => g.Offset).Order().ElementAt(group.Count / 2);
     }
 
-    private sealed record GrayFrame(double Time, float[] Pixels);
+    // brightness-neutral: HDR vs SDR or a level shift should not decide the match
+    private Task<List<GrayFrame>> GrayFramesAsync(MediaTitle title, double start, int count, CancellationToken ct) =>
+        FrameSequence.GrabAsync(tools, title, start, count, FrameW, FrameH, tempDir, normalize: true, ct);
 
-    private async Task<List<GrayFrame>> GrayFramesAsync(MediaTitle title, double start, int count, CancellationToken ct)
+    private static double Diff(float[] a, float[] b) => FrameSequence.Diff(a, b);
+
+    /// <summary>
+    /// Moves the cut between section <paramref name="i"/>−1 and <paramref name="i"/> onto the exact frame: every
+    /// reference frame around the audio estimate is matched against the other source under both sections' offsets
+    /// (or "not there" for a missing section); the cut goes where the labels switch. Returns false when unclear.
+    /// </summary>
+    private async Task<bool> RefineCutAsync(MediaTitle reference, MediaTitle other, double speed, List<SyncSection> sections, int i, CancellationToken ct)
     {
-        var frames = new List<GrayFrame>();
-        if (start < 0)
-            return frames;
-        var args = new List<string> { "-hide_banner", "-nostdin" };
-        var input = InputBuilder.Input(title, start, count / Math.Max(1, title.Info!.Video!.FrameRate) + 2, tempDir);
-        args.AddRange(input.Args);
-        args.AddRange(["-map", "0:v:0", "-an", "-sn", "-dn", "-vf", input.TrimFilter + $"scale={FrameW}:{FrameH}:flags=area,format=gray,showinfo",
-            "-frames:v", count.ToString(CultureInfo.InvariantCulture), "-f", "rawvideo", "-"]);
-        var res = await ProcessRunner.RunAsync(tools.FFmpeg, args, ct).ConfigureAwait(false);
-        var times = PtsRegex().Matches(res.StdErr).Select(x => double.Parse(x.Groups[1].Value, CultureInfo.InvariantCulture)).ToList();
-        const int size = FrameW * FrameH;
-        for (var i = 0; i < res.StdOut.Length / size && i < times.Count; i++)
+        var fr = InputBuilder.FrameRate(reference);
+        var fo = InputBuilder.FrameRate(other);
+        if (fr <= 0 || fo <= 0 || Math.Abs(fr - fo * speed) > 0.01)
+            return false;
+        var approx = sections[i].Start;
+        const double half = 4;
+        var start = Math.Max(0, approx - half);
+        var count = (int)(2 * half * fr);
+        var refFrames = await GrayFramesAsync(reference, start, count, ct).ConfigureAwait(false);
+        if (refFrames.Count < count / 2)
+            return false;
+        async Task<List<GrayFrame>?> Under(double? off) =>
+            off is { } o ? await GrayFramesAsync(other, Math.Max(0, start * speed + o - 1.0 / fo), count + 4, ct).ConfigureAwait(false) : null;
+        var a = await Under(sections[i - 1].Offset).ConfigureAwait(false);
+        var b = await Under(sections[i].Offset).ConfigureAwait(false);
+
+        // cost of each label per reference frame: diff to the matching frame, or "missing" when that section is absent
+        double Cost(List<GrayFrame>? list, double? off, GrayFrame r) =>
+            list != null && off is { } o && FrameSequence.At(list, r.Time * speed + o, fo) is { } m ? Diff(r.Pixels, m.Pixels) : double.NaN;
+        var costA = refFrames.Select(r => Cost(a, sections[i - 1].Offset, r)).ToList();
+        var costB = refFrames.Select(r => Cost(b, sections[i].Offset, r)).ToList();
+        // a frame "matches" a section when it is as close as true matches are (near the best costs seen)
+        var all = costA.Concat(costB).Where(x => !double.IsNaN(x)).Order().ToList();
+        if (all.Count < 10)
+            return false;
+        // true matches sit near zero; mismatches are many times higher. Anchor on the best costs, not the bulk.
+        var low = all[Math.Max(0, all.Count / 10 - 1)];
+        if (low > 10)
+            return false;
+        var thr = Math.Max(4.0, 2.5 * low);
+        var n = refFrames.Count;
+        var mA = costA.Select(x => !double.IsNaN(x) && x <= thr).ToArray();
+        var mB = costB.Select(x => !double.IsNaN(x) && x <= thr).ToArray();
+        // penalties: before the cut a frame should be section A (or, when A is missing, not B);
+        // from the cut on it should be section B (or, when B is missing, not A)
+        bool BadBefore(int k) => a != null ? !mA[k] : mB[k];
+        bool BadAfter(int k) => b != null ? !mB[k] : mA[k];
+        var bestK = -1;
+        var bestBad = int.MaxValue;
+        var before = 0;
+        var afterTotal = Enumerable.Range(0, n).Count(BadAfter);
+        for (var k = 1; k < n; k++)
         {
-            var px = new float[size];
-            double mean = 0;
-            for (var k = 0; k < size; k++)
+            before += BadBefore(k - 1) ? 1 : 0;
+            afterTotal -= BadAfter(k - 1) ? 1 : 0;
+            var bad = before + afterTotal;
+            if (bad < bestBad)
             {
-                px[k] = res.StdOut[i * size + k];
-                mean += px[k];
+                bestBad = bad;
+                bestK = k;
             }
-            mean /= size;
-            // brightness-neutral: HDR vs SDR or a level shift should not decide the match
-            for (var k = 0; k < size; k++)
-                px[k] -= (float)mean;
-            frames.Add(new GrayFrame(start - input.Skip + times[i], px));
         }
-        return frames;
+        // both sides must be clearly what they claim: few contradicting frames, real matches on the present side(s)
+        var matchesBefore = Enumerable.Range(0, Math.Max(0, bestK)).Count(k => a != null ? mA[k] : !mB[k]);
+        var matchesAfter = Enumerable.Range(Math.Max(0, bestK), n - Math.Max(0, bestK)).Count(k => b != null ? mB[k] : !mA[k]);
+        if (bestK <= 0 || bestBad > n * 0.15 || matchesBefore < 3 || matchesAfter < 3)
+            return false;
+        // halfway between the last frame of A and the first of B
+        sections[i].Start = (refFrames[bestK - 1].Time + refFrames[bestK].Time) / 2;
+        return true;
     }
-
-    private static double Diff(float[] a, float[] b)
-    {
-        double d = 0;
-        for (var i = 0; i < a.Length; i++)
-            d += Math.Abs(a[i] - b[i]);
-        return d / a.Length;
-    }
-
-    [GeneratedRegex(@"\] n:\s*\d+\s+pts:\s*-?\d+\s+pts_time:(-?[\d.]+)")]
-    private static partial Regex PtsRegex();
 
     [GeneratedRegex(@"out_time_us=(\d+)")]
     private static partial Regex ProgressRegex();

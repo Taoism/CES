@@ -51,6 +51,17 @@ public sealed class SessionSource
     public VideoReport? Video { get; set; }
     public List<AudioReport> Audio { get; set; } = [];
 
+    /// <summary>Grade &amp; framing against source 1 (frames and findings).</summary>
+    public List<GradeFrame> GradeFrames { get; set; } = [];
+    public List<Finding> GradeFindings { get; set; } = [];
+
+    /// <summary>Frame timing, dirt and stabilisation against source 1.</summary>
+    public List<Finding> TemporalFindings { get; set; } = [];
+    public List<FrameEvent> FrameEvents { get; set; } = [];
+
+    /// <summary>Inverse telecine applied to this source (29.97 pulldown → 23.976).</summary>
+    public bool Ivtc { get; set; }
+
     /// <summary>Spectrogram PNGs (base64) by audio track index: the originals live in a temp folder.</summary>
     public Dictionary<int, string> Spectrograms { get; set; } = [];
 }

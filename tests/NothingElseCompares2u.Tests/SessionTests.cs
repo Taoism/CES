@@ -38,6 +38,11 @@ public class SessionTests
             Path = @"C:\x\a.mkv", Title = "a.mkv", Offset = -5.005, Speed = 0.95904, Synced = true,
             Sections = [new SyncSection { Start = 0, Offset = -0.25 }, new SyncSection { Start = 61, Offset = null }],
             Video = video, Audio = [audio], Spectrograms = { [1] = "AAAA" },
+            Ivtc = true,
+            GradeFrames = [new GradeFrame { Time = 30, Scale = 0.95, Match = 0.6, RefL = [1, 2, 3, 50, 5, 6, 7], OtherL = [1, 2, 3, 54, 5, 6, 7], DeltaB = double.NaN }],
+            GradeFindings = [new Finding { Area = "Tone", Text = "brighter", Level = 1 }],
+            TemporalFindings = [new Finding { Area = "Frames", Text = "1 dropped", Level = 2 }],
+            FrameEvents = [new FrameEvent(10, "dropped frame", 2, 14)],
         });
         s.Rows.Add(new SessionRow { Time = 21.016, Caption = "detailed shot" });
         s.Metrics.Add(new SessionMetric { Reference = 0, Distorted = 1, Result = metric });
@@ -65,6 +70,12 @@ public class SessionTests
             Assert.Equal([95.1, 90.2], m.Series[Metric.Vmaf].Values);
             Assert.Equal(60.0417, m.TimeOf(1), 6);
             Assert.Equal(21.016, back.Rows.Single().Time);
+            Assert.True(src.Ivtc);
+            Assert.Equal(54, src.GradeFrames.Single().OtherL[3]);
+            Assert.True(double.IsNaN(src.GradeFrames[0].DeltaB));
+            Assert.Equal("brighter", src.GradeFindings.Single().Text);
+            Assert.Equal(new FrameEvent(10, "dropped frame", 2, 14), src.FrameEvents.Single());
+            Assert.Equal("1 dropped", src.TemporalFindings.Single().Text);
         }
         finally
         {

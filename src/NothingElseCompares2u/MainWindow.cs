@@ -208,7 +208,7 @@ public sealed partial class MainWindow : Window
         _tabs.Items.Add(new TabItem { Header = "Video analysis", Content = BuildVideoTab() });
         _tabs.Items.Add(new TabItem { Header = "Audio analysis", Content = BuildAudioTab() });
         _tabs.Items.Add(new TabItem { Header = "Quality metrics", Content = BuildQualityTab() });
-        _tabs.Items.Add(new TabItem { Header = "Grade & framing", Content = BuildGradeTab() });
+        _tabs.Items.Add(new TabItem { Header = "Remaster", Content = BuildGradeTab() });
         _tabs.Items.Add(new TabItem { Header = "Subtitles", Content = BuildSubsTab() });
         _tabs.Items.Add(new TabItem { Header = "Discs", Content = BuildDiscTab() });
         _tabs.Items.Add(new TabItem { Header = "Log", Content = new Border { Classes = { "panel" }, Child = _log, Margin = new Thickness(0, 6, 0, 0) } });
@@ -283,6 +283,8 @@ public sealed partial class MainWindow : Window
         SetStatus($"Ready · {tools.Version}{(tools.MediaInfo == null ? " · MediaInfo not found (HDR/codec details limited)" : "")}{(tools.HasVmaf ? "" : " · no libvmaf")}");
         if (args.Length > 0)
             await AddPathsAsync(args.ToList());
+        if (Environment.GetEnvironmentVariable("NEC2U_TOUR") is { Length: > 0 } tour && _items.Count > 0)
+            await RunTourAsync(tour);
     }
 
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
@@ -295,8 +297,11 @@ public sealed partial class MainWindow : Window
             _settings.WindowX = Position.X;
             _settings.WindowY = Position.Y;
         }
-        SaveShotSettings();
-        _settings.Save();
+        if (!_tour)
+        {
+            SaveShotSettings();
+            _settings.Save();
+        }
         if (_cts != null)
             await _cts.CancelAsync();
         DisposeShotBitmaps();
@@ -495,7 +500,7 @@ public sealed partial class MainWindow : Window
 
         if (index > 0)
         {
-            var fps = _items[0].Title.Info?.Video?.FrameRate is > 0 and var f ? f : 24000 / 1001.0;
+            var fps = Tools.InputBuilder.FrameRate(_items[0].Title) is > 0 and var f ? f : 24000 / 1001.0;
             var offset = new TextBox { Text = item.Offset.ToString("0.000#", CultureInfo.InvariantCulture), Width = 92, HorizontalContentAlignment = HorizontalAlignment.Right };
             ToolTip.SetTip(offset, "Offset in seconds: the same moment comes this much later in this source (negative = earlier). Enter applies.");
             async Task Apply(double value)

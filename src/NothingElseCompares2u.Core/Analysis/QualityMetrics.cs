@@ -119,7 +119,10 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
         var length = Math.Min(opt.Length, reference.Duration - start);
         if (length <= 0)
             throw new ArgumentException("The range is outside the reference.");
-        var res = new MetricResult { Start = start, FrameRate = rv.FrameRate };
+        // frame rates as the filters deliver them (after inverse telecine where set)
+        var rfps = InputBuilder.FrameRate(reference);
+        var dfps = InputBuilder.FrameRate(distorted);
+        var res = new MetricResult { Start = start, FrameRate = rfps };
         var notes = new List<string>();
 
         // reference geometry: crop bars the encode does not have
@@ -141,28 +144,42 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
         var deep = rv.BitDepth > 8 || dv.BitDepth > 8;
         var fmt = deep ? "yuv420p10le" : "yuv420p";
         // same frames at another speed (PAL): pair frame by frame; otherwise resample a different frame rate
-        var oneToOne = Math.Abs(rv.FrameRate - dv.FrameRate * distortedSpeed) < 0.01;
-        var fpsFix = !oneToOne && Math.Abs(rv.FrameRate - dv.FrameRate) > 0.01 ? $"fps={rv.FrameRate.ToString("0.######", Inv)}," : "";
+        var oneToOne = Math.Abs(rfps - dfps * distortedSpeed) < 0.01;
+        var fpsFix = !oneToOne && Math.Abs(rfps - dfps) > 0.01 ? $"fps={rfps.ToString("0.######", Inv)}," : "";
         if (fpsFix.Length > 0)
             notes.Add($"frame rates differ ({dv.FrameRateText} vs {rv.FrameRateText}): encode resampled — expect low scores");
         else if (Math.Abs(distortedSpeed - 1) > 1e-6)
             notes.Add($"speed ×{distortedSpeed:0.#####}: frames paired one to one");
+        if (reference.Ivtc || distorted.Ivtc)
+            notes.Add("inverse telecine (3:2 pulldown removed) on " + (reference.Ivtc ? "the reference" : "the encode"));
 
         // anchor on the reference's real first frame, then open both half a frame early so their first frames pair up
         var r0 = await new Screenshotter(tools, tempDir).FrameTimeAtAsync(reference, start, ct).ConfigureAwait(false);
         if (double.IsNaN(r0))
             r0 = start;
-        var halfR = 0.5 / Math.Max(1, rv.FrameRate);
-        var halfD = 0.5 / Math.Max(1, dv.FrameRate);
+        var halfR = 0.5 / Math.Max(1, rfps);
+        var halfD = 0.5 / Math.Max(1, dfps);
         res.Start = r0;
         var refIn = InputBuilder.Input(reference, Math.Max(0, r0 - halfR), length, tempDir);
         var disIn = InputBuilder.Input(distorted, Math.Max(0, r0 * distortedSpeed + distortedOffset - halfD), length * distortedSpeed, tempDir);
         // both streams count frames on the reference clock, so frame n of one pairs with frame n of the other
-        var rateExpr = rv.FrameRate.ToString("0.#########", Inv);
-        var refChain = refIn.TrimFilter + (opt.DeinterlaceReference ? "bwdif=mode=send_frame:deint=all," : "") +
-                       (crop != null ? $"crop={rw}:{rh}:{crop.Left}:{crop.Top}," : "") +
-                       $"settb=AVTB,setpts=N/({rateExpr}*TB),trim=duration={InputBuilder.S(length)},format={fmt}";
-        var disChain = disIn.TrimFilter + $"{fpsFix}settb=AVTB,setpts=N/({rateExpr}*TB),trim=duration={InputBuilder.S(length)},scale={rw}:{rh}:flags=bicubic,format={fmt}";
+        var rateExpr = rfps.ToString("0.#########", Inv);
+        var refHead = InputBuilder.VideoPrefix(reference) + refIn.TrimFilter + (opt.DeinterlaceReference ? "bwdif=mode=send_frame:deint=all," : "") +
+                      (crop != null ? $"crop={rw}:{rh}:{crop.Left}:{crop.Top}," : "");
+        var disHead = InputBuilder.VideoPrefix(distorted) + disIn.TrimFilter + fpsFix;
+
+        // safety net: the first frames of both chains must show the same picture; drop a frame or two where they do not
+        progress?.Report((0, "Aligning the first frames…"));
+        var shift = await AlignAsync(refIn, refHead, disIn, disHead, ct).ConfigureAwait(false);
+        if (shift > 0)
+            disHead += $"trim=start_frame={shift},";
+        else if (shift < 0)
+            refHead += $"trim=start_frame={-shift},";
+        if (shift != 0)
+            notes.Add($"aligned on the picture by {Math.Abs(shift)} frame{(Math.Abs(shift) == 1 ? "" : "s")}");
+
+        var refChain = refHead + $"settb=AVTB,setpts=N/({rateExpr}*TB),trim=duration={InputBuilder.S(length)},format={fmt}";
+        var disChain = disHead + $"settb=AVTB,setpts=N/({rateExpr}*TB),trim=duration={InputBuilder.S(length)},scale={rw}:{rh}:flags=bicubic,format={fmt}";
 
         var metrics = opt.Metrics;
         if (!tools.HasVmaf && metrics.HasFlag(Metric.Vmaf))
@@ -209,7 +226,7 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
         for (var i = 0; i < list.Count; i++)
             args.AddRange(["-map", $"[o{i}]", "-f", "null", "-"]);
 
-        var total = Math.Max(1, length * rv.FrameRate);
+        var total = Math.Max(1, length * rfps);
         var resRun = await ProcessRunner.RunAsync(tools.FFmpeg, args, ct, line =>
         {
             var m = FrameRegex().Match(line);
@@ -249,6 +266,64 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
         res.FrameTimes.AddRange(Enumerable.Range(0, res.Frames).Select(i => res.Start + i / (res.FrameRate > 0 ? res.FrameRate : 24)));
         res.Notes = string.Join("; ", notes);
         return res;
+    }
+
+    private const int AlignFrames = 30;
+    private const int AlignMax = 3;
+
+    /// <summary>
+    /// Compares the first frames the two filter chains deliver (small, grey, brightness-neutral) and returns how many
+    /// frames the distorted chain must drop (&gt; 0) or the reference (&lt; 0) so frame n shows the same picture; 0 when
+    /// already aligned or when the picture gives no clear answer (static shots).
+    /// </summary>
+    private async Task<int> AlignAsync(InputSpec refIn, string refHead, InputSpec disIn, string disHead, CancellationToken ct)
+    {
+        async Task<List<float[]>> Grab(InputSpec input, string head)
+        {
+            const int w = 160, h = 90;
+            var args = new List<string> { "-hide_banner", "-nostdin", "-v", "error" };
+            args.AddRange(input.Args);
+            args.AddRange(["-map", "0:v:0", "-an", "-sn", "-dn", "-vf", head + $"scale={w}:{h}:flags=area,format=gray", "-frames:v", (AlignFrames + AlignMax).ToString(Inv), "-fps_mode", "passthrough", "-f", "rawvideo", "-"]);
+            var res = await ProcessRunner.RunAsync(tools.FFmpeg, args, ct).ConfigureAwait(false);
+            var list = new List<float[]>();
+            for (var i = 0; i + w * h <= res.StdOut.Length; i += w * h)
+            {
+                var px = new float[w * h];
+                double mean = 0;
+                for (var k = 0; k < px.Length; k++)
+                {
+                    px[k] = res.StdOut[i + k];
+                    mean += px[k];
+                }
+                mean /= px.Length;
+                for (var k = 0; k < px.Length; k++)
+                    px[k] -= (float)mean;
+                list.Add(px);
+            }
+            return list;
+        }
+        var r = await Grab(refIn, refHead).ConfigureAwait(false);
+        var d = await Grab(disIn, disHead).ConfigureAwait(false);
+        if (r.Count < AlignFrames / 2 || d.Count < AlignFrames / 2)
+            return 0;
+        var costs = new List<(int Shift, double Cost)>();
+        for (var s = -AlignMax; s <= AlignMax; s++)
+        {
+            var n = Math.Min(r.Count - Math.Max(0, -s), d.Count - Math.Max(0, s));
+            n = Math.Min(n, AlignFrames);
+            if (n < AlignFrames / 2)
+                continue;
+            double c = 0;
+            for (var i = 0; i < n; i++)
+                c += FrameSequence.Diff(r[i + Math.Max(0, -s)], d[i + Math.Max(0, s)]);
+            costs.Add((s, c / n));
+        }
+        if (costs.Count == 0)
+            return 0;
+        var best = costs.MinBy(x => x.Cost);
+        var zero = costs.FirstOrDefault(x => x.Shift == 0).Cost;
+        // only move when it is clearly better than leaving things as they are
+        return best.Shift != 0 && best.Cost < zero * 0.7 ? best.Shift : 0;
     }
 
     private async Task<CropBox?> DetectCropAsync(MediaTitle title, double start, double length, CancellationToken ct)

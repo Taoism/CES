@@ -512,7 +512,7 @@ public sealed partial class MainWindow
     {
         if (_rowList.SelectedItem is not GuiShotRow row || _items.Count == 0)
             return;
-        var fps = _items[0].Title.Info?.Video?.FrameRate is > 0 and var f ? f : 24000 / 1001.0;
+        var fps = InputBuilder.FrameRate(_items[0].Title) is > 0 and var f ? f : 24000 / 1001.0;
         var t = Math.Max(0, row.Row.Time + frames / fps);
         var replacement = new GuiShotRow { Row = new ShotRow { Time = t, Caption = row.Row.Caption } };
         var idx = _rows.IndexOf(row);

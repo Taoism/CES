@@ -6,7 +6,11 @@ using Avalonia.Media;
 
 namespace NothingElseCompares2u.Controls;
 
-public sealed record ChartSeries(string Name, IBrush Color, double[] X, double[] Y);
+public sealed record ChartSeries(string Name, IBrush Color, double[] X, double[] Y)
+{
+    /// <summary>Drawn dashed (a second quantity of the same source).</summary>
+    public bool Dashed { get; init; }
+}
 
 /// <summary>Simple multi-series line chart with axes, legend, hover readout and click-to-pick an X value.</summary>
 public sealed class LineChart : Control
@@ -134,7 +138,7 @@ public sealed class LineChart : Control
                         }
                     }
                 }
-                ctx.DrawGeometry(null, new Pen(s.Color, 1.6), geo);
+                ctx.DrawGeometry(null, s.Dashed ? new Pen(s.Color, 1.6, new DashStyle([4, 3], 0)) : new Pen(s.Color, 1.6), geo);
             }
         }
 

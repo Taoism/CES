@@ -39,7 +39,7 @@ public sealed class LumaFrame
         var args = new List<string> { "-hide_banner", "-nostdin", "-v", "error" };
         var input = InputBuilder.Input(title, time, 2, tempDir);
         args.AddRange(input.Args);
-        var vf = InputBuilder.SoftwareFormat(title) + input.TrimFilter + (deinterlace ? "bwdif=mode=send_frame:deint=all," : "") + (v.ChromaSubsampling == "RGB" ? (v.BitDepth > 8 ? "format=gray16le" : "format=gray") : $"extractplanes={plane}");
+        var vf = InputBuilder.VideoPrefix(title) + input.TrimFilter + (deinterlace ? "bwdif=mode=send_frame:deint=all," : "") + (v.ChromaSubsampling == "RGB" ? (v.BitDepth > 8 ? "format=gray16le" : "format=gray") : $"extractplanes={plane}");
         args.AddRange(["-map", "0:v:0", "-an", "-sn", "-dn", "-vf", vf, "-frames:v", "1", "-f", "rawvideo", "-"]);
         var res = await ProcessRunner.RunAsync(tools.FFmpeg, args, ct).ConfigureAwait(false);
         var bytes = res.StdOut;
