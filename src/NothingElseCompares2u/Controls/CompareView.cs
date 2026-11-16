@@ -4,6 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform;
+using Avalonia.Threading;
 
 namespace NothingElseCompares2u.Controls;
 
@@ -12,6 +14,12 @@ public enum CompareMode
     Single,
     Wipe,
     SideBySide,
+
+    /// <summary>|A − B| per pixel, amplified: shows exactly where an encode differs.</summary>
+    Difference,
+
+    /// <summary>Alternates A and B automatically; small differences jump out.</summary>
+    Flicker,
 }
 
 /// <summary>
@@ -30,6 +38,40 @@ public sealed class CompareView : Control
     private Point _dragCenter;
     private double _wipe = 0.5;
     private string? _message;
+    private readonly DispatcherTimer _flicker = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private bool _flickOther;
+    private WriteableBitmap? _diff;
+    private (Bitmap? A, Bitmap? B, double Gain) _diffKey;
+
+    public CompareView()
+    {
+        _flicker.Tick += (_, _) =>
+        {
+            _flickOther = !_flickOther;
+            InvalidateVisual();
+        };
+    }
+
+    /// <summary>Difference-mode amplification.</summary>
+    public double DiffGain
+    {
+        get;
+        set
+        {
+            field = value;
+            InvalidateVisual();
+        }
+    } = 4;
+
+    /// <summary>Flicker interval in milliseconds.</summary>
+    public int FlickerMs
+    {
+        get => (int)_flicker.Interval.TotalMilliseconds;
+        set => _flicker.Interval = TimeSpan.FromMilliseconds(Math.Clamp(value, 80, 5000));
+    }
+
+    /// <summary>Mean absolute difference (0–255) and share of visibly changed pixels of the last difference image.</summary>
+    public (double Mean, double Changed) DiffStats { get; private set; }
 
     public event EventHandler? ViewChanged;
 
@@ -39,12 +81,17 @@ public sealed class CompareView : Control
         set
         {
             field = value;
+            if (value == CompareMode.Flicker)
+                _flicker.Start();
+            else
+                _flicker.Stop();
+            _flickOther = false;
             InvalidateVisual();
             ViewChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
-    /// <summary>Source shown in Single mode, left side in Wipe mode.</summary>
+    /// <summary>Source shown in Single mode, left side in Wipe mode, A in Difference/Flicker.</summary>
     public int Current
     {
         get;
@@ -63,7 +110,7 @@ public sealed class CompareView : Control
         }
     }
 
-    /// <summary>Right side in Wipe mode.</summary>
+    /// <summary>Right side in Wipe mode, B in Difference/Flicker.</summary>
     public int WipeOther { get; set; } = 1;
 
     public double Zoom => _zoom;
@@ -203,6 +250,28 @@ public sealed class CompareView : Control
                     break;
                 }
 
+                case CompareMode.Difference when _images.Length > 1:
+                {
+                    var cell = cells[0];
+                    var diff = DiffImage();
+                    if (diff != null)
+                        ctx.DrawImage(diff, new Rect(diff.Size), ImageRect(cell, s));
+                    else
+                        DrawCentered(ctx, cell, "Both sources need a frame here");
+                    var (mean, changed) = DiffStats;
+                    TextBadge(ctx, $" |{Current + 1} − {WipeOther + 1}| × {DiffGain:0.#}   mean {mean:0.00}   changed {changed:P1} ", cell.TopLeft + new Point(8, 8));
+                    break;
+                }
+
+                case CompareMode.Flicker when _images.Length > 1:
+                {
+                    var cell = cells[0];
+                    var i = _flickOther ? WipeOther : Current;
+                    DrawImage(ctx, i, ImageRect(cell, s));
+                    Badge(ctx, i, cell.TopLeft + new Point(8, 8));
+                    break;
+                }
+
                 default:
                 {
                     var cell = cells[0];
@@ -237,6 +306,81 @@ public sealed class CompareView : Control
         ctx.DrawRectangle(new SolidColorBrush(Color.FromArgb(200, 20, 21, 24)), null, rect, 4, 4);
         ctx.FillRectangle(i < _colors.Length ? _colors[i] : Brushes.Gray, new Rect(rect.X, rect.Y, 4, rect.Height));
         ctx.DrawText(ft, new Point(rect.X + 6, rect.Y + 3));
+    }
+
+    private static void TextBadge(DrawingContext ctx, string text, Point at)
+    {
+        var ft = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(FontFamily.Default, FontStyle.Normal, FontWeight.SemiBold), 12.5, Brushes.White);
+        ctx.DrawRectangle(new SolidColorBrush(Color.FromArgb(200, 20, 21, 24)), null, new Rect(at.X, at.Y, ft.Width + 8, ft.Height + 6), 4, 4);
+        ctx.DrawText(ft, new Point(at.X + 4, at.Y + 3));
+    }
+
+    /// <summary>
+    /// Grey |A − B| (largest channel difference) × gain, at A's size; B is sampled to A's size when they differ.
+    /// Cached until the pictures or the gain change.
+    /// </summary>
+    private WriteableBitmap? DiffImage()
+    {
+        if (Current >= _images.Length || WipeOther >= _images.Length)
+            return null;
+        var a = _images[Current];
+        var b = _images[WipeOther];
+        if (a == null || b == null)
+            return null;
+        if (_diff != null && ReferenceEquals(_diffKey.A, a) && ReferenceEquals(_diffKey.B, b) && _diffKey.Gain == DiffGain)
+            return _diff;
+        var pa = Pixels(a);
+        var pb = Pixels(b);
+        int wa = a.PixelSize.Width, ha = a.PixelSize.Height, wb = b.PixelSize.Width, hb = b.PixelSize.Height;
+        _diff?.Dispose();
+        _diff = new WriteableBitmap(a.PixelSize, new Vector(96, 96), PixelFormats.Bgra8888, AlphaFormat.Opaque);
+        double sum = 0;
+        long changed = 0;
+        using (var fb = _diff.Lock())
+        {
+            var outRow = new byte[wa * 4];
+            for (var y = 0; y < ha; y++)
+            {
+                var yb = (int)((y + 0.5) * hb / ha);
+                for (var x = 0; x < wa; x++)
+                {
+                    var xb = (int)((x + 0.5) * wb / wa);
+                    var ia = (y * wa + x) * 4;
+                    var ib = (yb * wb + xb) * 4;
+                    var d = Math.Max(Math.Abs(pa[ia] - pb[ib]), Math.Max(Math.Abs(pa[ia + 1] - pb[ib + 1]), Math.Abs(pa[ia + 2] - pb[ib + 2])));
+                    sum += d;
+                    if (d > 6)
+                        changed++;
+                    var v = (byte)Math.Min(255, d * DiffGain);
+                    outRow[x * 4] = v;
+                    outRow[x * 4 + 1] = v;
+                    outRow[x * 4 + 2] = v;
+                    outRow[x * 4 + 3] = 255;
+                }
+                System.Runtime.InteropServices.Marshal.Copy(outRow, 0, fb.Address + y * fb.RowBytes, outRow.Length);
+            }
+        }
+        DiffStats = (sum / ((double)wa * ha), (double)changed / ((double)wa * ha));
+        _diffKey = (a, b, DiffGain);
+        return _diff;
+    }
+
+    /// <summary>32-bit pixels of a bitmap (channel order does not matter for a max-channel difference).</summary>
+    private static byte[] Pixels(Bitmap bmp)
+    {
+        var w = bmp.PixelSize.Width;
+        var h = bmp.PixelSize.Height;
+        var buf = new byte[w * h * 4];
+        var handle = System.Runtime.InteropServices.GCHandle.Alloc(buf, System.Runtime.InteropServices.GCHandleType.Pinned);
+        try
+        {
+            bmp.CopyPixels(new PixelRect(0, 0, w, h), handle.AddrOfPinnedObject(), buf.Length, w * 4);
+        }
+        finally
+        {
+            handle.Free();
+        }
+        return buf;
     }
 
     private void DrawCentered(DrawingContext ctx, Rect r, string text)

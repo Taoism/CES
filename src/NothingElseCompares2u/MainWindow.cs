@@ -237,6 +237,8 @@ public sealed partial class MainWindow : Window
           ← / →            previous / next source
           ↑ / ↓            previous / next screenshot time
           W / S / A        wipe / side by side / single view
+          D / T            difference (|A − B| × gain) / flicker A ↔ B
+          Shift+1 … 9      choose B (the right side / the other picture) in wipe, difference and flicker
           F or 0           fit;  Z  100 %;  mouse wheel  zoom;  drag  pan;  double-click  fit ↔ 100 %
           , / .            step the shown frame back / forward one frame (all sources)
 

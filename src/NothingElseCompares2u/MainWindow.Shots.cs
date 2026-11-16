@@ -29,7 +29,7 @@ public sealed partial class MainWindow
     private readonly List<GuiShotRow> _rows = [];
     private readonly ListBox _rowList = new() { MinWidth = 150 };
     private readonly CompareView _view = new() { Focusable = true };
-    private readonly ComboBox _shotMode = new() { ItemsSource = new[] { "Evenly spaced", "Random", "Chapters", "Custom times" }, SelectedIndex = 0, Width = 140 };
+    private readonly ComboBox _shotMode = new() { ItemsSource = new[] { "Evenly spaced", "Random", "Chapters", "Custom times", "Detailed shots" }, SelectedIndex = 0, Width = 140 };
     private readonly NumericUpDown _shotCount = new() { Minimum = 1, Maximum = 200, Value = 8, Increment = 1, FormatString = "0", Width = 110 };
     private readonly TextBox _shotTimes = new() { PlaceholderText = "0:10:00, 1:02:03.5, …", Width = 260, IsVisible = false };
     private readonly CheckBox _shotAspect = new() { Content = "Correct aspect", IsChecked = true };
@@ -40,6 +40,10 @@ public sealed partial class MainWindow
     private readonly ToggleButton _modeSingle = new() { Content = "Single", Classes = { "seg" }, IsChecked = true };
     private readonly ToggleButton _modeWipe = new() { Content = "Wipe", Classes = { "seg" } };
     private readonly ToggleButton _modeSbs = new() { Content = "Side by side", Classes = { "seg" } };
+    private readonly ToggleButton _modeDiff = new() { Content = "Difference", Classes = { "seg" } };
+    private readonly ToggleButton _modeFlick = new() { Content = "Flicker", Classes = { "seg" } };
+    private readonly ComboBox _diffGain = new() { ItemsSource = new[] { "×1", "×2", "×4", "×8", "×16", "×32" }, SelectedIndex = 2, IsVisible = false, FontSize = 12 };
+    private readonly ComboBox _flickSpeed = new() { ItemsSource = new[] { "250 ms", "500 ms", "750 ms", "1 s", "2 s" }, SelectedIndex = 1, IsVisible = false, FontSize = 12 };
     private int _previousSource;
 
     private Control BuildShotsTab()
@@ -50,8 +54,10 @@ public sealed partial class MainWindow
             "Random" => 1,
             "Chapters" => 2,
             "Custom" => 3,
+            "Smart" => 4,
             _ => 0,
         };
+        ToolTip.SetTip(_shotMode, "Detailed shots: one quick keyframe pass over source 1 picks well-lit, detailed moments (no black frames, fades or credits).");
         _shotAspect.IsChecked = _settings.CorrectAspect;
         _shotDeint.IsChecked = _settings.Deinterlace;
         _shotTone.SelectedIndex = _settings.ToneMap switch
@@ -63,10 +69,10 @@ public sealed partial class MainWindow
         _shotMode.SelectionChanged += (_, _) =>
         {
             _shotTimes.IsVisible = _shotMode.SelectedIndex == 3;
-            _shotCount.IsVisible = _shotMode.SelectedIndex is 0 or 1;
+            _shotCount.IsVisible = _shotMode.SelectedIndex is 0 or 1 or 4;
         };
         _shotTimes.IsVisible = _shotMode.SelectedIndex == 3;
-        _shotCount.IsVisible = _shotMode.SelectedIndex is 0 or 1;
+        _shotCount.IsVisible = _shotMode.SelectedIndex is 0 or 1 or 4;
         Avalonia.Automation.AutomationProperties.SetName(_shotCount, "Screenshot count");
         Avalonia.Automation.AutomationProperties.SetName(_shotTimes, "Screenshot times");
         Avalonia.Automation.AutomationProperties.SetName(_shotMode, "Screenshot points");
@@ -92,6 +98,21 @@ public sealed partial class MainWindow
         _modeSingle.Click += (_, _) => SetViewMode(CompareMode.Single);
         _modeWipe.Click += (_, _) => SetViewMode(CompareMode.Wipe);
         _modeSbs.Click += (_, _) => SetViewMode(CompareMode.SideBySide);
+        _modeDiff.Click += (_, _) => SetViewMode(CompareMode.Difference);
+        _modeFlick.Click += (_, _) => SetViewMode(CompareMode.Flicker);
+        ToolTip.SetTip(_modeDiff, "|A − B| amplified (A = shown source, B = Shift+number). D");
+        ToolTip.SetTip(_modeFlick, "Switches between A and B automatically (B = Shift+number). T");
+        Avalonia.Automation.AutomationProperties.SetName(_diffGain, "Difference gain");
+        Avalonia.Automation.AutomationProperties.SetName(_flickSpeed, "Flicker speed");
+        _diffGain.SelectionChanged += (_, _) => _view.DiffGain = Math.Pow(2, Math.Max(0, _diffGain.SelectedIndex));
+        _flickSpeed.SelectionChanged += (_, _) => _view.FlickerMs = _flickSpeed.SelectedIndex switch
+        {
+            0 => 250,
+            2 => 750,
+            3 => 1000,
+            4 => 2000,
+            _ => 500,
+        };
         var fit = new Button { Content = "Fit", Classes = { "small" } };
         fit.Click += (_, _) => _view.SetZoom(0);
         var z1 = new Button { Content = "100 %", Classes = { "small" } };
@@ -109,9 +130,10 @@ public sealed partial class MainWindow
         _busyDisabled.AddRange([back, fwd]);
         var bar2 = new WrapPanel { Orientation = Orientation.Horizontal, ItemSpacing = 6, LineSpacing = 6 };
         bar2.Children.AddRange([
-            new StackPanel { Orientation = Orientation.Horizontal, Spacing = 0, Children = { _modeSingle, _modeWipe, _modeSbs } },
+            new StackPanel { Orientation = Orientation.Horizontal, Spacing = 0, Children = { _modeSingle, _modeWipe, _modeSbs, _modeDiff, _modeFlick } },
+            _diffGain, _flickSpeed,
             new Border { Width = 10 }, fit, z1, z2, z4, _zoomLabel, new Border { Width = 10 }, back, fwd,
-            Muted("1–9 switch source · Space toggles · ↑↓ rows · wheel zoom · drag pan"),
+            Muted("1–9 source · Shift+1–9 compare-with · Space toggles · ↑↓ rows · wheel zoom · drag pan"),
         ]);
         foreach (var c in bar2.Children.OfType<Control>())
             c.VerticalAlignment = VerticalAlignment.Center;
@@ -124,7 +146,7 @@ public sealed partial class MainWindow
         _rowList.SelectionChanged += (_, _) => RefreshShotView();
         _rowList.KeyDown += (_, e) =>
         {
-            if (e.Key is >= Key.D1 and <= Key.D9 || e.Key is Key.Space or Key.Left or Key.Right or Key.W or Key.S or Key.A or Key.F or Key.Z or Key.D0 or Key.OemComma or Key.OemPeriod)
+            if (e.Key is >= Key.D1 and <= Key.D9 || e.Key is Key.Space or Key.Left or Key.Right or Key.W or Key.S or Key.A or Key.D or Key.T or Key.F or Key.Z or Key.D0 or Key.OemComma or Key.OemPeriod)
                 e.Handled = HandleShotKey(e);
         };
 
@@ -165,6 +187,7 @@ public sealed partial class MainWindow
             1 => "Random",
             2 => "Chapters",
             3 => "Custom",
+            4 => "Smart",
             _ => "Even",
         };
         _settings.CorrectAspect = _shotAspect.IsChecked == true;
@@ -246,6 +269,16 @@ public sealed partial class MainWindow
                     times.Add(t);
                 }
                 break;
+            case 4:
+            {
+                var picks = await SmartPointsAsync((int)(_shotCount.Value ?? 8), start, end);
+                if (picks == null)
+                    return;
+                times = picks.Select(p => p.Time).ToList();
+                foreach (var p in picks)
+                    captions[p.Time] = p.Caption;
+                break;
+            }
             default:
                 times = InputBuilder.EvenPoints(dur, (int)(_shotCount.Value ?? 8)).Select(t => t + start).ToList();
                 break;
@@ -255,6 +288,41 @@ public sealed partial class MainWindow
         var newRows = times.Select(t => new GuiShotRow { Row = new ShotRow { Time = t, Caption = captions.GetValueOrDefault(t, "") } }).ToList();
         AddRows(newRows);
         await FillMissingAsync();
+    }
+
+    private readonly Dictionary<MediaTitle, List<KeyframeInfo>> _keyframeScans = [];
+
+    /// <summary>Scans source 1's keyframes once per title (cached) and picks detailed shots inside the shared range.</summary>
+    private async Task<List<ShotPick>?> SmartPointsAsync(int count, double start, double end)
+    {
+        var title = _items[0].Title;
+        if (title.Info?.Video == null)
+        {
+            await MessageBox.ShowAsync(this, "Source 1 has no video.", MessageKind.Info);
+            return null;
+        }
+        if (!_keyframeScans.TryGetValue(title, out var frames))
+        {
+            List<KeyframeInfo>? scanned = null;
+            var ok = await RunJobAsync("Scanning keyframes", async ct =>
+            {
+                var prog = new Progress<double>(f =>
+                {
+                    SetProgress(f);
+                    SetStatus($"Scanning keyframes of {_items[0].Name}: {f:P0}");
+                });
+                scanned = await new ShotPicker(_tools!, _temp).ScanAsync(title, prog, ct);
+            });
+            if (!ok || scanned == null || scanned.Count == 0)
+                return null;
+            frames = scanned;
+            _keyframeScans[title] = frames;
+            AppendLog($"Keyframe scan: {frames.Count} keyframes");
+        }
+        // keyframe times are source-1 time; the shared timeline is reference time (source 1 normally has no offset)
+        var refItem = _items[0];
+        var mapped = frames.Select(f => f with { Time = refItem.TimelineTime(f.Time) }).ToList();
+        return ShotPicker.Pick(mapped, count, start, end);
     }
 
     private void AddRows(IEnumerable<GuiShotRow> rows)
@@ -444,6 +512,10 @@ public sealed partial class MainWindow
         _modeSingle.IsChecked = mode == CompareMode.Single;
         _modeWipe.IsChecked = mode == CompareMode.Wipe;
         _modeSbs.IsChecked = mode == CompareMode.SideBySide;
+        _modeDiff.IsChecked = mode == CompareMode.Difference;
+        _modeFlick.IsChecked = mode == CompareMode.Flicker;
+        _diffGain.IsVisible = mode == CompareMode.Difference;
+        _flickSpeed.IsVisible = mode == CompareMode.Flicker;
     }
 
     private void RefreshShotView()
@@ -493,7 +565,7 @@ public sealed partial class MainWindow
         foreach (var c in _shotStats.Children.OfType<StackPanel>())
         {
             if (c.Tag is int i)
-                c.Opacity = _view.Mode == CompareMode.SideBySide || i == _view.Current || (_view.Mode == CompareMode.Wipe && i == _view.WipeOther) ? 1 : 0.55;
+                c.Opacity = _view.Mode == CompareMode.SideBySide || i == _view.Current || (_view.Mode is CompareMode.Wipe or CompareMode.Difference or CompareMode.Flicker && i == _view.WipeOther) ? 1 : 0.55;
         }
     }
 
@@ -507,7 +579,7 @@ public sealed partial class MainWindow
                 var i = e.Key >= Key.NumPad1 ? e.Key - Key.NumPad1 : e.Key - Key.D1;
                 if (i < _items.Count)
                 {
-                    if (_view.Mode == CompareMode.Wipe && (e.KeyModifiers & KeyModifiers.Shift) != 0)
+                    if (_view.Mode is CompareMode.Wipe or CompareMode.Difference or CompareMode.Flicker && (e.KeyModifiers & KeyModifiers.Shift) != 0)
                     {
                         _view.WipeOther = i;
                         _view.InvalidateVisual();
@@ -551,6 +623,12 @@ public sealed partial class MainWindow
                 return true;
             case Key.A:
                 SetViewMode(CompareMode.Single);
+                return true;
+            case Key.D:
+                SetViewMode(CompareMode.Difference);
+                return true;
+            case Key.T:
+                SetViewMode(_view.Mode == CompareMode.Flicker ? CompareMode.Single : CompareMode.Flicker);
                 return true;
             case Key.F or Key.D0 or Key.NumPad0:
                 _view.SetZoom(0);

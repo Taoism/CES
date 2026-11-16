@@ -23,6 +23,7 @@ internal static class Help
                       -n N             number of evenly spread points (default 6)
                       --at T,T,…       explicit times (1:02:03.5, 3723.5)
                       --random [--seed N] / --chapters
+                      --smart          detailed, well-lit shots (keyframe scan of source 1)
                       --out DIR        output folder (default ./nec2u-shots)
                       --auto-sync      detect offsets first
                       --no-aspect      keep anamorphic pixels (no DAR correction)
