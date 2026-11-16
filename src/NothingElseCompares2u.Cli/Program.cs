@@ -42,6 +42,10 @@ if (tools == null)
 }
 if (cli.Has("verbose"))
     ProcessRunner.CommandStarted += c => Console.Error.WriteLine("> " + c);
+if (cli.Has("hw"))
+    InputBuilder.HardwareDecode = OperatingSystem.IsWindows() ? "d3d11va" : "auto";
+if (cli.Has("no-cache"))
+    ShotCache.Dir = null;
 
 var temp = Path.Combine(Path.GetTempPath(), "nec2u", Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
 using var cts = new CancellationTokenSource();
@@ -189,6 +193,33 @@ try
             await Console.Error.WriteLineAsync();
             Console.WriteLine($"Ranked against {items[0].Name} ({windows} windows × {opt.Length:0} s):");
             Console.Write(Ranker.Table(rows));
+            break;
+        }
+
+        case "subs":
+        {
+            Need(items, 2);
+            if (items.Skip(1).Any(i => !i.Synced) && !cli.Has("no-sync"))
+                await SyncAsync(items, tools, temp, cli, progress, cts.Token);
+            var spec = cli.Get("subs") ?? "1";
+            var st = new SubtitleTiming(tools);
+            var refTrack = SubtitleChoice.Pick(items[0].Title, spec) ?? throw new ArgumentException($"Reference has no subtitle track '{spec}'.");
+            var refLang = items[0].Title.Info!.Subtitles.ElementAt(refTrack).Language;
+            var refEvents = await st.ReadAsync(items[0].Title, refTrack, null, cts.Token);
+            Console.WriteLine($"Reference [{refTrack + 1}] {items[0].Title.Info!.Subtitles.ElementAt(refTrack).Label}: {refEvents.Count} lines");
+            for (var i = 1; i < items.Count; i++)
+            {
+                var track = SubtitleChoice.Pick(items[i].Title, int.TryParse(spec, out _) ? spec : (refLang.Length > 0 ? refLang : spec));
+                if (track == null)
+                {
+                    Console.WriteLine($"== {items[i].Name}: no matching subtitle track");
+                    continue;
+                }
+                var ev = await st.ReadAsync(items[i].Title, track.Value, null, cts.Token);
+                var rep = SubtitleTiming.Compare(items[0], refEvents, items[i], track.Value, ev);
+                Console.WriteLine($"== {items[i].Name} · [{track + 1}] {rep.TrackLabel}");
+                PrintFindings(rep.Findings);
+            }
             break;
         }
 
@@ -403,7 +434,7 @@ static async Task<List<ShotRow>> ShotsAsync(List<CompareItem> items, FfTools too
         {
             var it = items[i];
             var png = Path.Combine(outDir, $"{k:00}_{Format.Time(t).Replace(':', '.')}_{i + 1}_{Safe(it.Name)}.png");
-            var r = await shooter.TakeAsync(it.Title, FrameMatch.TargetTime(items[0], refFrame, t, it), png, opt, ct);
+            var r = await shooter.TakeAsync(it.Title, FrameMatch.TargetTime(items[0], refFrame, t, it), png, opt.With(SubtitleChoice.Pick(it.Title, cli.Get("subs"))), ct);
             if (i == 0 && r.Error == null)
                 refFrame = r.FrameTime;
             row.Shots.Add(r);

@@ -24,6 +24,20 @@ public sealed class ShotOptions
 
     /// <summary>Scale every shot to this height (0 = native) — handy for comparing a 4K source to a 1080p encode.</summary>
     public int ScaleToHeight { get; set; }
+
+    /// <summary>Subtitle stream (index among the subtitle streams) to burn in, null = none.</summary>
+    public int? Subtitle { get; set; }
+
+    public string CacheKey => $"{CorrectAspect}|{Deinterlace}|{ToneMap}|{ScaleToHeight}|{Subtitle}";
+
+    public ShotOptions With(int? subtitle) => new()
+    {
+        CorrectAspect = CorrectAspect,
+        Deinterlace = Deinterlace,
+        ToneMap = ToneMap,
+        ScaleToHeight = ScaleToHeight,
+        Subtitle = subtitle,
+    };
 }
 
 public sealed class FrameStats
@@ -78,10 +92,20 @@ public sealed partial class Screenshotter(FfTools tools, string tempDir)
         }
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPng))!);
         Directory.CreateDirectory(tempDir);
+        var cacheKey = ShotCache.Key(title, time, opt.CacheKey);
+        if (ShotCache.TryGet(cacheKey, outPng) is { } cached)
+            return cached;
         var metaName = $"meta-{Guid.NewGuid():N}.txt";
 
-        var input = InputBuilder.Input(title, time, 2, tempDir);
+        var sub = opt.Subtitle is { } si ? info?.Subtitles.ElementAtOrDefault(si) : null;
+        var bitmapSub = sub != null && sub.Codec is "hdmv_pgs_subtitle" or "dvd_subtitle" or "dvb_subtitle" or "xsub";
+        var textSub = sub != null && !bitmapSub && title.Segments.Count == 1 && File.Exists(title.Segments[0].Url);
+        // a subtitle shown now may have started seconds ago: decode from earlier so it is on screen
+        var input = InputBuilder.Input(title, time, 2, tempDir, minPreroll: sub != null ? 10 : 0);
         var chain = new List<string>();
+        var sw = InputBuilder.SoftwareFormat(title);
+        if (sw.Length > 0)
+            chain.Add(sw.TrimEnd(','));
         if (input.Skip > 0)
             chain.Add(input.TrimFilter.TrimEnd(','));
         if (opt.Deinterlace)
@@ -102,15 +126,36 @@ public sealed partial class Screenshotter(FfTools tools, string tempDir)
             // SD is BT.601: convert explicitly so the PNG colours match HD sources
             chain.Add("scale=in_color_matrix=bt601:out_color_matrix=bt709");
         }
+        // text subtitles are rendered at absolute times: give the frames their real time while drawing
+        var seekBase = time - input.Skip;
+        if (textSub)
+            chain.Add($"setpts=PTS+{InputBuilder.S(seekBase)}/TB,subtitles=filename='{FilterPath(title.Segments[0].Url)}':si={opt.Subtitle},setpts=PTS-{InputBuilder.S(seekBase)}/TB");
+        var afterSubs = new List<string>();
         if (opt.CorrectAspect)
-            chain.Add("scale=w='trunc(iw*max(1,sar)/2)*2':h='trunc(ih*max(1,1/sar)/2)*2':flags=lanczos,setsar=1");
+            afterSubs.Add("scale=w='trunc(iw*max(1,sar)/2)*2':h='trunc(ih*max(1,1/sar)/2)*2':flags=lanczos,setsar=1");
         if (opt.ScaleToHeight > 0)
-            chain.Add($"scale=-2:{opt.ScaleToHeight}:flags=lanczos");
-        chain.Add("format=rgb24");
+            afterSubs.Add($"scale=-2:{opt.ScaleToHeight}:flags=lanczos");
+        afterSubs.Add("format=rgb24");
 
         var args = new List<string> { "-hide_banner", "-nostdin", "-y" };
         args.AddRange(input.Args);
-        args.AddRange(["-map", "0:v:0", "-an", "-sn", "-dn", "-vf", string.Join(",", chain), "-frames:v", "1", "-update", "1", Path.GetFullPath(outPng)]);
+        if (bitmapSub && video != null)
+        {
+            // picture subtitles: scale their canvas to the frame and lay them over it (before the aspect fix, like a player)
+            // PGS is drawn on a 1920×1080 canvas (also on UHD discs and cropped encodes): fit its width, centre it;
+            // DVD subpictures share the video's own canvas
+            var (cw, chh) = sub!.Codec == "hdmv_pgs_subtitle" ? (sub.Width > 0 ? sub.Width : 1920, sub.Height > 0 ? sub.Height : 1080) : (video.Width, video.Height);
+            var sh = (int)Math.Round(video.Width * (double)chh / cw / 2) * 2;
+            var y = (video.Height - sh) / 2;
+            var graph = $"[0:v:0]{string.Join(",", chain)}[v];[0:s:{opt.Subtitle}]scale={video.Width}:{sh}[s];" +
+                        $"[v][s]overlay=x=0:y={y}:eof_action=pass:format=auto,{string.Join(",", afterSubs)}[out]";
+            args.AddRange(["-filter_complex", graph, "-map", "[out]", "-an", "-dn", "-frames:v", "1", "-update", "1", Path.GetFullPath(outPng)]);
+        }
+        else
+        {
+            chain.AddRange(afterSubs);
+            args.AddRange(["-map", "0:v:0", "-an", "-sn", "-dn", "-vf", string.Join(",", chain), "-frames:v", "1", "-update", "1", Path.GetFullPath(outPng)]);
+        }
 
         var res = await ProcessRunner.RunAsync(tools.FFmpeg, args, ct, workingDirectory: tempDir).ConfigureAwait(false);
         if (!File.Exists(outPng) || new FileInfo(outPng).Length == 0)
@@ -134,8 +179,13 @@ public sealed partial class Screenshotter(FfTools tools, string tempDir)
             TryDelete(metaPath);
         }
         (result.Width, result.Height) = PngSize(outPng);
+        ShotCache.Put(cacheKey, result);
         return result;
     }
+
+    /// <summary>A path inside a filter argument: forward slashes, ':' and quotes escaped.</summary>
+    internal static string FilterPath(string path) =>
+        Path.GetFullPath(path).Replace('\\', '/').Replace(":", "\\:").Replace("'", @"'\''");
 
     /// <summary>Title time of the first frame at or after <paramref name="time"/> (NaN when nothing decodes).</summary>
     public async Task<double> FrameTimeAtAsync(MediaTitle title, double time, CancellationToken ct = default)

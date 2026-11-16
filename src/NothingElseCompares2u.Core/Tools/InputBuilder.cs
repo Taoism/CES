@@ -27,6 +27,13 @@ public static class InputBuilder
     /// <summary>Seconds decoded before the target on inputs whose seeking can overshoot (MPEG-TS/PS).</summary>
     public const double Preroll = 3;
 
+    /// <summary>ffmpeg -hwaccel value for video decoding (e.g. "d3d11va", "auto"), null = software.</summary>
+    public static string? HardwareDecode { get; set; }
+
+    /// <summary>Filter that brings hardware-decoded frames back to the stream's own pixel format (empty without hwaccel).</summary>
+    public static string SoftwareFormat(MediaTitle title) =>
+        HardwareDecode != null && title.Info?.Video?.PixFmt is { Length: > 0 } pf ? $"format={pf}," : "";
+
     /// <summary>
     /// Input arguments ("-ss …", "-i …") positioned at <paramref name="time"/> (title seconds), able to read
     /// <paramref name="length"/> seconds (null = to the end). Short reads inside one segment open that segment
@@ -34,7 +41,7 @@ public static class InputBuilder
     /// <para>MPEG-TS/PS seeking can land on a keyframe after the target, so those inputs are opened a little early:
     /// <see cref="InputSpec.Skip"/> seconds must then be dropped after decoding (output -ss, or trim in a filter).</para>
     /// </summary>
-    public static InputSpec Input(MediaTitle title, double time, double? length, string tempDir, bool exactSeek = true)
+    public static InputSpec Input(MediaTitle title, double time, double? length, string tempDir, bool exactSeek = true, double minPreroll = 0)
     {
         time = Math.Max(0, time);
         var seg = SegmentAt(title, time);
@@ -43,11 +50,13 @@ public static class InputBuilder
         var single = title.Segments.Count == 1 || seg.TitleStart + seg.Duration >= Math.Min(end, title.Duration) - 0.001 || seg.Duration <= 0;
         var seek = single ? seg.SeekBase + (time - seg.TitleStart) : time - seg.TitleStart;
         var skip = 0.0;
-        if (exactSeek && IsTsOrPs(seg) && seek > 0.0005)
+        if (exactSeek && (IsTsOrPs(seg) || minPreroll > 0) && seek > 0.0005)
         {
-            skip = Math.Min(Preroll, seek);
+            skip = Math.Min(Math.Max(IsTsOrPs(seg) ? Preroll : 0, minPreroll), seek);
             seek -= skip;
         }
+        if (HardwareDecode != null && title.Info?.Video != null)
+            args.AddRange(["-hwaccel", HardwareDecode]);
         if (seg.Format == "mpeg")
             args.AddRange(["-analyzeduration", "50M", "-probesize", "50M"]);
         if (seek > 0.0005)

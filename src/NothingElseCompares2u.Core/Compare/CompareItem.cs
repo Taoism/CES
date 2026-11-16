@@ -69,6 +69,23 @@ public sealed class CompareItem
     /// <summary>Reference time of a moment in this source (inverse of <see cref="SourceTime"/>, using the base offset).</summary>
     public double TimelineTime(double sourceTime) => (sourceTime - Offset) / Speed;
 
+    /// <summary>Timeline time of a moment in this source, section-aware; null when it is in none of the sections.</summary>
+    public double? TimelineOf(double sourceTime)
+    {
+        if (Sections.Count == 0)
+            return (sourceTime - Offset) / Speed;
+        for (var i = 0; i < Sections.Count; i++)
+        {
+            if (Sections[i].Offset is not { } o)
+                continue;
+            var t = (sourceTime - o) / Speed;
+            var end = i + 1 < Sections.Count ? Sections[i + 1].Start : double.MaxValue;
+            if (t >= Sections[i].Start - 0.5 && t < end + 0.5)
+                return t;
+        }
+        return null;
+    }
+
     /// <summary>Part of the reference timeline this source covers.</summary>
     public (double Start, double End) Coverage()
     {
@@ -121,6 +138,53 @@ public static class FrameMatch
             return null;
         var fps = item.Title.Info?.Video?.FrameRate is > 0 and var f ? f : 24000 / 1001.0;
         return Math.Max(0, st - 0.5 / fps);
+    }
+}
+
+/// <summary>Picks the same subtitle in every source: by language (first full, non-forced track) or by track number.</summary>
+public static class SubtitleChoice
+{
+    /// <summary>Index among the title's subtitle streams, or null when there is no match.</summary>
+    public static int? Pick(MediaTitle title, string? spec)
+    {
+        if (string.IsNullOrWhiteSpace(spec) || title.Info == null)
+            return null;
+        var subs = title.Info.Subtitles.ToList();
+        if (int.TryParse(spec, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n))
+            return n >= 1 && n <= subs.Count ? n - 1 : null;
+        var matches = subs.Select((s, i) => (s, i)).Where(x => LangMatches(x.s.Language, spec)).ToList();
+        if (matches.Count == 0)
+            return null;
+        // prefer a full track over a forced-only one
+        return matches.OrderBy(x => x.s.Forced ? 1 : 0).First().i;
+    }
+
+    /// <summary>"en" matches "eng", "fre" matches "fra" and "fr" …</summary>
+    public static bool LangMatches(string lang, string spec)
+    {
+        if (lang.Length == 0)
+            return false;
+        if (lang.Equals(spec, StringComparison.OrdinalIgnoreCase))
+            return true;
+        static string Norm(string l) => l.ToLowerInvariant() switch
+        {
+            "en" or "eng" => "en",
+            "fr" or "fre" or "fra" => "fr",
+            "de" or "ger" or "deu" => "de",
+            "es" or "spa" => "es",
+            "it" or "ita" => "it",
+            "nl" or "dut" or "nld" => "nl",
+            "pt" or "por" => "pt",
+            "ja" or "jpn" => "ja",
+            "zh" or "chi" or "zho" => "zh",
+            "sv" or "swe" => "sv",
+            "da" or "dan" => "da",
+            "no" or "nor" or "nob" => "no",
+            "fi" or "fin" => "fi",
+            "pl" or "pol" => "pl",
+            var x => x,
+        };
+        return Norm(lang) == Norm(spec);
     }
 }
 

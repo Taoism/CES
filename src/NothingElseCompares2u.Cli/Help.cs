@@ -30,6 +30,7 @@ internal static class Help
                       --tonemap on|off|auto   HDR → SDR (default auto)
                       --deinterlace    bwdif before grabbing
                       --height H       scale all shots to H pixels high
+                      --subs LANG|N    burn in subtitles (each source's first track in LANG, or track N)
           video     Image analysis: bit depth, upscale/native resolution, sharpness, black bars, HDR nits, interlacing
                       --points N       sampled frames (default 8)   --curve  print the native-res curve
                       --no-native      skip the native resolution test
@@ -43,6 +44,8 @@ internal static class Help
           rank      Which release is best: sync, then VMAF/PSNR/SSIM of each against the reference in
                     several windows across the title; folders after the reference = every release inside
                       --windows N (default 5)   --length T (default 20 s)   --metrics …   --whole / --edits
+          subs      Subtitle timing of each source against the reference (same language): shift, drift, lines found
+                      --subs LANG|N    reference track (default track 1; others use the same language)
           report    HTML report with specs, findings, screenshots (and metrics with --metrics)
                       --out DIR  --title TEXT  -n N  --no-video  --no-audio  --no-sync
 
@@ -51,5 +54,7 @@ internal static class Help
           --speed [I=]S      source seconds per reference second: pal (23.976→25), pal24, 0.95904, 24000/25025
           --ffmpeg DIR       folder with ffmpeg/ffprobe     --mediainfo PATH
           --verbose          print every ffmpeg command
+          --hw               hardware video decoding (often slower on fast CPUs)
+          --no-cache         do not use the screenshot cache
         """;
 }
