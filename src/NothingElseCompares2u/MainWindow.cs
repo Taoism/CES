@@ -794,10 +794,12 @@ public sealed partial class MainWindow : Window
     private async Task ShowAboutAsync()
     {
         var v = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "";
-        await MessageBox.ShowAsync(this,
-            $"NothingElseCompares2u {v}\n\nCompare Blu-ray, DVD and video files: frame-matched screenshots, specs, image and audio analysis, " +
-            $"upscale / bit-depth / fake-lossless checks and PSNR/SSIM/VMAF.\n\nffmpeg: {_tools?.FFmpeg ?? "not found"}\n{_tools?.Version}\nMediaInfo: {_tools?.MediaInfo ?? "not found"}",
-            MessageKind.Info, "About");
+        var details = string.Join(Environment.NewLine,
+            $"Version {v}",
+            $"ffmpeg: {_tools?.FFmpeg ?? "not found"}",
+            _tools?.Version ?? "",
+            $"MediaInfo: {_tools?.MediaInfo ?? "not found"}");
+        await new AboutDialog(details).ShowDialog(this);
     }
 
     private async Task ShowSettingsAsync()
