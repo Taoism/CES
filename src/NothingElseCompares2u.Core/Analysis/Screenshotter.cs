@@ -131,6 +131,18 @@ public sealed partial class Screenshotter(FfTools tools, string tempDir)
         return result;
     }
 
+    /// <summary>Title time of the first frame at or after <paramref name="time"/> (NaN when nothing decodes).</summary>
+    public async Task<double> FrameTimeAtAsync(MediaTitle title, double time, CancellationToken ct = default)
+    {
+        var input = InputBuilder.Input(title, time, 2, tempDir);
+        var args = new List<string> { "-hide_banner", "-nostdin" };
+        args.AddRange(input.Args);
+        args.AddRange(["-map", "0:v:0", "-an", "-sn", "-dn", "-vf", input.TrimFilter + "showinfo", "-frames:v", "1", "-f", "null", "-"]);
+        var res = await ProcessRunner.RunAsync(tools.FFmpeg, args, ct).ConfigureAwait(false);
+        var m = ShowInfoRegex().Match(res.StdErr);
+        return m.Success && double.TryParse(m.Groups["t"].Value, NumberStyles.Float, Inv, out var pt) ? time - input.Skip + pt : double.NaN;
+    }
+
     internal static FrameStats ParseMeta(string text, int bitDepth)
     {
         var st = new FrameStats { BitDepth = bitDepth };

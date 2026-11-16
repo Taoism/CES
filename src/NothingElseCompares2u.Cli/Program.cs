@@ -121,7 +121,7 @@ try
                     it.Audio.Add(rep);
                     PrintFindings(rep.Findings);
                     foreach (var c in rep.Channels)
-                        Console.WriteLine($"     {c.Name,-4} peak {Format.Db(c.PeakDb),9}  rms {Format.Db(c.RmsDb),9}  floor {Format.Db(c.NoiseFloorDb),9}  bits {c.BitDepth}");
+                        Console.WriteLine($"     {c.Name,-4} peak {Format.Db(c.PeakDb),9}  rms {Format.Db(c.RmsDb),9}  floor {Format.Db(c.NoiseFloorDb),9}  crest {Format.Db(c.CrestDb),8}  bits {c.BitsUsedText}");
                     if (rep.SpectrogramPng != null && cli.Get("out") is { } od)
                     {
                         Directory.CreateDirectory(od);
@@ -309,7 +309,7 @@ static async Task SyncAsync(List<CompareItem> items, FfTools tools, string temp,
         foreach (var p in r.Probes)
             Console.Error.WriteLine($"    at {Format.Time(p.RefTime, false)}: {p.Offset:+0.000;-0.000} s (confidence {p.Confidence:0.0})");
         Console.WriteLine($"Sync [{i + 1}] {items[i].Name}: {r.Summary}");
-        if (r.Probes.Count > 0 && r.Confidence >= 4)
+        if (r.Reliable)
             items[i].Offset = r.Offset + items[0].Offset;
     }
 }
@@ -342,11 +342,14 @@ static async Task<List<ShotRow>> ShotsAsync(List<CompareItem> items, FfTools too
     {
         var row = new ShotRow { Time = t };
         k++;
+        double? refFrame = null;
         for (var i = 0; i < items.Count; i++)
         {
             var it = items[i];
             var png = Path.Combine(outDir, $"{k:00}_{Format.Time(t).Replace(':', '.')}_{i + 1}_{Safe(it.Name)}.png");
-            var r = await shooter.TakeAsync(it.Title, t + it.Offset, png, opt, ct);
+            var r = await shooter.TakeAsync(it.Title, FrameMatch.TargetTime(items[0], refFrame, t, it), png, opt, ct);
+            if (i == 0 && r.Error == null)
+                refFrame = r.FrameTime;
             row.Shots.Add(r);
             Console.Error.WriteLine($"  {Format.Time(t)} [{i + 1}] {r.Error ?? $"{r.PictType}-frame {r.Width}×{r.Height}"}");
         }

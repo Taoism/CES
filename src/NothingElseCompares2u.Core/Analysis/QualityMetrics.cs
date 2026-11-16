@@ -114,12 +114,19 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
         if (fpsFix.Length > 0)
             notes.Add($"frame rates differ ({dv.FrameRateText} vs {rv.FrameRateText}): encode resampled — expect low scores");
 
-        var refIn = InputBuilder.Input(reference, start, length, tempDir);
-        var disIn = InputBuilder.Input(distorted, start + distortedOffset, length, tempDir);
+        // anchor on the reference's real first frame, then open both half a frame early so their first frames pair up
+        var r0 = await new Screenshotter(tools, tempDir).FrameTimeAtAsync(reference, start, ct).ConfigureAwait(false);
+        if (double.IsNaN(r0))
+            r0 = start;
+        var halfR = 0.5 / Math.Max(1, rv.FrameRate);
+        var halfD = 0.5 / Math.Max(1, dv.FrameRate);
+        res.Start = r0;
+        var refIn = InputBuilder.Input(reference, Math.Max(0, r0 - halfR), length, tempDir);
+        var disIn = InputBuilder.Input(distorted, Math.Max(0, r0 + distortedOffset - halfD), length, tempDir);
         var refChain = refIn.TrimFilter + (opt.DeinterlaceReference ? "bwdif=mode=send_frame:deint=all," : "") +
                        (crop != null ? $"crop={rw}:{rh}:{crop.Left}:{crop.Top}," : "") +
-                       $"settb=AVTB,setpts=PTS-STARTPTS,trim=duration={InputBuilder.S(length)},format={fmt}";
-        var disChain = disIn.TrimFilter + $"{fpsFix}settb=AVTB,setpts=PTS-STARTPTS,trim=duration={InputBuilder.S(length)},scale={rw}:{rh}:flags=bicubic,format={fmt}";
+                       $"settb=AVTB,setpts=N/FRAME_RATE/TB,trim=duration={InputBuilder.S(length)},format={fmt}";
+        var disChain = disIn.TrimFilter + $"{fpsFix}settb=AVTB,setpts=N/FRAME_RATE/TB,trim=duration={InputBuilder.S(length)},scale={rw}:{rh}:flags=bicubic,format={fmt}";
 
         var metrics = opt.Metrics;
         if (!tools.HasVmaf && metrics.HasFlag(Metric.Vmaf))

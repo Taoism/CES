@@ -16,7 +16,18 @@ public sealed class ChannelStats
     public double DcOffset { get; set; } = double.NaN;
     public double NoiseFloorDb { get; set; } = double.NaN;
     public double DynamicRangeDb { get; set; } = double.NaN;
+    public double CrestDb { get; set; } = double.NaN;
     public string BitDepth { get; set; } = "";
+
+    /// <summary>"23 of 24 bits" from astats' "23/24/…" (used / format).</summary>
+    public string BitsUsedText
+    {
+        get
+        {
+            var p = BitDepth.Split('/');
+            return p.Length >= 2 ? $"{p[0]} of {p[1]}" : BitDepth;
+        }
+    }
 }
 
 public sealed class AudioReport
@@ -71,7 +82,7 @@ public sealed partial class AudioAnalyzer(FfTools tools, string tempDir)
             var args = new List<string> { "-hide_banner", "-nostdin", "-nostats" };
             var input = InputBuilder.Input(title, start, len, tempDir);
             args.AddRange(input.Args);
-            args.AddRange(["-map", $"0:a:{audioIndex}", "-vn", "-sn", "-dn", "-af", input.ATrimFilter + "astats=measure_overall=all:measure_perchannel=Peak_level+RMS_level+DC_offset+Noise_floor+Dynamic_range+Bit_depth,ebur128=peak=true:framelog=quiet", "-f", "null", "-"]);
+            args.AddRange(["-map", $"0:a:{audioIndex}", "-vn", "-sn", "-dn", "-af", input.ATrimFilter + "astats=measure_overall=all:measure_perchannel=Peak_level+RMS_level+DC_offset+Noise_floor+Dynamic_range+Crest_factor+Bit_depth,ebur128=peak=true:framelog=quiet", "-f", "null", "-"]);
             var res = await ProcessRunner.RunAsync(tools.FFmpeg, args, ct, workingDirectory: tempDir).ConfigureAwait(false);
             stats.Add(ParseAstats(res.StdErr));
             var l = ParseLoudness(res.StdErr);
@@ -237,7 +248,7 @@ public sealed partial class AudioAnalyzer(FfTools tools, string tempDir)
             if (int.TryParse(used, NumberStyles.Integer, Inv, out var u) && u <= 16)
                 f.Add(new Finding { Area = "Bit depth", Level = 2, Text = $"{s.BitDepth}-bit track but only {u} bits are used: padded 16-bit audio." });
             else
-                f.Add(new Finding { Area = "Bit depth", Level = 0, Text = $"Bits used: {rep.Overall.BitDepth}." });
+                f.Add(new Finding { Area = "Bit depth", Level = 0, Text = $"Real {s.BitDepth}-bit audio: {rep.Overall.BitsUsedText} bits used." });
         }
         var silent = rep.Channels.Where(c => c.RmsDb < -75 || double.IsNegativeInfinity(c.RmsDb)).Select(c => c.Name).ToList();
         if (silent.Count > 0 && rep.Channels.Count > 2)
@@ -299,6 +310,7 @@ public sealed partial class AudioAnalyzer(FfTools tools, string tempDir)
                 case "Noise floor dB": cur.NoiseFloorDb = Dbl(val); break;
                 case "Dynamic range": cur.DynamicRangeDb = Dbl(val); break;
                 case "Bit depth": cur.BitDepth = val; break;
+                case "Crest factor": cur.CrestDb = Dbl(val) is var cf && cf > 0 ? 20 * Math.Log10(cf) : double.NaN; break;
             }
         }
         return (overall, channels);
@@ -345,6 +357,7 @@ public sealed partial class AudioAnalyzer(FfTools tools, string tempDir)
             DcOffset = Avg(c => c.DcOffset),
             NoiseFloorDb = Min(c => c.NoiseFloorDb),
             DynamicRangeDb = Max(c => c.DynamicRangeDb),
+            CrestDb = Max(c => c.CrestDb),
             BitDepth = list.Select(c => c.BitDepth).Where(b => b.Length > 0).OrderByDescending(b => int.TryParse(b.Split('/')[0], NumberStyles.Integer, Inv, out var x) ? x : 0).FirstOrDefault() ?? "",
         };
     }

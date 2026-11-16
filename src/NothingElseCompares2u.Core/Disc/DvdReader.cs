@@ -52,7 +52,7 @@ public static class DvdReader
         {
             r.U8(); // type
             var angles = r.U8();
-            var chapters = r.U16();
+            r.U16(); // chapters (counted from the PTT table instead)
             r.U16(); // parental
             int vtsn = r.U8();
             int vtsTtn = r.U8();
@@ -76,7 +76,6 @@ public static class DvdReader
             var title = BuildTitle(videoTs, t, vtsn, vts, vts.Ptts[vtsTtn - 1], angles);
             if (title != null && title.Duration >= minSeconds)
                 titles.Add(title);
-            _ = chapters;
         }
         var main = titles.OrderByDescending(x => x.Duration).FirstOrDefault();
         if (main != null)
@@ -130,7 +129,7 @@ public static class DvdReader
                 runStart = i + 1;
             }
             // chapters of this PGC
-            foreach (var (pPgcn, pgn) in ptts.Where(p => p.Pgcn == pgcn))
+            foreach (var (_, pgn) in ptts.Where(p => p.Pgcn == pgcn))
             {
                 if (pgn < 1 || pgn > pgc.ProgramEntryCells.Count)
                     continue;
@@ -138,7 +137,6 @@ public static class DvdReader
                 if (cellNo < 1 || cellNo > cellStarts.Count)
                     continue;
                 title.Chapters.Add(new Chapter(cellStarts[cellNo - 1], $"Chapter {title.Chapters.Count + 1:00}"));
-                _ = pPgcn;
             }
             t += pgc.Cells.Sum(c => c.Duration);
 

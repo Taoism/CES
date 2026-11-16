@@ -391,17 +391,38 @@ public static class FrameMetrics
         res.NativeHeight = null;
         res.Kernel = null;
         res.Confidence = order.Count > 0 ? Math.Max(0, order[0].v) : 0;
-        if (order.Count == 0)
+        if (order.Count == 0 || order[0].v < 0.15)
             return;
         var best = order[0];
-        var second = order.Count > 1 ? Math.Max(0, order[1].v) : 0;
-        if (best.v >= 0.12 && best.v >= second * 2)
+        var bestH = pts[best.i].Height;
+        // an image upscaled from h also descales well to simple multiples of h (3/2·h, 4/3·h …): those are not rivals,
+        // and the lowest strong member of that family is the real source height
+        var family = order.Where(x => x.v >= best.v * 0.5 && IsHarmonic(pts[x.i].Height, bestH)).ToList();
+        var rival = order.FirstOrDefault(x => x.i != best.i && !IsHarmonic(pts[x.i].Height, bestH)).v;
+        if (best.v < Math.Max(0, rival) * 1.8)
+            return;
+        var native = family.OrderBy(x => pts[x.i].Height).First();
+        var hgt = pts[native.i].Height;
+        res.Confidence = native.v;
+        // report as a full-frame height (the test ran on the picture without black bars)
+        res.NativeHeight = activeHeight != frameHeight ? (int)Math.Round(hgt * (double)frameHeight / activeHeight) : hgt;
+        res.Kernel = pts[native.i].Kernel;
+    }
+
+    /// <summary>True when a and b are related by a small ratio (k/m with k, m ≤ 4), within 1 %.</summary>
+    private static bool IsHarmonic(int a, int b)
+    {
+        if (a == b)
+            return true;
+        for (var k = 1; k <= 4; k++)
         {
-            var hgt = pts[best.i].Height;
-            // report as a full-frame height (the test ran on the picture without black bars)
-            res.NativeHeight = activeHeight != frameHeight ? (int)Math.Round(hgt * (double)frameHeight / activeHeight) : hgt;
-            res.Kernel = pts[best.i].Kernel;
+            for (var m = 1; m <= 4; m++)
+            {
+                if (k != m && Math.Abs(a * (double)m / k - b) <= b * 0.01)
+                    return true;
+            }
         }
+        return false;
     }
 
     private static List<int> Candidates(int frameHeight, int activeHeight)

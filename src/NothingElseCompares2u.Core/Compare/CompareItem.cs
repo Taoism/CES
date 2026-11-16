@@ -31,6 +31,23 @@ public sealed class ShotRow
     public List<ShotResult?> Shots { get; } = [];
 }
 
+/// <summary>Which time to ask each source for so every screenshot in a row shows the same frame.</summary>
+public static class FrameMatch
+{
+    /// <summary>
+    /// ffmpeg returns the first frame at or after the requested time, so a few milliseconds of offset error (or frame
+    /// grids with a different phase) can pick the next frame. Once the reference frame's real time is known, ask the
+    /// other source for half a frame before its matching frame: that always lands on the nearest one.
+    /// </summary>
+    public static double TargetTime(CompareItem reference, double? referenceFrameTime, double rowTime, CompareItem item)
+    {
+        if (item == reference || referenceFrameTime is not { } rt || double.IsNaN(rt))
+            return rowTime + item.Offset;
+        var fps = item.Title.Info?.Video?.FrameRate is > 0 and var f ? f : 24000 / 1001.0;
+        return Math.Max(0, rt - reference.Offset + item.Offset - 0.5 / fps);
+    }
+}
+
 /// <summary>"Specs" table: one row per property, one value per source.</summary>
 public static class SpecTable
 {
