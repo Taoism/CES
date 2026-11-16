@@ -44,6 +44,9 @@ public sealed class CompareItem
 
     public string Label { get; set; } = "";
 
+    /// <summary>The time map was set by auto-sync or by hand (ranking syncs the others first).</summary>
+    public bool Synced { get; set; }
+
     public VideoReport? Video { get; set; }
     public List<AudioReport> Audio { get; } = [];
 

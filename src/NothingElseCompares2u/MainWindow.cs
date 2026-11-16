@@ -110,6 +110,7 @@ public sealed partial class MainWindow : Window
                     {
                         MenuItemFor("Add _files…", AddFilesAsync, new KeyGesture(Key.O, KeyModifiers.Control)),
                         MenuItemFor("Add disc _folder (BDMV / VIDEO_TS)…", AddFolderAsync, new KeyGesture(Key.O, KeyModifiers.Control | KeyModifiers.Shift)),
+                        MenuItemFor("Add folder of _releases…", AddReleaseFolderAsync),
                         new Separator(),
                         MenuItemFor("Export HTML _report…", ExportReportAsync, new KeyGesture(Key.E, KeyModifiers.Control)),
                         MenuItemFor("Save _screenshots…", ExportShotsAsync),
@@ -319,6 +320,26 @@ public sealed partial class MainWindow : Window
         await AddPathsAsync(folders.Select(f => f.TryGetLocalPath()).OfType<string>().ToList());
     }
 
+    /// <summary>Every release in a folder: media files, ISOs and disc folders one level down.</summary>
+    private async Task AddReleaseFolderAsync()
+    {
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Folder with the releases to compare",
+            SuggestedStartLocation = await StartFolderAsync(),
+        });
+        var dir = folders.FirstOrDefault()?.TryGetLocalPath();
+        if (dir == null)
+            return;
+        var paths = SourceOpener.ExpandFolder(dir);
+        if (paths.Count == 0)
+        {
+            await MessageBox.ShowAsync(this, "No video files, ISOs or disc folders in that folder.", MessageKind.Info);
+            return;
+        }
+        await AddPathsAsync(paths);
+    }
+
     private async Task<IStorageFolder?> StartFolderAsync() =>
         Directory.Exists(_settings.LastFolder) ? await StorageProvider.TryGetFolderFromPathAsync(_settings.LastFolder) : null;
 
@@ -448,6 +469,7 @@ public sealed partial class MainWindow : Window
             async Task Apply(double value)
             {
                 item.Offset = Math.Round(value, 6);
+                item.Synced = true;
                 offset.Text = item.Offset.ToString("0.000#", CultureInfo.InvariantCulture);
                 RefreshSpecs();
                 await RetakeSourceAsync(_items.IndexOf(item));
@@ -565,7 +587,7 @@ public sealed partial class MainWindow : Window
         await RetakeSourceAsync(_items.IndexOf(item));
     }
 
-    private async Task AutoSyncAsync()
+    private async Task AutoSyncAsync(bool onlyUnsynced = false, bool quiet = false)
     {
         if (_tools == null || _items.Count < 2)
         {
@@ -578,6 +600,8 @@ public sealed partial class MainWindow : Window
             var detector = new Analysis.SyncDetector(_tools, _temp);
             for (var i = 1; i < _items.Count; i++)
             {
+                if (onlyUnsynced && _items[i].Synced)
+                    continue;
                 if (_items[0].Title.Info?.Audio.Any() != true || _items[i].Title.Info?.Audio.Any() != true)
                 {
                     lines.Add($"{i + 1}. {_items[i].Name}: no audio to match");
@@ -601,6 +625,7 @@ public sealed partial class MainWindow : Window
                     it.Speed = r.Speed;
                     it.Offset = Math.Round(r.Offset, 4);
                     it.Sections.AddRange(r.Sections);
+                    it.Synced = true;
                 }
                 lines.Add($"{i + 1}. {_items[i].Name}: {r.Summary}");
             }
@@ -609,7 +634,10 @@ public sealed partial class MainWindow : Window
         });
         if (lines.Count > 0)
         {
-            await MessageBox.ShowAsync(this, string.Join("\n\n", lines), MessageKind.Info, "Auto-sync");
+            if (!quiet)
+                await MessageBox.ShowAsync(this, string.Join("\n\n", lines), MessageKind.Info, "Auto-sync");
+            else
+                AppendLog(string.Join(Environment.NewLine, lines));
             await RetakeAllAsync();
         }
     }

@@ -55,7 +55,11 @@ var progress = new Progress<string>(s => Console.Error.WriteLine("  " + s));
 try
 {
     var items = new List<CompareItem>();
-    foreach (var spec in cli.Positional)
+    // rank: folders after the reference stand for every release inside them
+    var specs = args[0] == "rank"
+        ? cli.Positional.Take(1).Concat(cli.Positional.Skip(1).SelectMany(p => Directory.Exists(p) ? SourceOpener.ExpandFolder(p) : [p])).ToList()
+        : cli.Positional;
+    foreach (var spec in specs)
         items.Add(await OpenItemAsync(spec, cli, tools, cts.Token));
     // --offset 2=5.0 (source 2 is 5 s later) or --offset 5.0 for the second source
     foreach (var o in cli.All("offset"))
@@ -65,6 +69,23 @@ try
         if (idx < 0 || idx >= items.Count || !Format.TryParseTime(val, out var off))
             throw new ArgumentException("Bad --offset " + o);
         items[idx].Offset = off;
+        items[idx].Synced = true;
+    }
+    // --speed 2=pal (23.976 film sped up to 25), 2=0.95904, or a ratio 2=24000/25025
+    foreach (var o in cli.All("speed"))
+    {
+        var p = o.Split('=');
+        var (idx, val) = p.Length == 2 ? (int.Parse(p[0], CultureInfo.InvariantCulture) - 1, p[1]) : (1, p[0]);
+        var sp = val.ToLowerInvariant() switch
+        {
+            "pal" => 24000 / 1001.0 / 25,
+            "pal24" => 24 / 25.0,
+            _ when val.Contains('/') => double.Parse(val.Split('/')[0], CultureInfo.InvariantCulture) / double.Parse(val.Split('/')[1], CultureInfo.InvariantCulture),
+            _ => double.Parse(val, CultureInfo.InvariantCulture),
+        };
+        if (idx < 0 || idx >= items.Count || sp <= 0)
+            throw new ArgumentException("Bad --speed " + o);
+        items[idx].Speed = sp;
     }
 
     switch (args[0])
@@ -144,6 +165,30 @@ try
                 var res = await RunMetricsAsync(items[0], items[i], opt, tools, temp, cts.Token);
                 PrintMetrics(items[0], items[i], res);
             }
+            break;
+        }
+
+        case "rank":
+        {
+            Need(items, 2);
+            if (!cli.Has("no-sync"))
+                await SyncAsync(items, tools, temp, cli, progress, cts.Token);
+            var opt = MetricOpts(cli);
+            if (cli.Get("length") == null)
+                opt.Length = 20;
+            var windows = cli.Get("windows") is { } wn ? int.Parse(wn, CultureInfo.InvariantCulture) : 5;
+            var last = "";
+            var prog = new Progress<(double Fraction, string Text)>(p =>
+            {
+                var line = $"\r  {p.Fraction:P0} {p.Text}";
+                if (line != last)
+                    Console.Error.Write(line.Length > 110 ? line[..110] : line.PadRight(110));
+                last = line;
+            });
+            var rows = await Ranker.RankAsync(tools, temp, items[0], items.Skip(1).ToList(), opt, windows, prog, cts.Token);
+            await Console.Error.WriteLineAsync();
+            Console.WriteLine($"Ranked against {items[0].Name} ({windows} windows × {opt.Length:0} s):");
+            Console.Write(Ranker.Table(rows));
             break;
         }
 
@@ -426,7 +471,10 @@ static async Task<MetricResult> RunMetricsAsync(CompareItem rf, CompareItem ds, 
             Console.Error.Write($"\r  {ds.Name}: {pct}%   ");
         }
     });
-    var res = await new QualityMetrics(tools, temp).RunAsync(rf.Title, ds.Title, ds.Offset - rf.Offset, opt, prog, ct, ds.Speed);
+    // offset of the distorted source for the measured window (its section, when it is a different edit)
+    var t0 = double.IsNaN(opt.Start) ? rf.Title.Duration / 2 : opt.Start;
+    var off = ds.SourceTime(t0) is { } st ? st - (rf.SourceTime(t0) ?? t0) * ds.Speed : ds.Offset - rf.Offset;
+    var res = await new QualityMetrics(tools, temp).RunAsync(rf.Title, ds.Title, off, opt, prog, ct, ds.Speed);
     await Console.Error.WriteLineAsync();
     return res;
 }

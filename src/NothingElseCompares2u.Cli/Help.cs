@@ -40,11 +40,15 @@ internal static class Help
                       --metrics psnr,ssim,vmaf,xpsnr   --start T   --length T (default 60 s, middle)
                       --subsample N    every N-th frame   --no-crop  no automatic reference crop
                       --auto-sync      detect offsets first
+          rank      Which release is best: sync, then VMAF/PSNR/SSIM of each against the reference in
+                    several windows across the title; folders after the reference = every release inside
+                      --windows N (default 5)   --length T (default 20 s)   --metrics …   --whole / --edits
           report    HTML report with specs, findings, screenshots (and metrics with --metrics)
                       --out DIR  --title TEXT  -n N  --no-video  --no-audio  --no-sync
 
         Common options
           --offset [I=]T     source I (default 2) starts T seconds later than the reference
+          --speed [I=]S      source seconds per reference second: pal (23.976→25), pal24, 0.95904, 24000/25025
           --ffmpeg DIR       folder with ffmpeg/ffprobe     --mediainfo PATH
           --verbose          print every ffmpeg command
         """;

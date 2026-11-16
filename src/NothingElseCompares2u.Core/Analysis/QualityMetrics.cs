@@ -52,11 +52,39 @@ public sealed class MetricResult
     public double Start { get; set; }
     public double FrameRate { get; set; }
     public int Frames { get; set; }
+
+    /// <summary>Reference time of each measured frame (several windows are not contiguous).</summary>
+    public List<double> FrameTimes { get; } = [];
     public Dictionary<Metric, MetricSeries> Series { get; } = [];
     public string ReferenceGeometry { get; set; } = "";
     public string Notes { get; set; } = "";
 
-    public double TimeOf(int frame) => Start + frame / (FrameRate > 0 ? FrameRate : 24);
+    public double TimeOf(int frame) => frame < FrameTimes.Count ? FrameTimes[frame] : Start + frame / (FrameRate > 0 ? FrameRate : 24);
+
+    /// <summary>Joins the results of several windows into one (values and frame times concatenated).</summary>
+    public static MetricResult Merge(IReadOnlyList<MetricResult> parts)
+    {
+        var m = new MetricResult
+        {
+            Start = parts.Count > 0 ? parts[0].Start : 0,
+            FrameRate = parts.Count > 0 ? parts[0].FrameRate : 0,
+            ReferenceGeometry = parts.Select(p => p.ReferenceGeometry).FirstOrDefault(g => g.Length > 0) ?? "",
+            Notes = string.Join("; ", parts.Select(p => p.Notes).Where(n => n.Length > 0).Distinct()),
+        };
+        foreach (var p in parts)
+        {
+            var n = p.Series.Values.Select(s => s.Values.Count).DefaultIfEmpty(0).Max();
+            foreach (var (k, s) in p.Series)
+            {
+                if (!m.Series.TryGetValue(k, out var t))
+                    m.Series[k] = t = new MetricSeries { Name = s.Name };
+                t.Values.AddRange(s.Values);
+            }
+            m.FrameTimes.AddRange(Enumerable.Range(0, n).Select(p.TimeOf));
+            m.Frames += n;
+        }
+        return m;
+    }
 
     /// <summary>The worst frames by the primary metric (VMAF, else SSIM, else PSNR), spaced at least a second apart.</summary>
     public List<(int Frame, double Value)> Worst(int count)
@@ -129,10 +157,12 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
         res.Start = r0;
         var refIn = InputBuilder.Input(reference, Math.Max(0, r0 - halfR), length, tempDir);
         var disIn = InputBuilder.Input(distorted, Math.Max(0, r0 * distortedSpeed + distortedOffset - halfD), length * distortedSpeed, tempDir);
+        // both streams count frames on the reference clock, so frame n of one pairs with frame n of the other
+        var rateExpr = rv.FrameRate.ToString("0.#########", Inv);
         var refChain = refIn.TrimFilter + (opt.DeinterlaceReference ? "bwdif=mode=send_frame:deint=all," : "") +
                        (crop != null ? $"crop={rw}:{rh}:{crop.Left}:{crop.Top}," : "") +
-                       $"settb=AVTB,setpts=N/FRAME_RATE/TB,trim=duration={InputBuilder.S(length)},format={fmt}";
-        var disChain = disIn.TrimFilter + $"{fpsFix}settb=AVTB,setpts=N/FRAME_RATE/TB,trim=duration={InputBuilder.S(length)},scale={rw}:{rh}:flags=bicubic,format={fmt}";
+                       $"settb=AVTB,setpts=N/({rateExpr}*TB),trim=duration={InputBuilder.S(length)},format={fmt}";
+        var disChain = disIn.TrimFilter + $"{fpsFix}settb=AVTB,setpts=N/({rateExpr}*TB),trim=duration={InputBuilder.S(length)},scale={rw}:{rh}:flags=bicubic,format={fmt}";
 
         var metrics = opt.Metrics;
         if (!tools.HasVmaf && metrics.HasFlag(Metric.Vmaf))
@@ -216,6 +246,7 @@ public sealed partial class QualityMetrics(FfTools tools, string tempDir)
         res.Frames = res.Series.Values.Max(s => s.Values.Count);
         if (sub > 1)
             res.FrameRate /= sub;
+        res.FrameTimes.AddRange(Enumerable.Range(0, res.Frames).Select(i => res.Start + i / (res.FrameRate > 0 ? res.FrameRate : 24)));
         res.Notes = string.Join("; ", notes);
         return res;
     }

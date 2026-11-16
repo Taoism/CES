@@ -79,6 +79,31 @@ public static class SourceOpener
         Mounts.Clear();
     }
 
+    /// <summary>
+    /// A folder of releases → the things to compare in it: media files and ISOs, plus disc folders (BDMV / VIDEO_TS)
+    /// one level down. A folder that is itself a disc stays one source.
+    /// </summary>
+    public static List<string> ExpandFolder(string folder)
+    {
+        if (!Directory.Exists(folder) || FindDiscRoot(folder) != null)
+            return [folder];
+        var list = new List<string>();
+        foreach (var f in Directory.EnumerateFiles(folder).Order(StringComparer.OrdinalIgnoreCase))
+        {
+            var ext = Path.GetExtension(f).ToLowerInvariant();
+            // video containers only (audio-only files and samples are not releases to rank)
+            if (ext is ".mkv" or ".mp4" or ".m4v" or ".m2ts" or ".ts" or ".avi" or ".mov" or ".webm" or ".iso" or ".vob" or ".mpg" &&
+                !Path.GetFileNameWithoutExtension(f).Contains("sample", StringComparison.OrdinalIgnoreCase))
+                list.Add(f);
+        }
+        foreach (var d in Directory.EnumerateDirectories(folder).Order(StringComparer.OrdinalIgnoreCase))
+        {
+            if (FindDiscRoot(d) != null)
+                list.Add(d);
+        }
+        return list;
+    }
+
     private static (string Root, SourceKind Kind)? FindDiscRoot(string path)
     {
         var dir = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
