@@ -24,25 +24,32 @@ public sealed class LumaFrame
         return f;
     }
 
-    public static async Task<LumaFrame?> GrabAsync(FfTools tools, MediaTitle title, double time, string tempDir, bool deinterlace, CancellationToken ct)
+    /// <param name="plane">"y" for luma, "u"/"v" for a chroma plane (at its own, possibly subsampled, size).</param>
+    public static async Task<LumaFrame?> GrabAsync(FfTools tools, MediaTitle title, double time, string tempDir, bool deinterlace, CancellationToken ct, string plane = "y")
     {
         var v = title.Info?.Video;
         if (v == null || v.Width <= 0 || v.Height <= 0)
             return null;
+        var (w, h) = plane == "y" ? (v.Width, v.Height) : v.ChromaSubsampling switch
+        {
+            "4:2:0" => ((v.Width + 1) / 2, (v.Height + 1) / 2),
+            "4:2:2" => ((v.Width + 1) / 2, v.Height),
+            _ => (v.Width, v.Height),
+        };
         var args = new List<string> { "-hide_banner", "-nostdin", "-v", "error" };
         var input = InputBuilder.Input(title, time, 2, tempDir);
         args.AddRange(input.Args);
-        var vf = input.TrimFilter + (deinterlace ? "bwdif=mode=send_frame:deint=all," : "") + "extractplanes=y";
+        var vf = InputBuilder.SoftwareFormat(title) + input.TrimFilter + (deinterlace ? "bwdif=mode=send_frame:deint=all," : "") + $"extractplanes={plane}";
         args.AddRange(["-map", "0:v:0", "-an", "-sn", "-dn", "-vf", vf, "-frames:v", "1", "-f", "rawvideo", "-"]);
         var res = await ProcessRunner.RunAsync(tools.FFmpeg, args, ct).ConfigureAwait(false);
         var bytes = res.StdOut;
-        var pixels = v.Width * v.Height;
+        var pixels = w * h;
         if (bytes.Length == pixels)
         {
             var d = new ushort[pixels];
             for (var i = 0; i < pixels; i++)
                 d[i] = bytes[i];
-            return new LumaFrame { Data = d, Width = v.Width, Height = v.Height, BitDepth = 8, Time = time };
+            return new LumaFrame { Data = d, Width = w, Height = h, BitDepth = 8, Time = time };
         }
         if (bytes.Length == pixels * 2)
         {
@@ -50,7 +57,7 @@ public sealed class LumaFrame
             for (var i = 0; i < pixels; i++)
                 d[i] = (ushort)(bytes[2 * i] | (bytes[2 * i + 1] << 8));
             var depth = v.BitDepth is > 8 and <= 16 ? v.BitDepth : 10;
-            return new LumaFrame { Data = d, Width = v.Width, Height = v.Height, BitDepth = depth, Time = time };
+            return new LumaFrame { Data = d, Width = w, Height = h, BitDepth = depth, Time = time };
         }
         return null;
     }

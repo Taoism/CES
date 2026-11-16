@@ -253,6 +253,12 @@ public static class SpecTable
         {
             Add("Analysis", "Sharpness", (i, _) => i.Video is { } r ? Format.Num(r.AvgSharpness, "0.0") : "");
             Add("Analysis", "HF energy (H / V)", (i, _) => i.Video is { } r ? $"{r.AvgHfRatioH:0.0} / {r.AvgHfRatioV:0.0} dB" : "");
+            Add("Analysis", "Grain / noise", (i, _) => i.Video is { } r && !double.IsNaN(r.AvgNoise) ? $"{r.AvgNoise:0.00}" : "");
+            Add("Analysis", "Flat-area step length (banding)", (i, _) => i.Video is { } r && !double.IsNaN(r.AvgBandRun) ? $"{r.AvgBandRun:0.0} px" : "");
+            Add("Analysis", "Edge overshoot (halos)", (i, _) => i.Video is { } r && !double.IsNaN(r.AvgHalo) ? $"{r.AvgHalo:P0}" : "");
+            Add("Analysis", "Chroma detail vs luma (H / V)", (i, _) => i.Video is { } r && !double.IsNaN(r.ChromaHfH) ? $"{r.ChromaHfH:0} / {r.ChromaHfV:0} dB" : "");
+            Add("Analysis", "Dynamic HDR metadata", (i, _) => i.Video is { } r && r.Frames.FirstOrDefault(f => f.DynamicHdr != null)?.DynamicHdr is { } d
+                ? $"{d.Kind}: max {r.Frames.Where(f => f.DynamicHdr != null).Min(f => f.DynamicHdr!.MaxNits):0}–{r.Frames.Where(f => f.DynamicHdr != null).Max(f => f.DynamicHdr!.MaxNits):0} nits" : "");
             Add("Analysis", "Native resolution", (i, _) => i.Video?.NativeRes is { } n ? n.NativeHeight is { } h ? $"≈{h}p ({n.Kernel}, {n.Confidence:P0})" : "native / unknown" : "");
             Add("Analysis", "Effective bit depth", (i, _) => i.Video is { Frames.Count: > 0 } r ? $"{r.Frames.Min(f => f.Levels.EffectiveBits)}-bit" : "");
             Add("Analysis", "Active picture", (i, _) => i.Video is { Crop: { } c } r ? $"{c.Width(r.Width)}×{c.Height(r.Height)}" : "");

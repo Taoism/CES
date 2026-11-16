@@ -12,8 +12,10 @@ public sealed class VideoFrameResult
     public double Sharpness { get; init; }
     public required SpectrumStats Spectrum { get; init; }
     public required CropBox Crop { get; init; }
-    public double PeakNits { get; init; } = double.NaN;
-    public double AvgNits { get; init; } = double.NaN;
+    public double PeakNits { get; set; } = double.NaN;
+    public double AvgNits { get; set; } = double.NaN;
+    public ArtefactStats? Artefacts { get; set; }
+    public DynamicHdr? DynamicHdr { get; set; }
 }
 
 public sealed class InterlaceResult
@@ -60,6 +62,17 @@ public sealed class VideoReport
     public int BitDepth { get; set; }
 
     public double AvgSharpness => Frames.Count > 0 ? Frames.Average(f => f.Sharpness) : double.NaN;
+    public double AvgNoise => Avg(f => f.Artefacts?.Noise);
+    public double AvgBandRun => Avg(f => f.Artefacts?.BandRun);
+    public double AvgHalo => Avg(f => f.Artefacts?.Halo);
+    public double ChromaHfH => Avg(f => f.Artefacts?.ChromaHfH);
+    public double ChromaHfV => Avg(f => f.Artefacts?.ChromaHfV);
+
+    private double Avg(Func<VideoFrameResult, double?> sel)
+    {
+        var v = Frames.Select(sel).OfType<double>().Where(x => !double.IsNaN(x)).ToList();
+        return v.Count > 0 ? v.Average() : double.NaN;
+    }
     public double AvgHfRatioH => Frames.Count > 0 ? Frames.Average(f => f.Spectrum.HfRatioH) : double.NaN;
     public double AvgHfRatioV => Frames.Count > 0 ? Frames.Average(f => f.Spectrum.HfRatioV) : double.NaN;
 }
@@ -85,32 +98,56 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
         rep.Height = v.Height;
         rep.BitDepth = v.BitDepth;
         var points = InputBuilder.EvenPoints(title.Duration, opt.SamplePoints, 8, 10).Select(t => t + offset).Where(t => t >= 0 && t < title.Duration).ToList();
-        var frames = new List<LumaFrame>();
-        var i = 0;
-        foreach (var t in points)
+        // a few frames at once: decoding dominates and the machine has cores to spare
+        var grabbed = new (LumaFrame Frame, VideoFrameResult Result)?[points.Count];
+        var done = 0;
+        var chromaPlanes = v.ChromaSubsampling is "4:4:4" or "4:2:2";
+        var dynamicHdr = v.IsHdr && v.ColorTransfer == "smpte2084";
+        var meta = new HdrMetadata(tools);
+        using (var gate = new SemaphoreSlim(3))
         {
-            ct.ThrowIfCancellationRequested();
-            progress?.Report($"Frame {++i}/{points.Count} at {Format.Time(t, false)}");
-            var f = await LumaFrame.GrabAsync(tools, title, t, tempDir, opt.Deinterlace, ct).ConfigureAwait(false);
-            if (f == null)
-                continue;
-            frames.Add(f);
-            var crop = FrameMetrics.DetectCrop(f);
-            var spec = await Task.Run(() => FrameMetrics.Spectrum(f, crop), ct).ConfigureAwait(false);
-            var fr = new VideoFrameResult
+            await Task.WhenAll(points.Select(async (t, k) =>
             {
-                Time = t,
-                Levels = FrameMetrics.Levels(f),
-                Sharpness = FrameMetrics.Sharpness(f, crop),
-                Spectrum = spec,
-                Crop = crop,
-            };
-            if (v.ColorTransfer == "smpte2084")
+                await gate.WaitAsync(ct).ConfigureAwait(false);
+                try
+                {
+                    var f = await LumaFrame.GrabAsync(tools, title, t, tempDir, opt.Deinterlace, ct).ConfigureAwait(false);
+                    if (f == null)
+                        return;
+                    var crop = FrameMetrics.DetectCrop(f);
+                    var fr = await Task.Run(() => new VideoFrameResult
+                    {
+                        Time = t,
+                        Levels = FrameMetrics.Levels(f),
+                        Sharpness = FrameMetrics.Sharpness(f, crop),
+                        Spectrum = FrameMetrics.Spectrum(f, crop),
+                        Crop = crop,
+                        Artefacts = Analysis.Artefacts.Measure(f, crop),
+                    }, ct).ConfigureAwait(false);
+                    if (v.ColorTransfer == "smpte2084")
+                        (fr.PeakNits, fr.AvgNits) = FrameMetrics.PqBrightness(f);
+                    // chroma origin: only meaningful when the stream carries more chroma than 4:2:0 (first 3 frames)
+                    if (chromaPlanes && k < 3 && await LumaFrame.GrabAsync(tools, title, t, tempDir, opt.Deinterlace, ct, "u").ConfigureAwait(false) is { } u)
+                        (fr.Artefacts!.ChromaHfH, fr.Artefacts.ChromaHfV) = Analysis.Artefacts.ChromaDetail(f, u);
+                    if (dynamicHdr)
+                        fr.DynamicHdr = await meta.ReadAsync(title, t, ct).ConfigureAwait(false);
+                    grabbed[k] = (f, fr);
+                }
+                finally
+                {
+                    gate.Release();
+                    progress?.Report($"Frame {Interlocked.Increment(ref done)}/{points.Count}");
+                }
+            })).ConfigureAwait(false);
+        }
+        var frames = new List<LumaFrame>();
+        foreach (var g in grabbed)
+        {
+            if (g is { } x)
             {
-                var (peak, avg) = FrameMetrics.PqBrightness(f);
-                fr = new VideoFrameResult { Time = t, Levels = fr.Levels, Sharpness = fr.Sharpness, Spectrum = spec, Crop = crop, PeakNits = peak, AvgNits = avg };
+                frames.Add(x.Frame);
+                rep.Frames.Add(x.Result);
             }
-            rep.Frames.Add(fr);
         }
         if (rep.Frames.Count == 0)
             throw new IOException("No frames could be decoded.");
@@ -228,6 +265,39 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
             f.Add(new Finding { Area = "HDR", Level = 0, Text = "HLG stream." });
         }
 
+        // artefacts (absolute; the comparison with the reference is in Compare.CrossFindings)
+        if (!double.IsNaN(rep.AvgNoise))
+            f.Add(new Finding { Area = "Grain", Level = 0, Text = $"Noise/grain level {rep.AvgNoise:0.00} (8-bit σ; compare with the reference: much lower = grain removed)." });
+        var smooth = rep.Frames.Select(x => x.Artefacts?.SmoothShare ?? 0).DefaultIfEmpty(0).Average();
+        if (!double.IsNaN(rep.AvgBandRun))
+        {
+            var banded = rep.AvgBandRun > BandRunLimit(v.BitDepth) && smooth > 0.03;
+            f.Add(new Finding { Area = "Banding", Level = banded ? 1 : 0, Text = $"Smooth areas step in runs of {rep.AvgBandRun:0.0} px ({smooth:P0} of the picture is smooth)" + (banded ? " — visible banding likely in gradients (sky, walls, fades)." : ".") });
+        }
+        if (!double.IsNaN(rep.AvgHalo))
+            f.Add(new Finding { Area = "Halos", Level = 0, Text = $"Edge overshoot {rep.AvgHalo:P0} of the edge height (content-dependent: compare with the reference)." });
+        if (!double.IsNaN(rep.ChromaHfH))
+        {
+            var hLow = rep.ChromaHfH < ChromaLimit;
+            var vLow = rep.ChromaHfV < ChromaLimit;
+            var origin = v.ChromaSubsampling switch
+            {
+                "4:4:4" when hLow && vLow => "4:2:0",
+                "4:4:4" when hLow => "4:2:2",
+                "4:2:2" when vLow => "4:2:0",
+                _ => null,
+            };
+            f.Add(new Finding
+            {
+                Area = "Chroma",
+                Level = origin != null ? 2 : 0,
+                Text = origin != null
+                    ? $"{v.ChromaSubsampling} stream, but the colour planes have no fine detail ({rep.ChromaHfH:0} / {rep.ChromaHfV:0} dB vs luma): upsampled from {origin}."
+                    : $"No sign of upsampled chroma ({rep.ChromaHfH:0} / {rep.ChromaHfV:0} dB vs luma; a lossy re-encode can hide it).",
+            });
+        }
+        DynamicHdrFindings(rep, v, f);
+
         // interlace
         if (rep.Interlace is { } il)
         {
@@ -235,6 +305,46 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
             var lvl = declared == "progressive" && il.Verdict.StartsWith("interlaced", StringComparison.Ordinal) ? 2 : 0;
             f.Add(new Finding { Area = "Scan", Level = lvl, Text = $"Content: {il.Verdict} (TFF {il.Tff}, BFF {il.Bff}, progressive {il.Progressive}); stream flagged {(declared.Length > 0 ? declared : "unknown")}." });
         }
+    }
+
+    /// <summary>Run length above which smooth areas look banded (8-bit content naturally runs longer than 10-bit).</summary>
+    internal static double BandRunLimit(int bitDepth) => bitDepth > 8 ? 6 : 12;
+
+    /// <summary>Chroma high-frequency level (dB vs luma) below which a chroma plane is considered upsampled.</summary>
+    internal const double ChromaLimit = -8;
+
+    private static void DynamicHdrFindings(VideoReport rep, StreamInfo v, List<Finding> f)
+    {
+        if (v.HdrFormat.Contains("profile 5", StringComparison.OrdinalIgnoreCase))
+            f.Add(new Finding { Area = "Dolby Vision", Level = 1, Text = "Profile 5 (IPT-PQ base layer): without Dolby Vision processing colours look wrong — screenshots and metrics of this source are not representative." });
+        var dyn = rep.Frames.Where(x => x.DynamicHdr is { } d && !double.IsNaN(d.MaxNits)).ToList();
+        var declared = v.HdrFormat.Contains("HDR10+", StringComparison.Ordinal) || v.HdrFormat.Contains("2094", StringComparison.Ordinal) || v.HdrFormat.Contains("Dolby Vision", StringComparison.OrdinalIgnoreCase);
+        if (dyn.Count == 0)
+        {
+            if (declared)
+                f.Add(new Finding { Area = "Dynamic HDR", Level = 1, Text = $"Stream is flagged {v.HdrFormat}, but no per-frame dynamic metadata was read at the sampled frames." });
+        }
+        else
+        {
+            var kind = dyn[0].DynamicHdr!.Kind;
+            var maxes = dyn.Select(x => x.DynamicHdr!.MaxNits).ToList();
+            if (dyn.Count >= 3 && maxes.Max() - maxes.Min() < 1)
+                f.Add(new Finding { Area = kind, Level = 1, Text = $"Dynamic metadata is the same in every sampled shot (max {maxes[0]:0} nits): not analysed per shot — generated or converted metadata." });
+            // luma peak is below maxRGB, so only a picture clearly brighter than its metadata is a contradiction
+            var brighter = dyn.Count(x => !double.IsNaN(x.PeakNits) && x.PeakNits > x.DynamicHdr!.MaxNits * 1.25 + 20);
+            var dimmer = dyn.Count(x => !double.IsNaN(x.PeakNits) && x.DynamicHdr!.MaxNits > x.PeakNits * 4 + 100);
+            if (brighter * 2 >= dyn.Count && brighter > 0)
+                f.Add(new Finding { Area = kind, Level = 2, Text = $"In {brighter}/{dyn.Count} sampled shots the picture is brighter than the metadata says: metadata from another master or a bad conversion (displays will clip highlights)." });
+            else if (dimmer * 2 >= dyn.Count && dimmer > 0)
+                f.Add(new Finding { Area = kind, Level = 1, Text = $"In {dimmer}/{dyn.Count} sampled shots the metadata claims far brighter highlights than the picture has (over-dimmed tone mapping on displays)." });
+            else
+                f.Add(new Finding { Area = kind, Level = 0, Text = $"Dynamic metadata follows the picture: max {maxes.Min():0}–{maxes.Max():0} nits across {dyn.Count} sampled shots." });
+        }
+        // static HDR10: MaxCLL should not be below what the picture really reaches
+        var m = System.Text.RegularExpressions.Regex.Match(v.ContentLight, @"MaxCLL (\d+)");
+        var peak = rep.Frames.Select(x => x.PeakNits).Where(x => !double.IsNaN(x)).DefaultIfEmpty(double.NaN).Max();
+        if (m.Success && int.TryParse(m.Groups[1].Value, NumberStyles.Integer, Inv, out var cll) && cll > 0 && peak > cll * 1.3)
+            f.Add(new Finding { Area = "HDR10", Level = 1, Text = $"MaxCLL says {cll} nits, but sampled frames reach ≈{peak:0} nits (wrong static metadata)." });
     }
 
     private static double ParseSar(string sar)

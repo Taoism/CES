@@ -132,7 +132,10 @@ try
                 }
             }
             if (items.Count > 1)
+            {
                 PrintSpecs(items, "Analysis");
+                PrintCross(items, CrossFindings.Video);
+            }
             break;
 
         case "audio":
@@ -156,6 +159,7 @@ try
                     }
                 }
             }
+            PrintCross(items, CrossFindings.Audio);
             break;
 
         case "metrics":
@@ -364,6 +368,18 @@ static void PrintSpecs(List<CompareItem> items, string? onlyGroup = null)
 }
 
 static string Fit(string s, int w) => s.Length > w ? s[..Math.Max(1, w - 1)] + "…" : s.PadRight(w);
+
+static void PrintCross(List<CompareItem> items, Func<CompareItem, CompareItem, List<Finding>> cross)
+{
+    for (var i = 1; i < items.Count; i++)
+    {
+        var f = cross(items[0], items[i]);
+        if (f.Count == 0)
+            continue;
+        Console.WriteLine($"== {items[i].Name} compared with {items[0].Name}");
+        PrintFindings(f);
+    }
+}
 
 static void PrintFindings(List<Finding> findings)
 {

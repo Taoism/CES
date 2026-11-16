@@ -44,6 +44,12 @@ public sealed class AudioReport
     public double CutoffHz { get; set; } = double.NaN;
     public double CutoffSteepnessDb { get; set; } = double.NaN;
     public string? SpectrogramPng { get; set; }
+
+    /// <summary>Mean crest factor of the channels (astats has no overall crest).</summary>
+    public double MeanCrestDb => Channels.Select(c => c.CrestDb).Where(x => !double.IsNaN(x) && !double.IsInfinity(x)).DefaultIfEmpty(double.NaN).Average();
+
+    /// <summary>Channel-pair correlations (best over ±25 ms) used for the upmix check, e.g. "Ls~L" → 0.97.</summary>
+    public Dictionary<string, double> ChannelCorrelation { get; } = [];
     public double AnalyzedSeconds { get; set; }
     public List<Finding> Findings { get; } = [];
 }
@@ -118,6 +124,11 @@ public sealed partial class AudioAnalyzer(FfTools tools, string tempDir)
         {
             progress?.Report("Spectrogram…");
             rep.SpectrogramPng = await SpectrogramAsync(title, audioIndex, title.Duration / 2 + offset, 60, opt, ct).ConfigureAwait(false);
+        }
+        if (stream.Channels >= 6)
+        {
+            progress?.Report("Channel correlation (upmix check)…");
+            await ChannelCorrelationAsync(title, audioIndex, windows, rep, ct).ConfigureAwait(false);
         }
         BuildFindings(rep);
         return rep;
@@ -222,10 +233,131 @@ public sealed partial class AudioAnalyzer(FfTools tools, string tempDir)
         return File.Exists(png) ? png : null;
     }
 
+    private const int CorrRate = 8000;
+
+    /// <summary>Decodes all channels of a few windows and measures how much the surrounds/centre are copies of the fronts.</summary>
+    private async Task ChannelCorrelationAsync(MediaTitle title, int audioIndex, List<(double Start, double Length)> windows, AudioReport rep, CancellationToken ct)
+    {
+        var ch = rep.Stream.Channels;
+        var names = Enumerable.Range(0, ch).Select(c => ChannelName(rep.Stream, c)).ToList();
+        int Idx(string n) => names.IndexOf(n);
+        var (l, r, c, ls, rs) = (Idx("L"), Idx("R"), Idx("C"), Idx("Ls"), Idx("Rs"));
+        if (l < 0 || r < 0 || ls < 0 || rs < 0)
+            return;
+        var sums = new Dictionary<string, List<double>>();
+        foreach (var (start, len) in windows.Take(4))
+        {
+            var input = InputBuilder.Input(title, start, Math.Min(len, 20), tempDir);
+            var args = new List<string> { "-hide_banner", "-nostdin", "-v", "error" };
+            args.AddRange(input.Args);
+            if (input.Skip > 0)
+                args.AddRange(["-af", input.ATrimFilter.TrimEnd(',')]);
+            args.AddRange(["-map", $"0:a:{audioIndex}", "-vn", "-sn", "-dn", "-ar", CorrRate.ToString(Inv), "-f", "f32le", "-acodec", "pcm_f32le", "-"]);
+            var res = await ProcessRunner.RunAsync(tools.FFmpeg, args, ct).ConfigureAwait(false);
+            var all = MemoryMarshal.Cast<byte, float>(res.StdOut.AsSpan(0, res.StdOut.Length / 4 * 4)).ToArray();
+            var n = all.Length / ch;
+            if (n < CorrRate * 3)
+                continue;
+            float[] Chan(int k)
+            {
+                var x = new float[n];
+                for (var i = 0; i < n; i++)
+                    x[i] = all[i * ch + k];
+                return x;
+            }
+            var L = Chan(l);
+            var R = Chan(r);
+            var Ls = Chan(ls);
+            var Rs = Chan(rs);
+            var side = new float[n];
+            var mid = new float[n];
+            for (var i = 0; i < n; i++)
+            {
+                side[i] = L[i] - R[i];
+                mid[i] = L[i] + R[i];
+            }
+            // silent surrounds say nothing about upmixing
+            if (Rms(Ls) < 1e-4 && Rms(Rs) < 1e-4)
+                continue;
+            void Add(string key, float[] a, float[] b)
+            {
+                var v = BestCorrelation(a, b);
+                if (!sums.TryGetValue(key, out var list))
+                    sums[key] = list = [];
+                list.Add(v);
+            }
+            Add("Ls~L", Ls, L);
+            Add("Rs~R", Rs, R);
+            Add("Ls~L−R", Ls, side);
+            Add("Rs~L−R", Rs, side);
+            Add("L~R", L, R);
+            if (c >= 0)
+                Add("C~L+R", Chan(c), mid);
+        }
+        foreach (var (k, v) in sums)
+            rep.ChannelCorrelation[k] = v.Average();
+    }
+
+    private static double Rms(float[] x)
+    {
+        double s = 0;
+        foreach (var v in x)
+            s += v * v;
+        return Math.Sqrt(s / Math.Max(1, x.Length));
+    }
+
+    /// <summary>Largest |normalised correlation| of a and b over lags of ±25 ms.</summary>
+    private static double BestCorrelation(float[] a, float[] b)
+    {
+        var maxLag = CorrRate / 40;
+        var n = Math.Min(a.Length, b.Length);
+        double na = 0, nb = 0;
+        for (var i = 0; i < n; i++)
+        {
+            na += a[i] * (double)a[i];
+            nb += b[i] * (double)b[i];
+        }
+        if (na <= 0 || nb <= 0)
+            return 0;
+        var best = 0.0;
+        var lockObj = new object();
+        Parallel.For(-maxLag, maxLag + 1, lag =>
+        {
+            double s = 0;
+            var from = Math.Max(0, -lag);
+            var to = Math.Min(n, n - lag);
+            for (var i = from; i < to; i++)
+                s += a[i] * (double)b[i + lag];
+            var v = Math.Abs(s) / Math.Sqrt(na * nb);
+            lock (lockObj)
+            {
+                if (v > best)
+                    best = v;
+            }
+        });
+        return best;
+    }
+
     private static void BuildFindings(AudioReport rep)
     {
         var s = rep.Stream;
         var f = rep.Findings;
+        if (rep.ChannelCorrelation.Count > 0)
+        {
+            var cc = rep.ChannelCorrelation;
+            double G(string k) => cc.TryGetValue(k, out var v) ? v : 0;
+            var copy = Math.Max(G("Ls~L"), G("Rs~R"));
+            var matrix = Math.Max(G("Ls~L−R"), G("Rs~L−R"));
+            var detail = string.Join(", ", cc.Select(x => $"{x.Key} {x.Value:0.00}"));
+            if (G("L~R") > 0.97)
+                f.Add(new Finding { Area = "Channels", Level = 2, Text = $"Front left and right are (nearly) identical ({detail}): mono spread over the channels." });
+            else if (copy > 0.85 || matrix > 0.85)
+                f.Add(new Finding { Area = "Channels", Level = 2, Text = $"Surrounds are {(matrix > copy ? "the L−R difference" : "copies of the fronts")} ({detail}): upmixed from stereo, not a discrete {s.ChannelText} mix." });
+            else if (G("C~L+R") > 0.97 && Math.Max(copy, matrix) > 0.7)
+                f.Add(new Finding { Area = "Channels", Level = 2, Text = $"Centre is exactly L+R and the surrounds follow the fronts ({detail}): upmixed from stereo, not a discrete {s.ChannelText} mix." });
+            else
+                f.Add(new Finding { Area = "Channels", Level = 0, Text = $"Discrete {s.ChannelText}: surrounds are their own signals ({detail})." });
+        }
         var lossless = s.Codec is "flac" or "alac" or "truehd" or "mlp" or "wavpack" or "tta" or "ape" ||
                        s.Codec.StartsWith("pcm", StringComparison.Ordinal) ||
                        (s.Codec == "dts" && s.Profile.Contains("MA", StringComparison.Ordinal));
