@@ -59,7 +59,7 @@ public static class HtmlReport
         sb.Append("</tbody></table></div><p class=\"muted\">Highlighted rows differ between sources.</p></section>");
 
         // findings
-        if (items.Any(i => i.Video != null || i.Audio.Count > 0) || subtitles is { Count: > 0 })
+        if (items.Any(i => i.Video != null || i.Audio.Count > 0 || i.Grade != null) || subtitles is { Count: > 0 })
         {
             sb.Append("<section><h2>Findings</h2><div class=\"cards\">");
             for (var i = 0; i < items.Count; i++)
@@ -68,6 +68,8 @@ public static class HtmlReport
                 var findings = (it.Video?.Findings ?? []).Concat(it.Audio.SelectMany(a => a.Findings.Select(f => new Finding { Area = $"Audio {a.TrackIndex + 1} · {f.Area}", Text = f.Text, Level = f.Level }))).ToList();
                 if (i > 0)
                 {
+                    if (it.Grade != null)
+                        findings.AddRange(it.Grade.Findings.Select(f => new Finding { Area = "Grade · " + f.Area, Text = f.Text, Level = f.Level }));
                     findings.AddRange(CrossFindings.Video(items[0], it).Concat(CrossFindings.Audio(items[0], it)).Select(f => new Finding { Area = "vs 1 · " + f.Area, Text = f.Text, Level = f.Level }));
                     foreach (var sr in subtitles?.Where(s => s.Item == it) ?? [])
                         findings.AddRange(sr.Findings.Select(f => new Finding { Area = "Subtitles · " + f.Area, Text = f.Text, Level = f.Level }));

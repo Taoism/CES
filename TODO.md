@@ -1,18 +1,15 @@
 # TODO
 
-Done 2026-11-15: whole-title sync, PAL speed, different edits (sections), sessions, release ranking, difference/flicker
-views, detailed-shot screenshots.
+Done: whole-title sync, PAL speed, edits, sessions, ranking, difference/flicker, detailed shots (2026-11-15);
+artefacts (grain/banding/halos/chroma), audio remaster/upmix checks, HDR10+/DV metadata, subtitles (burn-in, timing),
+slow.pics + BBCode/Markdown, screenshot cache / hardware decoding, grade & framing (remasters), still images (2026-11-16).
 
-Next (agreed list, items 8–14):
-- [ ] 8. More artefact detection: banding, over-denoising (grain loss), sharpening halos, chroma subsampling origin
-- [ ] 9. Dolby Vision / HDR10+ dynamic metadata vs measured brightness (bad DV P5→P8, fake HDR10+)
-- [ ] 10. Audio between releases: loudness delta, re-master / brick-wall limiting, upmixed 5.1 detection
-- [ ] 11. Subtitles: burn into screenshots, compare subtitle timing between releases
-- [ ] 12. Packaging like TaoExif: installer, bundled ffmpeg full build + MediaInfo, self-updater, .deb, macOS
-- [ ] 13. Share: slow.pics upload, BBCode/Markdown summary for forums
-- [ ] 14. Speed: hardware decoding for 4K HEVC, decoded-frame cache
-
-Smaller:
-- [ ] Cut points are located to ~1–2 s (3 s audio snippets); could be refined to the frame with the picture
-- [ ] Native save dialog can't be driven by UI Automation in tests (session save tested by a round-trip unit test)
-- [ ] Physical drives / encrypted discs — out of scope
+Open:
+- [ ] slow.pics upload not tested live (publishes images) — try once with the user's OK
+- [ ] Dolby Vision metadata parsing untested on a real DV file (none available)
+- [ ] Chroma-origin check is hidden by lossy re-encodes (works on clean masters only)
+- [ ] Subtitle timing for DVD titles (VOB subpictures)
+- [ ] Grade results are not saved in .nec2u sessions yet (re-run on open)
+- [ ] Frame-exact cut points (now ~1–2 s), telecine/pulldown pairing (29.97 vs 23.976)
+- [ ] Release cards / per-GB value view, timeline strip, region zoom across sources
+- [ ] Packaging like TaoExif (installer, bundled ffmpeg full + MediaInfo, updater, .deb, macOS)

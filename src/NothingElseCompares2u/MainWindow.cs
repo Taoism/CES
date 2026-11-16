@@ -208,6 +208,7 @@ public sealed partial class MainWindow : Window
         _tabs.Items.Add(new TabItem { Header = "Video analysis", Content = BuildVideoTab() });
         _tabs.Items.Add(new TabItem { Header = "Audio analysis", Content = BuildAudioTab() });
         _tabs.Items.Add(new TabItem { Header = "Quality metrics", Content = BuildQualityTab() });
+        _tabs.Items.Add(new TabItem { Header = "Grade & framing", Content = BuildGradeTab() });
         _tabs.Items.Add(new TabItem { Header = "Subtitles", Content = BuildSubsTab() });
         _tabs.Items.Add(new TabItem { Header = "Discs", Content = BuildDiscTab() });
         _tabs.Items.Add(new TabItem { Header = "Log", Content = new Border { Classes = { "panel" }, Child = _log, Margin = new Thickness(0, 6, 0, 0) } });
@@ -382,6 +383,7 @@ public sealed partial class MainWindow : Window
                 {
                     var src = await SourceOpener.OpenAsync(p, _settings.IncludeShortPlaylists, ct);
                     var item = new CompareItem { Source = src, Title = src.MainTitle! };
+                    item.Synced = item.Title.IsStill;
                     await new MediaProber(_tools).ProbeAsync(src, item.Title, ct);
                     _items.Add(item);
                     _settings.LastFolder = Path.GetDirectoryName(src.Path.TrimEnd('\\', '/')) ?? _settings.LastFolder;
@@ -423,6 +425,7 @@ public sealed partial class MainWindow : Window
         RefreshSubtitleChoices();
         RefreshSubsSetup();
         RefreshSubResults();
+        RefreshGradeResults();
     }
 
     private void RebuildSourceCards()
@@ -629,7 +632,7 @@ public sealed partial class MainWindow : Window
             var detector = new Analysis.SyncDetector(_tools, _temp);
             for (var i = 1; i < _items.Count; i++)
             {
-                if (onlyUnsynced && _items[i].Synced)
+                if ((onlyUnsynced && _items[i].Synced) || _items[i].Title.IsStill || _items[0].Title.IsStill)
                     continue;
                 if (_items[0].Title.Info?.Audio.Any() != true || _items[i].Title.Info?.Audio.Any() != true)
                 {

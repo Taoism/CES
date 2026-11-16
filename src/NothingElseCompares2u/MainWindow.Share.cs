@@ -50,7 +50,7 @@ public sealed partial class MainWindow
     private readonly LineChart _subChart = new() { Title = "Subtitle shift against the reference over time (ms)", Height = 230 };
     private readonly List<SubtitleTimingReport> _subReports = [];
 
-    private Control BuildSubsTab()
+    private DockPanel BuildSubsTab()
     {
         var run = new Button { Content = "Compare timing", Classes = { "accent" } };
         run.Click += async (_, _) => await CompareSubtitleTimingAsync();
@@ -109,7 +109,7 @@ public sealed partial class MainWindow
 
     private async Task CompareSubtitleTimingAsync()
     {
-        if (_tools == null || _items.Count < 2 || !_subPick.ContainsKey(0))
+        if (_tools == null || _items.Count < 2 || !_subPick.TryGetValue(0, out var refPick))
         {
             await MessageBox.ShowAsync(this, "Add at least two sources; source 1 needs a subtitle track.", MessageKind.Info);
             return;
@@ -118,7 +118,7 @@ public sealed partial class MainWindow
         await RunJobAsync("Subtitle timing", async ct =>
         {
             var st = new SubtitleTiming(_tools);
-            var refTrack = _subPick[0].SelectedIndex;
+            var refTrack = refPick.SelectedIndex;
             SetStatus("Reading the reference subtitles…");
             var refEvents = await st.ReadAsync(_items[0].Title, refTrack, null, ct);
             for (var i = 1; i < _items.Count; i++)

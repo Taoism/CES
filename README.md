@@ -33,6 +33,18 @@ command line, `nec2u`.
   spectrogram.
 - **Quality metrics**: PSNR, SSIM, VMAF, XPSNR against a reference, with automatic scaling and crop of bars, per-frame
   chart, worst frames → screenshots.
+- **Remasters — grade & framing**: on matched frames, the zoom/crop and shift between releases (open matte vs
+  cropped, reframing, pan & scan) and the grade in CIELAB: tone curve (shadows/mids/highlights), contrast, saturation,
+  colour cast — with a "re-graded" verdict when the differences are consistent. Works on still images too.
+- **Artefacts vs the reference**: grain removed (noise reduction), sharpening halos, more banding, softer picture; chroma upsampled
+  from 4:2:0 (clean masters). **Audio vs the reference**: louder, brick-walled (crest/LRA), different EQ/master, and
+  upmixed "fake" 5.1 (surrounds = copies or L−R, centre = L+R).
+- **HDR**: HDR10+ / Dolby Vision per-shot metadata checked against the measured picture; wrong MaxCLL; DV profile 5 note.
+- **Subtitles**: burn PGS / VobSub / text subtitles into screenshots (same language in every source); compare subtitle
+  timing between releases (shift, spread, drift per hour, missing lines).
+- **Still images** (PNG/JPEG/TIFF/BMP/WebP) as sources: viewer, analysis and grade comparison work on pictures.
+- **Share**: upload the screenshots to slow.pics (asks first; unlisted by default) and copy a BBCode/Markdown summary.
+- **Fast**: screenshot cache (reopened comparisons and retakes are instant), parallel grabs; optional hardware decoding.
 - **Rank releases**: point it at a folder of releases (File › Add folder of releases); every release is synced and
   measured against the reference in several windows across the title, then ranked (VMAF, 1 % low, PSNR, SSIM, bitrate).
 - **HTML report**: specs, findings, metrics charts and click/1–9 switchable screenshots.
@@ -47,10 +59,12 @@ ffmpeg + ffprobe (with libvmaf for VMAF; zscale for HDR tone-mapping), optionall
 ```
 nec2u info   <source…> [--titles]
 nec2u sync   <reference> <other…> [--whole] [--edits]
-nec2u shots  <source…> [-n 6 | --at 1:02:03,… | --random | --chapters | --smart] [--auto-sync] [--out DIR]
+nec2u shots  <source…> [-n 6 | --at 1:02:03,… | --random | --chapters | --smart] [--subs eng] [--auto-sync] [--out DIR] [--slowpics] [--summary bbcode]
 nec2u video  <source…> [--points 8] [--curve]
 nec2u audio  <source…> [--track 1|all] [--full] [--out DIR]
 nec2u metrics <reference> <other…> [--metrics psnr,ssim,vmaf,xpsnr] [--start T] [--length 60]
+nec2u grade  <reference> <other…> [-n 8 | --at T,…]      (remaster: framing + grade)
+nec2u subs   <reference> <other…> [--subs eng]           (subtitle timing)
 nec2u rank   <reference> <release… | folder> [--windows 5] [--length 20] [--edits]
 nec2u report <source…> [--metrics] [--out DIR]
 ```

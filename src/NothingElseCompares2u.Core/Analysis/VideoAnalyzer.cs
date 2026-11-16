@@ -97,7 +97,7 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
         rep.Width = v.Width;
         rep.Height = v.Height;
         rep.BitDepth = v.BitDepth;
-        var points = InputBuilder.EvenPoints(title.Duration, opt.SamplePoints, 8, 10).Select(t => t + offset).Where(t => t >= 0 && t < title.Duration).ToList();
+        var points = title.IsStill ? [0] : InputBuilder.EvenPoints(title.Duration, opt.SamplePoints, 8, 10).Select(t => t + offset).Where(t => t >= 0 && t < title.Duration).ToList();
         // a few frames at once: decoding dominates and the machine has cores to spare
         var grabbed = new (LumaFrame Frame, VideoFrameResult Result)?[points.Count];
         var done = 0;
@@ -171,7 +171,7 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
             rep.NativeRes = FrameMetrics.Combine(parts, crop.Height(rep.Height), rep.Height);
             rep.NativeResFrameTime = rep.Frames[best[0]].Time;
         }
-        if (opt.Interlace)
+        if (opt.Interlace && !title.IsStill)
         {
             progress?.Report("Interlace detection…");
             rep.Interlace = await DetectInterlaceAsync(title, title.Duration / 2 + offset, ct).ConfigureAwait(false);
@@ -343,7 +343,7 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
                 f.Add(new Finding { Area = kind, Level = 0, Text = $"Dynamic metadata follows the picture: max {maxes.Min():0}–{maxes.Max():0} nits across {dyn.Count} sampled shots." });
         }
         // static HDR10: MaxCLL should not be below what the picture really reaches
-        var m = System.Text.RegularExpressions.Regex.Match(v.ContentLight, @"MaxCLL (\d+)");
+        var m = MaxCllRegex().Match(v.ContentLight);
         var peak = rep.Frames.Select(x => x.PeakNits).Where(x => !double.IsNaN(x)).DefaultIfEmpty(double.NaN).Max();
         if (m.Success && int.TryParse(m.Groups[1].Value, NumberStyles.Integer, Inv, out var cll) && cll > 0 && peak > cll * 1.3)
             f.Add(new Finding { Area = "HDR10", Level = 1, Text = $"MaxCLL says {cll} nits, but sampled frames reach ≈{peak:0} nits (wrong static metadata)." });
@@ -354,6 +354,9 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
         var p = sar.Split(':');
         return p.Length == 2 && double.TryParse(p[0], NumberStyles.Float, Inv, out var a) && double.TryParse(p[1], NumberStyles.Float, Inv, out var b) && a > 0 && b > 0 ? a / b : 1;
     }
+
+    [GeneratedRegex(@"MaxCLL (\d+)")]
+    private static partial Regex MaxCllRegex();
 
     [GeneratedRegex(@"Multi frame detection:\s*TFF:\s*(\d+)\s*BFF:\s*(\d+)\s*Progressive:\s*(\d+)\s*Undetermined:\s*(\d+)")]
     private static partial Regex MultiRegex();

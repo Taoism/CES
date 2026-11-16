@@ -46,6 +46,8 @@ internal static class Help
           rank      Which release is best: sync, then VMAF/PSNR/SSIM of each against the reference in
                     several windows across the title; folders after the reference = every release inside
                       --windows N (default 5)   --length T (default 20 s)   --metrics …   --whole / --edits
+          grade     What a remaster changed in the picture: framing (zoom/crop/shift, pan & scan) and grade
+                    (tone curve, contrast, saturation, colour cast), on matched frames   -n N  --at T,…  --curve
           subs      Subtitle timing of each source against the reference (same language): shift, drift, lines found
                       --subs LANG|N    reference track (default track 1; others use the same language)
           report    HTML report with specs, findings, screenshots (and metrics with --metrics)

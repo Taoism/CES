@@ -52,6 +52,9 @@ public sealed class MediaTitle
 
     public int Angles { get; set; } = 1;
 
+    /// <summary>A still image: one picture, the same at every time.</summary>
+    public bool IsStill { get; set; }
+
     /// <summary>Filled by the prober.</summary>
     public MediaInfoSummary? Info { get; set; }
 

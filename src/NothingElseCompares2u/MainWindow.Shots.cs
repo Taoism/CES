@@ -232,6 +232,17 @@ public sealed partial class MainWindow
         }
         SaveShotSettings();
         var (start, end) = TimelineRange();
+        if (_items.All(i => i.Title.IsStill))
+        {
+            // pictures only: one row, the images themselves
+            if (replace)
+                ClearShots();
+            AddRows([new GuiShotRow { Row = new ShotRow { Time = 0, Caption = "still images" } }]);
+            await FillMissingAsync();
+            return;
+        }
+        if (double.IsInfinity(end))
+            end = start + _items.Where(i => !i.Title.IsStill).Select(i => i.Title.Duration).DefaultIfEmpty(0).Max();
         var dur = end - start;
         if (dur <= 1)
         {

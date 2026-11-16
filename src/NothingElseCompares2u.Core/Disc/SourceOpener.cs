@@ -12,7 +12,11 @@ public static class SourceOpener
         ".mkv", ".mp4", ".m4v", ".mov", ".m2ts", ".mts", ".ts", ".vob", ".mpg", ".mpeg", ".avi", ".webm", ".wmv", ".flv",
         ".mxf", ".y4m", ".hevc", ".h264", ".264", ".265", ".av1", ".ivf", ".iso", ".mka", ".flac", ".wav", ".w64", ".thd",
         ".dts", ".ac3", ".eac3", ".mp3", ".m4a", ".opus", ".ogg",
+        ".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp",
     ];
+
+    public static bool IsImage(string path) =>
+        Path.GetExtension(path).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".tif" or ".tiff" or ".webp";
 
     public static async Task<MediaSource> OpenAsync(string path, bool includeShortPlaylists = false, CancellationToken ct = default)
     {
@@ -32,6 +36,7 @@ public static class SourceOpener
             {
                 Name = Path.GetFileName(path),
                 IsMain = true,
+                IsStill = IsImage(path),
                 Segments = { new TitleSegment { Url = path, FileLabel = Path.GetFileName(path), SizeBytes = new FileInfo(path).Length } },
                 SizeBytes = new FileInfo(path).Length,
             });

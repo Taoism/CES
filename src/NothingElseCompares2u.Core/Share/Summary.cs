@@ -43,7 +43,7 @@ public static class Summary
                 sb.AppendLine("[code]");
                 var w = rows.Max(r => r.Label.Length) + 2;
                 var cw = Math.Max(16, 100 / Math.Max(1, items.Count));
-                sb.Append(new string(' ', w)).AppendJoin("  ", items.Select(i => Fit(i.Name, cw))).AppendLine();
+                sb.Append(' ', w).AppendJoin("  ", items.Select(i => Fit(i.Name, cw))).AppendLine();
                 foreach (var r in rows)
                     sb.Append(r.Label.PadRight(w)).AppendJoin("  ", r.Values.Select(v => Fit(v, cw))).AppendLine();
                 sb.AppendLine("[/code]");
@@ -79,6 +79,8 @@ public static class Summary
                 f.AddRange(a.Findings.Where(x => x.Level > 0).Select(x => new Finding { Area = $"Audio {a.TrackIndex + 1} {x.Area}", Text = x.Text, Level = x.Level }));
             if (i > 0)
             {
+                if (it.Grade != null)
+                    f.AddRange(it.Grade.Findings.Where(x => x.Level > 0));
                 f.AddRange(CrossFindings.Video(items[0], it));
                 f.AddRange(CrossFindings.Audio(items[0], it));
             }

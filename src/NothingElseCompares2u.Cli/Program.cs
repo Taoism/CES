@@ -65,6 +65,9 @@ try
         : cli.Positional;
     foreach (var spec in specs)
         items.Add(await OpenItemAsync(spec, cli, tools, cts.Token));
+    // pictures have no timeline to sync
+    foreach (var it in items.Where(i => i.Title.IsStill))
+        it.Synced = true;
     // --offset 2=5.0 (source 2 is 5 s later) or --offset 5.0 for the second source
     foreach (var o in cli.All("offset"))
     {
@@ -120,7 +123,7 @@ try
             {
                 // an explicit flag: the user asked to publish these pictures
                 using var sp = new NothingElseCompares2u.Share.SlowPics();
-                var prog = new Progress<(double Fraction, string Text)>(p => Console.Error.Write($"  {p.Text}      "));
+                var prog = new Progress<(double Fraction, string Text)>(p => Console.Error.Write("\r  " + p.Text + "      "));
                 url = await sp.UploadAsync(cli.Get("title") ?? string.Join(" vs ", items.Select(i => i.Name)), NothingElseCompares2u.Share.SlowPics.FromRows(items, rows), cli.Has("public"), prog, cts.Token);
                 await Console.Error.WriteLineAsync();
                 Console.WriteLine("slow.pics: " + url);
@@ -209,6 +212,33 @@ try
             await Console.Error.WriteLineAsync();
             Console.WriteLine($"Ranked against {items[0].Name} ({windows} windows × {opt.Length:0} s):");
             Console.Write(Ranker.Table(rows));
+            break;
+        }
+
+        case "grade":
+        {
+            Need(items, 2);
+            if (items.Skip(1).Any(i => !i.Synced) && !cli.Has("no-sync"))
+                await SyncAsync(items, tools, temp, cli, progress, cts.Token);
+            var gc = new GradeCompare(tools, temp);
+            var start = items.Where(i => !i.Title.IsStill).Select(i => i.Coverage().Start).DefaultIfEmpty(0).Max();
+            var end = items.Where(i => !i.Title.IsStill).Select(i => i.Coverage().End).DefaultIfEmpty(0).Min();
+            if (items.All(i => i.Title.IsStill))
+                cli = cli.WithDefault("at", "0");
+            var times = cli.Get("at") is { } at
+                ? at.Split(',').Select(x => Format.TryParseTime(x, out var t) ? t : throw new ArgumentException("Bad time " + x)).ToList()
+                : InputBuilder.EvenPoints(end - Math.Max(0, start), cli.Get("n") is { } nn ? int.Parse(nn, CultureInfo.InvariantCulture) : 8).Select(t => t + Math.Max(0, start)).ToList();
+            for (var i = 1; i < items.Count; i++)
+            {
+                var g = await gc.CompareAsync(items[0], items[i], times, progress, cts.Token);
+                Console.WriteLine($"== {items[i].Name} compared with {items[0].Name} ({g.Frames.Count} frames)");
+                PrintFindings(g.Findings);
+                if (cli.Has("curve"))
+                {
+                    foreach (var fr in g.Frames)
+                        Console.WriteLine($"     {Format.Time(fr.Time, false)}  scale {fr.Scale:0.000}  shift {fr.ShiftX:+0.0;-0.0;0.0}/{fr.ShiftY:+0.0;-0.0;0.0} %  match {fr.Match:0.00}  sat {fr.SaturationRatio:0.00}  a {fr.DeltaA:+0.0;-0.0;0.0} b {fr.DeltaB:+0.0;-0.0;0.0}");
+                }
+            }
             break;
         }
 
@@ -430,8 +460,10 @@ static void Apply(CompareItem item, SyncResult r)
 static async Task<List<ShotRow>> ShotsAsync(List<CompareItem> items, FfTools tools, string temp, string outDir, CliArgs cli, CancellationToken ct)
 {
     var count = cli.Get("n") is { } n ? int.Parse(n, CultureInfo.InvariantCulture) : 6;
-    var start = items.Max(i => i.Coverage().Start);
-    var common = items.Min(i => i.Coverage().End) - Math.Max(0, start);
+    var start = items.Where(i => !i.Title.IsStill).Select(i => i.Coverage().Start).DefaultIfEmpty(0).Max();
+    var common = items.Where(i => !i.Title.IsStill).Select(i => i.Coverage().End).DefaultIfEmpty(0).Min() - Math.Max(0, start);
+    if (items.All(i => i.Title.IsStill))
+        cli = cli.WithDefault("at", "0");
     var times = cli.Get("at") is { } at
         ? at.Split(',').Select(s => Format.TryParseTime(s, out var t) ? t : throw new ArgumentException("Bad time " + s)).ToList()
         : cli.Has("random") ? InputBuilder.RandomPoints(common, count, cli.Get("seed") is { } sd ? int.Parse(sd, CultureInfo.InvariantCulture) : 2024).Select(t => t + Math.Max(0, start)).ToList()

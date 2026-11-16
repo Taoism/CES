@@ -50,11 +50,16 @@ public sealed class CompareItem
     public VideoReport? Video { get; set; }
     public List<AudioReport> Audio { get; } = [];
 
+    /// <summary>Grade and framing compared with the reference (null until measured).</summary>
+    public GradeReport? Grade { get; set; }
+
     public string Name => Label.Length > 0 ? Label : Source.DisplayName;
 
     /// <summary>Where reference time <paramref name="t"/> is in this source, or null when that part was cut from it.</summary>
     public double? SourceTime(double t)
     {
+        if (Title.IsStill)
+            return 0;
         var off = Offset;
         if (Sections.Count > 0)
         {
@@ -89,6 +94,8 @@ public sealed class CompareItem
     /// <summary>Part of the reference timeline this source covers.</summary>
     public (double Start, double End) Coverage()
     {
+        if (Title.IsStill)
+            return (double.NegativeInfinity, double.PositiveInfinity);
         var first = Sections.Count > 0 ? Sections.First(s => s.Offset != null).Offset!.Value : Offset;
         var last = Sections.Count > 0 ? Sections.Last(s => s.Offset != null).Offset!.Value : Offset;
         return (-first / Speed, (Title.Duration - last) / Speed);

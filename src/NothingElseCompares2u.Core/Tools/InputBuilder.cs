@@ -43,6 +43,8 @@ public static class InputBuilder
     /// </summary>
     public static InputSpec Input(MediaTitle title, double time, double? length, string tempDir, bool exactSeek = true, double minPreroll = 0)
     {
+        if (title.IsStill)
+            return new InputSpec(["-i", title.Segments[0].Url], 0);
         time = Math.Max(0, time);
         var seg = SegmentAt(title, time);
         var args = new List<string>();

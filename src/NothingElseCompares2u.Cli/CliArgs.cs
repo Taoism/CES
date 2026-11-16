@@ -54,6 +54,13 @@ internal sealed class CliArgs
 
     public bool Has(string name) => _opts.ContainsKey(name);
 
+    /// <summary>Sets an option when the user did not give it.</summary>
+    public CliArgs WithDefault(string name, string value)
+    {
+        _opts.TryAdd(name, [value]);
+        return this;
+    }
+
     public string? Get(string name) => _opts.TryGetValue(name, out var l) ? l[^1] : null;
 
     public IEnumerable<string> All(string name) => _opts.TryGetValue(name, out var l) ? l : [];

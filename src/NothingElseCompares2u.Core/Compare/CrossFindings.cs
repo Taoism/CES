@@ -34,7 +34,7 @@ public static class CrossFindings
         if (r == null || a == null || reference == item)
             return f;
         if (!double.IsNaN(r.IntegratedLufs) && !double.IsNaN(a.IntegratedLufs) && Math.Abs(a.IntegratedLufs - r.IntegratedLufs) >= 1)
-            f.Add(new Finding { Area = "Loudness", Level = Math.Abs(a.IntegratedLufs - r.IntegratedLufs) >= 3 ? 1 : 0, Text = $"{a.IntegratedLufs - r.IntegratedLufs:+0.0;-0.0} LU louder than the reference ({a.IntegratedLufs:0.0} vs {r.IntegratedLufs:0.0} LUFS)." });
+            f.Add(new Finding { Area = "Loudness", Level = Math.Abs(a.IntegratedLufs - r.IntegratedLufs) >= 3 ? 1 : 0, Text = $"{a.IntegratedLufs - r.IntegratedLufs:+0.0;-0.0;0.0} LU louder than the reference ({a.IntegratedLufs:0.0} vs {r.IntegratedLufs:0.0} LUFS)." });
         var crestDrop = r.MeanCrestDb - a.MeanCrestDb;
         var lraDrop = r.LoudnessRange - a.LoudnessRange;
         if (!double.IsNaN(crestDrop) && crestDrop >= 3 && (double.IsNaN(lraDrop) || lraDrop >= 1.5))
