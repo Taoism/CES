@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=CES
+GenericName=Compare Enc Spot
+Comment=Spot MP3/FLAC encoders and compare Blu-ray, DVD and video releases
+Exec=ces-gui %F
+Icon=ces
+Terminal=false
+Categories=AudioVideo;Audio;Video;Utility;
+Keywords=encoder;mp3;flac;lame;bluray;dvd;compare;screenshots;rar;iso;
+MimeType=audio/mpeg;audio/flac;video/x-matroska;video/mp4;application/x-iso9660-image;application/vnd.rar;application/x-rar;
+StartupWMClass=CES
