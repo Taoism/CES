@@ -116,7 +116,7 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            using var s = AssetLoader.Open(new Uri("avares://CES/Assets/ces.ico"));
+            using var s = AssetLoader.Open(new Uri("avares://ces-gui/Assets/ces.ico"));
             return new WindowIcon(s);
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or FileNotFoundException)

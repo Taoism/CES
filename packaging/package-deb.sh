@@ -29,7 +29,7 @@ mkdir -p "$DEB/DEBIAN" "$DEB/opt/ces" "$DEB/usr/bin" "$DEB/usr/share/application
 cp -r "$PUB/gui/." "$DEB/opt/ces/"
 cp "$PUB/cli/ces" "$DEB/opt/ces/ces"
 find "$DEB/opt/ces" -name '*.pdb' -delete
-ln -s /opt/ces/CES "$DEB/usr/bin/ces-gui"
+ln -s /opt/ces/ces-gui "$DEB/usr/bin/ces-gui"
 ln -s /opt/ces/ces "$DEB/usr/bin/ces"
 cp "$ROOT/packaging/linux/ces.desktop" "$DEB/usr/share/applications/"
 for s in 48 128 256 512; do
@@ -49,7 +49,7 @@ done
 } > "$DEB/usr/share/doc/ces/copyright"
 find "$DEB" -type d -exec chmod 755 {} +
 find "$DEB" -type f -exec chmod 644 {} +
-chmod 755 "$DEB/opt/ces/CES" "$DEB/opt/ces/ces"
+chmod 755 "$DEB/opt/ces/ces-gui" "$DEB/opt/ces/ces"
 find "$DEB/opt/ces" -name '*.so' -exec chmod 755 {} +
 
 SIZE_KB=$(du -sk --exclude=DEBIAN "$DEB" | cut -f1)

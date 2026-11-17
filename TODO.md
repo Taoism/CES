@@ -27,4 +27,4 @@ Open:
 - [ ] Results cache (path + size + mtime) so re-opening big folders is instant.
 - [ ] Column chooser / saved column layout; remember sort.
 - [ ] Possible extra formats: Ogg Vorbis/Opus, M4A (AAC/ALAC), WAV.
-- [ ] Publish CES on GitHub when the user says so (NEC2u repo to be deleted by the user)
+- [x] Published on GitHub as Taoism/CES (v0.3.0)

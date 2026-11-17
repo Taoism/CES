@@ -5,7 +5,7 @@
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
-        <ResourceInclude Source="avares://CES/Theme/Colors.axaml" />
+        <ResourceInclude Source="avares://ces-gui/Theme/Colors.axaml" />
       </ResourceDictionary.MergedDictionaries>
     </ResourceDictionary>
   </Application.Resources>
@@ -30,6 +30,6 @@
       </FluentTheme.Palettes>
     </FluentTheme>
     <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
-    <StyleInclude Source="avares://CES/Theme/Styles.axaml" />
+    <StyleInclude Source="avares://ces-gui/Theme/Styles.axaml" />
   </Application.Styles>
 </Application>
