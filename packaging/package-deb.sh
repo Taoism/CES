@@ -2,7 +2,7 @@
 # Builds the CES .deb for the distribution it runs on (run it inside that distro, e.g. WSL Ubuntu / Debian):
 #   packaging/package-deb.sh <version> <repo root>
 # Needs publish/linux-x64/gui (GUI, self-contained) and publish/linux-x64/cli (single-file CLI).
-# Output: <repo>/release/ces_<version>-1~<distro><release>_amd64.deb
+# Output: <repo>/release/ces_<version>_<distro><release>_amd64.deb
 # The package differs per distro in its dependencies (ICU and OpenSSL package names), so build one per target.
 set -eu
 
@@ -80,6 +80,6 @@ Description: Compare Enc Spot - encoder spotting and release comparison
 EOF
 chmod 644 "$DEB/DEBIAN/control"
 mkdir -p "$OUT"
-NAME="ces_${CES_VERSION}-1~${TAG}_amd64.deb"
+NAME="ces_${CES_VERSION}_${TAG}_amd64.deb"  # no "~": GitHub rewrites it in asset names
 dpkg-deb --root-owner-group -Zxz --build "$DEB" "$OUT/$NAME" >/dev/null
 echo "built $NAME (depends $ICU, $SSL)"

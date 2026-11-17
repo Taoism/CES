@@ -1,5 +1,5 @@
 # Builds the Debian and Ubuntu packages: publishes the Linux GUI + CLI, then runs packaging/package-deb.sh inside
-# each WSL distro (each package carries that distro's dependency names). Output: release\ces_<v>-1~<distro>_amd64.deb
+# each WSL distro (each package carries that distro's dependency names). Output: release\ces_<v>_<distro>_amd64.deb
 #   pwsh packaging/build-linux.ps1            build both
 #   pwsh packaging/build-linux.ps1 -Test      also install, run and purge each package in its distro (as root)
 param([switch]$Test, [string[]]$Distros = @("Ubuntu", "Debian"))
@@ -18,8 +18,8 @@ foreach ($d in $Distros) {
     wsl.exe -d $d -- sh "$wslRoot/packaging/package-deb.sh" $version $wslRoot
     if ($LASTEXITCODE) { throw "packaging failed in $d" }
     if ($Test) {
-        $deb = Get-ChildItem (Join-Path $root "release") -Filter "ces_$version-1~$($d.ToLower())*_amd64.deb" | Select-Object -First 1
+        $deb = Get-ChildItem (Join-Path $root "release") -Filter "ces_$($version)_$($d.ToLower())*_amd64.deb" | Select-Object -First 1
         wsl.exe -d $d -u root -- sh "$wslRoot/packaging/test-deb.sh" "$wslRoot/release/$($deb.Name)"
     }
 }
-Get-ChildItem (Join-Path $root "release") -Filter "ces_$version-*.deb" | ForEach-Object { "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
+Get-ChildItem (Join-Path $root "release") -Filter "ces_$($version)_*.deb" | ForEach-Object { "{0}  {1:N1} MB" -f $_.Name, ($_.Length / 1MB) }
