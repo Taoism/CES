@@ -111,7 +111,7 @@ public sealed partial class MainWindow
             }
         }
         if (_gradeResults.Children.Count == 0)
-            _gradeResults.Children.Add(Muted("Press “Compare with source 1”. Sync the sources first (Auto-sync) so the same frames are compared.", 13));
+            _gradeResults.Children.Add(Muted("Press “Compare with source 1”. Line the sources up first (Compare button) so the same frames are compared.", 13));
         _toneChart.YMin = 0;
         _toneChart.YMax = 100;
         _toneChart.SetSeries(series);

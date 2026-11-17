@@ -11,6 +11,11 @@ CES joins two earlier tools: NothingElseCompares2u (Compare) and EncoderSpot (Sp
 menu and status bar; switch with the Spot / Compare buttons or Ctrl+1 / Ctrl+2. In Spot, select two or more files
 and choose **Compare selected** to open them in Compare.
 
+Both modes navigate the same way: a directory tree on the left (opening where you last were), buttons above it
+(Spot: *Open folder*, *Add files*; Compare: *Add files*, *Add disc folder*, **Compare**), and the results on the right.
+In Compare the tree also lists media files and tags Blu-ray (BD) and DVD folders; double-click one to add it as a
+source. **Compare** lines the sources up with source 1 (audio match, refined to the exact frame).
+
 ## Spot mode
 
 **MP3 / MP2 / MP1**: every frame header, Layer III side info (block types, scalefac_scale, scfsi, preflag, big_values),

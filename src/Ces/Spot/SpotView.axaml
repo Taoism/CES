@@ -43,20 +43,7 @@
         <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
                    Text="Pick a folder, or drop MP3 / FLAC files and folders here. Double-click a file for its details; select two or more to compare them." />
       </StackPanel>
-      <Border Classes="panel" Margin="0,10,0,0">
-        <TreeView x:Name="FolderTree" SelectionChanged="OnTreeSelection">
-          <TreeView.Styles>
-            <Style Selector="TreeViewItem" x:DataType="m:FolderNode">
-              <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
-            </Style>
-          </TreeView.Styles>
-          <TreeView.ItemTemplate>
-            <TreeDataTemplate x:DataType="m:FolderNode" ItemsSource="{Binding Children}">
-              <TextBlock Text="{Binding Name}" />
-            </TreeDataTemplate>
-          </TreeView.ItemTemplate>
-        </TreeView>
-      </Border>
+      <m:FolderTree x:Name="FolderTree" Margin="0,10,0,0" />
     </DockPanel>
     <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
     <!-- right: toolbar row + file list -->

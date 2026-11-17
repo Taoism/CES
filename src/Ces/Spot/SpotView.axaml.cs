@@ -26,7 +26,6 @@ public sealed partial class SpotView : UserControl
     private CancellationTokenSource? _cts;
     private int _pending;
     private int _total;
-    private bool _revealing;
     private bool _treeLoaded;
     private string[] _currentInputs = [];
     private string? _openWhenDone;
@@ -48,6 +47,7 @@ public sealed partial class SpotView : UserControl
         _view = new DataGridCollectionView(_rows) { Filter = FilterRow };
         Grid.ItemsSource = _view;
         SubfoldersBox.IsChecked = _settings.SpotSubfolders;
+        FolderTree.NodeSelected += OnTreeSelection;
         MainGrid.ColumnDefinitions[0].Width = new GridLength(Math.Clamp(_settings.SidebarWidth, 200, 800));
         _flush = new DispatcherTimer(TimeSpan.FromMilliseconds(150), DispatcherPriority.Background, (_, _) => Flush());
     }
@@ -65,7 +65,7 @@ public sealed partial class SpotView : UserControl
             return;
         }
         _treeLoaded = true;
-        FolderTree.ItemsSource = FolderNode.Roots().ToList();
+        FolderTree.Roots = FolderNode.Roots().ToList();
         if (!SkipLastFolder && _rows.Count == 0 && _settings.SpotFolder.Length > 0 && Directory.Exists(_settings.SpotFolder))
         {
             Load([_settings.SpotFolder], false);
@@ -297,45 +297,7 @@ public sealed partial class SpotView : UserControl
             || r.Artist.Contains(f, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>Expands the folder tree down to <paramref name="path"/> and selects it, without reloading the list.</summary>
-    private void Reveal(string path)
-    {
-        if (FolderTree.ItemsSource is not IEnumerable<FolderNode> roots)
-        {
-            return;
-        }
-        string full = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar);
-        var cmp = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        static string Norm(string p) => p.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var root = roots.Where(r => r.FullPath.Length > 0 && (full.Equals(Norm(r.FullPath), cmp) || full.StartsWith(Norm(r.FullPath) + Path.DirectorySeparatorChar, cmp)))
-            .OrderByDescending(r => r.FullPath.Length).FirstOrDefault();
-        if (root is null)
-        {
-            return;
-        }
-        _revealing = true;
-        var node = root;
-        while (!Norm(node.FullPath).Equals(full, cmp))
-        {
-            node.IsExpanded = true;
-            var next = node.Children.FirstOrDefault(c => c.FullPath.Length > 0 &&
-                (full.Equals(c.FullPath, cmp) || full.StartsWith(c.FullPath + Path.DirectorySeparatorChar, cmp)));
-            if (next is null)
-            {
-                break;
-            }
-            node = next;
-        }
-        FolderTree.SelectedItem = node;
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (FolderTree.TreeContainerFromItem(node) is Control c)
-            {
-                c.BringIntoView();
-            }
-            _revealing = false;
-        }, DispatcherPriority.Background);
-    }
+    private void Reveal(string path) => FolderTree.Reveal(path);
 
     // ---------------------------------------------------------------- commands (also used by the main menu)
 
@@ -443,14 +405,7 @@ public sealed partial class SpotView : UserControl
 
     // ---------------------------------------------------------------- events
 
-    private void OnTreeSelection(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_revealing || FolderTree.SelectedItem is not FolderNode node || node.FullPath.Length == 0)
-        {
-            return;
-        }
-        Load([node.FullPath], false);
-    }
+    private void OnTreeSelection(FolderNode node) => Load([node.FullPath], false);
 
     private async void OnOpenFolder(object? sender, RoutedEventArgs e) => await OpenFolderAsync();
 

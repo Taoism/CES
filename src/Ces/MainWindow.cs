@@ -61,6 +61,8 @@ public sealed partial class MainWindow : Window
     private Control _compareStatusRow = null!;
     private Control _spotStatusRow = null!;
     private Grid _compareBody = null!;
+    private readonly FolderTree _compareTree = new();
+    private bool _compareTreeRevealed;
     private readonly SpotView _spot;
     private Control _compareView = null!;
     private bool _spotMode;
@@ -225,8 +227,8 @@ public sealed partial class MainWindow : Window
         addFiles.Click += async (_, _) => await AddFilesAsync();
         var addFolder = new Button { Content = "Add disc folder…" };
         addFolder.Click += async (_, _) => await AddFolderAsync();
-        var sync = new Button { Content = "Auto-sync", Classes = { "accent" } };
-        ToolTip.SetTip(sync, "Find each source's time offset against source 1 by matching their audio.");
+        var sync = new Button { Content = "Compare", Classes = { "accent" } };
+        ToolTip.SetTip(sync, "Line the sources up with source 1: finds each one's time offset by matching their audio, then refines it on the picture to the exact frame.");
         sync.Click += async (_, _) => await AutoSyncAsync();
         _busyDisabled.AddRange([addFiles, addFolder, sync]);
         var syncMode = new ComboBox
@@ -253,7 +255,7 @@ public sealed partial class MainWindow : Window
         var srcHeader = new TextBlock { Text = "Sources", Classes = { "h2" } };
         var hint = new TextBlock
         {
-            Text = "Drop files, BDMV / VIDEO_TS folders or ISOs here. Source 1 is the reference; offsets say how much later the same moment comes in each other source.",
+            Text = "Double-click a file or disc folder in the tree, or drop files, BDMV / VIDEO_TS folders or ISOs here. Source 1 is the reference; Compare lines the others up with it.",
             TextWrapping = TextWrapping.Wrap,
             Classes = { "muted" },
             FontSize = 12,
@@ -262,7 +264,24 @@ public sealed partial class MainWindow : Window
         var leftTop = new StackPanel { Spacing = 8, Children = { srcHeader, srcButtons, hint } };
         DockPanel.SetDock(leftTop, Dock.Top);
         left.Children.Add(leftTop);
-        left.Children.Add(new ScrollViewer { Content = _sourcePanel, Margin = new Thickness(0, 10, 0, 0), HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        // the same directory tree as Spot, with media files and disc folders; the added sources below it
+        _compareTree.ActivateText = "Add as source";
+        _compareTree.Roots = FolderNode.Roots(p => Disc.SourceOpener.MediaExtensions.Contains(Path.GetExtension(p), StringComparer.OrdinalIgnoreCase)).ToList();
+        _compareTree.NodeActivated += async node => await AddPathsAsync([node.FullPath]);
+        _busyDisabled.Add(_compareTree);
+        var sourcesLabel = new TextBlock { Text = "Added sources", Classes = { "header" }, Margin = new Thickness(2, 8, 0, 6) };
+        var sourcesBox = new DockPanel();
+        DockPanel.SetDock(sourcesLabel, Dock.Top);
+        sourcesBox.Children.Add(sourcesLabel);
+        sourcesBox.Children.Add(new ScrollViewer { Content = _sourcePanel, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
+        var split = new Grid { RowDefinitions = new RowDefinitions("3*,5,2*"), Margin = new Thickness(0, 10, 0, 0) };
+        split.Children.Add(_compareTree);
+        var rowSplitter = new GridSplitter { ResizeDirection = GridResizeDirection.Rows };
+        Grid.SetRow(rowSplitter, 1);
+        split.Children.Add(rowSplitter);
+        Grid.SetRow(sourcesBox, 2);
+        split.Children.Add(sourcesBox);
+        left.Children.Add(split);
 
         _tabs.Margin = new Thickness(4, 4, 10, 6);
         _tabs.Items.Add(new TabItem { Header = "Screenshots", Content = BuildShotsTab() });
@@ -346,6 +365,13 @@ public sealed partial class MainWindow : Window
             : "Releases side by side: screenshots, audio, video, quality metrics, remasters, subtitles";
         if (spot)
             _spot.EnsureStarted();
+        else if (!_compareTreeRevealed)
+        {
+            // like Spot: open the tree where the last source came from
+            _compareTreeRevealed = true;
+            if (Directory.Exists(_settings.LastFolder))
+                _compareTree.Reveal(_settings.LastFolder, expand: true);
+        }
     }
 
     private MenuItem SpotMenu()
@@ -778,7 +804,7 @@ public sealed partial class MainWindow : Window
                 si = speeds.Length;
             }
             speedBox.SelectedIndex = si;
-            ToolTip.SetTip(speedBox, "Source seconds per reference second. Auto-sync detects a PAL speed-up from the frame rates.");
+            ToolTip.SetTip(speedBox, "Source seconds per reference second. Compare detects a PAL speed-up from the frame rates.");
             speedBox.SelectionChanged += async (_, _) =>
             {
                 if (speedBox.SelectedIndex >= 0 && speedBox.SelectedIndex < speeds.Length && Math.Abs(speeds[speedBox.SelectedIndex].Value - item.Speed) > 1e-9)
@@ -851,7 +877,7 @@ public sealed partial class MainWindow : Window
             return;
         }
         var lines = new List<string>();
-        await RunJobAsync("Auto-sync", async ct =>
+        await RunJobAsync("Compare (sync)", async ct =>
         {
             var detector = new Analysis.SyncDetector(_tools, _temp);
             for (var i = 1; i < _items.Count; i++)
@@ -891,7 +917,7 @@ public sealed partial class MainWindow : Window
         if (lines.Count > 0)
         {
             if (!quiet)
-                await MessageBox.ShowAsync(this, string.Join("\n\n", lines), MessageKind.Info, "Auto-sync");
+                await MessageBox.ShowAsync(this, string.Join("\n\n", lines), MessageKind.Info, "Compare");
             else
                 AppendLog(string.Join(Environment.NewLine, lines));
             await RetakeAllAsync();
