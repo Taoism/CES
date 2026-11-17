@@ -7,9 +7,8 @@ A dark, cross-platform (Avalonia / .NET 10) tool with two modes and one command 
 - **Compare** — Blu-ray, DVD and video releases side by side: frame-exact screenshots, sync, audio, video, quality
   metrics, remasters and subtitles.
 
-CES joins two earlier tools: NothingElseCompares2u (Compare) and EncoderSpot (Spot). Both modes share one window,
-menu and status bar; switch with the Spot / Compare buttons or Ctrl+1 / Ctrl+2. In Spot, select two or more files
-and choose **Compare selected** to open them in Compare.
+Both modes share one window, menu and status bar; switch with the Spot / Compare buttons or Ctrl+1 / Ctrl+2. In Spot,
+select two or more files and choose **Compare selected** to open them in Compare.
 
 Both modes navigate the same way: a directory tree on the left (opening where you last were), buttons above it
 (Spot: *Open folder*, *Add files*; Compare: *Add files*, *Add disc folder*, **Compare**), and the results on the right.
@@ -85,9 +84,13 @@ re-graded and reframed "remaster", and a 720p WEB encode.</sub>
   sections with their own offset and mark parts that are missing from a source; each cut is then placed on the exact
 frame by matching the pictures around it. **Telecine**: a 29.97 fps 3:2 pulldown source paired with 23.976 fps film
 is detected and inverse-telecined (field matching + decimation) so frames pair one to one.
-- **Comparisons are saved** as `.ces` files (older `.nec2u` files still open) (sources, titles, time maps, screenshot times, analysis, metrics, ranking,
+- **Comparisons are saved** as `.cesc` files (sources, titles, time maps, screenshot times, analysis, metrics, ranking,
   grade and frame checks);
   screenshots are re-grabbed on open. Recent comparisons in the File menu.
+- **BDInfo**: the Blu-ray report from the BDInfo engine for each disc source (folder, ISO, or ISO inside a RAR set):
+  quick summaries side by side with differences highlighted, and the full BDInfo report (forum paste, streams,
+  chapters, stream diagnostics). **Full scan** reads the compared titles completely for exact sizes and bitrates.
+  Copy or save the reports; they are also in the HTML report.
 - **Specs**: side-by-side table (container, bitrates, codec/profile, resolution, DAR/SAR, bit depth, chroma, colour,
   HDR10/HDR10+/Dolby Vision, mastering display, MaxCLL/FALL, audio tracks, subtitles…), differences highlighted.
 - **Video analysis**: effective bit depth (8-bit padded into 10-bit), native resolution / upscale detection (least-squares
@@ -147,7 +150,8 @@ ces grade  <reference> <other…> [-n 8 | --at T,…] [--windows 5] [--no-tempor
                                                           (remaster: framing, grade, grade over time, frame checks)
 ces subs   <reference> <other…> [--subs eng]           (subtitle timing)
 ces rank   <reference> <release… | folder> [--windows 5] [--length 20] [--edits]
-ces report <source…> [--metrics] [--out DIR]
+ces report <source…> [--metrics] [--out DIR] [--bdinfo-scan | --no-bdinfo]
+ces bdinfo <Blu-ray folder | ISO | RAR set> [-p 00800] [-a] [-q] [-l] [-o FILE]   (BDInfo report; no ffmpeg needed)
 ```
 
 Pick a disc title with `path@00800.mpls` or `path@3`; offsets with `--offset 2=-5.005`, speed with `--speed 2=pal`. See `ces --help`.
@@ -161,7 +165,7 @@ sudo apt install ./ces_0.3.0_ubuntu24.04_amd64.deb     # Ubuntu 24.04
 
 Installs to `/opt/ces` with the commands `ces` (command line) and `ces-gui`, plus a menu entry.
 **Compare mode needs ffmpeg**: `sudo apt install ffmpeg mediainfo` (apt installs them along with CES unless
-recommended packages are turned off). Spot mode does not need ffmpeg. Packages are built with
+recommended packages are turned off). Spot mode and `ces bdinfo` do not need ffmpeg. Packages are built with
 `pwsh packaging/build-linux.ps1` (add `-Test` to install, run and purge each one in its WSL distro).
 
 ## Build

@@ -4,7 +4,7 @@ using Ces.Spot;
 
 namespace Ces.Cli;
 
-/// <summary><c>ces spot</c>: encoder spotting and stream checks for MP3 / FLAC (the former EncoderSpot CLI).</summary>
+/// <summary><c>ces spot</c>: encoder spotting and stream checks for MP3 / FLAC.</summary>
 internal static class SpotCommand
 {
     private const string Usage = """

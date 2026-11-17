@@ -10,14 +10,12 @@ namespace Ces;
 
 public sealed partial class MainWindow
 {
-    public const string SessionExtension = ".ces";
-
-    /// <summary>Comparisons saved by NothingElseCompares2u still open.</summary>
-    public const string LegacySessionExtension = ".nec2u";
+    /// <summary>Saved comparison ("CES comparison").</summary>
+    public const string SessionExtension = ".cesc";
     private string? _sessionPath;
     private MenuItem? _recentMenu;
 
-    private static readonly FilePickerFileType SessionType = new("CES comparison") { Patterns = ["*" + SessionExtension, "*" + LegacySessionExtension] };
+    private static readonly FilePickerFileType SessionType = new("CES comparison") { Patterns = ["*" + SessionExtension] };
 
     private async Task SaveSessionAsync(bool saveAs)
     {

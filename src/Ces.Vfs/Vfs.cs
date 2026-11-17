@@ -118,7 +118,7 @@ public static class Vfs
         var (container, inner) = Resolve(path);
         return container switch
         {
-            RarArchive rar => rar.OpenRead(rar.Find(inner) ?? throw new FileNotFoundException("Not in the RAR set: " + inner)),
+            RarArchive rar => RarArchive.OpenRead(rar.Find(inner) ?? throw new FileNotFoundException("Not in the RAR set: " + inner)),
             UdfImage udf => udf.OpenRead(inner),
             _ => throw new FileNotFoundException(path),
         };

@@ -48,7 +48,7 @@ public class SessionTests
         s.Metrics.Add(new SessionMetric { Reference = 0, Distorted = 1, Result = metric });
         s.Ranking.Add(new SessionRank { Item = 1, Rank = 1 });
 
-        var path = Path.Combine(Path.GetTempPath(), $"nec2u-test-{Guid.NewGuid():N}.nec2u");
+        var path = Path.Combine(Path.GetTempPath(), $"ces-test-{Guid.NewGuid():N}.cesc");
         try
         {
             await s.SaveAsync(path);

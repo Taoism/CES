@@ -14,7 +14,7 @@ using Ces.Spot;
 
 namespace Ces.SpotUi;
 
-/// <summary>Spot mode: folder tree + file list with encoder guesses and stream checks (the former EncoderSpot window).</summary>
+/// <summary>Spot mode: folder tree + file list with encoder guesses and stream checks.</summary>
 public sealed partial class SpotView : UserControl
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;

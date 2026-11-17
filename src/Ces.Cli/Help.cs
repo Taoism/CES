@@ -6,11 +6,15 @@ internal static class Help
         ces — CES (Compare Enc Spot) command line
 
         Usage: ces spot [options] <file or folder>…
+               ces bdinfo [options] <Blu-ray>
                ces <command> <source> [<source> …] [options]
 
         spot      MP3 / FLAC encoder spotting and stream check (no ffmpeg needed)
                     -r recursive  -d details  -j JSON  -q FLAC metadata only  -p only problems  -t N threads
                     exit code 1 when a file has problems; see 'ces spot --help'
+        bdinfo    BDInfo report of a Blu-ray folder, ISO or RAR set (no ffmpeg needed)
+                    -p NAME playlist(s)  -a all playlists  -q quick (no full scan)  -l list  -o FILE
+                    see 'ces bdinfo --help'
 
         A source is a media file (mkv, mp4, m2ts, …), a Blu-ray folder (with BDMV), a DVD folder
         (VIDEO_TS) or an ISO image. Pick a disc title with path@00800.mpls or path@3 (see info --titles).
@@ -57,6 +61,7 @@ internal static class Help
                       --subs LANG|N    reference track (default track 1; others use the same language)
           report    HTML report with specs, findings, screenshots (and metrics with --metrics)
                       --out DIR  --title TEXT  -n N  --no-video  --no-audio  --no-sync
+                      Blu-ray sources get a BDInfo section (quick read; --bdinfo-scan full scan, --no-bdinfo none)
 
         Common options
           --offset [I=]T     source I (default 2) starts T seconds later than the reference

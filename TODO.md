@@ -1,6 +1,6 @@
 # CES TODO
 
-CES = NothingElseCompares2u (Compare) + EncoderSpot (Spot), merged 2026-11-16 as v0.3.0 (local only).
+CES = Compare + Spot modes, v0.3.0 (2026-11-16).
 
 Done: whole-title sync, PAL speed, edits, sessions, ranking, difference/flicker, detailed shots (2026-11-15);
 artefacts (grain/banding/halos/chroma), audio remaster/upmix checks, HDR10+/DV metadata, subtitles (burn-in, timing),
@@ -27,4 +27,13 @@ Open:
 - [ ] Results cache (path + size + mtime) so re-opening big folders is instant.
 - [ ] Column chooser / saved column layout; remember sort.
 - [ ] Possible extra formats: Ogg Vorbis/Opus, M4A (AAC/ALAC), WAV.
+- [x] BDInfo engine (UniqProject/BDInfo 0.7.6.2, LGPL 2.1) in external/BDInfo as its own BDInfo.dll (kept outside
+      the single-file ces.exe, LICENSE-BDInfo.txt in the packages); reads BD folders, ISOs and ISOs inside RAR sets;
+      `ces bdinfo` (2026-11-17).
+  - [x] Compare: BDInfo tab, the in-depth option: quick read on add, Full scan of each compared title, quick
+        summaries side by side with differences highlighted, full reports (copy / save), in the HTML report.
+  - [ ] Spot: video formats too, at a quick glance: MKV/MP4/M2TS/BD/DVD in the list with codec, profile, resolution,
+        HDR, bitrate, encoder library + settings (x264/x265 info string), audio + subtitle tracks; details window.
+        BD folders/ISOs via BDInfo's quick read; MKV/MP4 need ffprobe or MediaInfo (Spot needs no ffmpeg today).
+  - [ ] A built-in Blu-ray test fixture (tiny BD authored with tsMuxeR); real-disc test runs with CES_BD_SAMPLE.
 - [x] Published on GitHub as Taoism/CES (v0.3.0)

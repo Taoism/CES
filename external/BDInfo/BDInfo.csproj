@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    BDInfo engine (https://github.com/UniqProject/BDInfo), LGPL 2.1 or later — see LICENSE and README.md.
+    Kept as its own assembly (BDInfo.dll) so it can be replaced; not part of CES's MIT code.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>BDInfo</AssemblyName>
+    <RootNamespace>BDInfo</RootNamespace>
+    <Version>0.7.6.2</Version>
+    <Product>BDInfo (engine, as used by CES)</Product>
+    <Copyright>Copyright © 2010 Cinema Squid; UniqProject contributors. LGPL 2.1 or later.</Copyright>
+    <PackageLicenseExpression>LGPL-2.1-or-later</PackageLicenseExpression>
+    <!-- upstream code style: no nullable annotations, no CES analyzers -->
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AnalysisLevel>none</AnalysisLevel>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <WarningLevel>0</WarningLevel>
+    <NoWarn>$(NoWarn);CS0168;CS0219;CS0414;CS0618;CS0649;CS1998;SYSLIB0014;CA1416</NoWarn>
+    <!-- BETA switches off the per-file StreamLogs that upstream writes in Debug builds -->
+    <DefineConstants>$(DefineConstants);BETA</DefineConstants>
+    <!-- third-party code: not analysed as CES code -->
+    <SonarQubeExclude>true</SonarQubeExclude>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DiscUtils.Udf" Version="0.16.13" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="LICENSE" Pack="true" PackagePath="" />
+  </ItemGroup>
+</Project>

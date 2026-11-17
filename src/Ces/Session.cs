@@ -5,7 +5,7 @@ using Ces.Compare;
 
 namespace Ces;
 
-/// <summary>A saved comparison (.ces; older .nec2u files load too): sources and their time maps, screenshot times, analysis and metric results.</summary>
+/// <summary>A saved comparison (.cesc): sources and their time maps, screenshot times, analysis and metric results.</summary>
 public sealed class SessionFile
 {
     public int Version { get; set; } = 1;

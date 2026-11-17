@@ -292,6 +292,7 @@ public sealed partial class MainWindow : Window
         _tabs.Items.Add(new TabItem { Header = "Remaster", Content = BuildGradeTab() });
         _tabs.Items.Add(new TabItem { Header = "Subtitles", Content = BuildSubsTab() });
         _tabs.Items.Add(new TabItem { Header = "Discs", Content = BuildDiscTab() });
+        _tabs.Items.Add(new TabItem { Header = "BDInfo", Content = BuildBdInfoTab() });
         _tabs.Items.Add(new TabItem { Header = "Log", Content = new Border { Classes = { "panel" }, Child = _log, Margin = new Thickness(0, 6, 0, 0) } });
 
         var body = new Grid { ColumnDefinitions = new ColumnDefinitions($"{Math.Clamp(_settings.SidebarWidth, 200, 800).ToString(CultureInfo.InvariantCulture)},5,*") };
@@ -630,7 +631,7 @@ public sealed partial class MainWindow : Window
     {
         if (paths.Count == 0 || _tools == null)
             return;
-        var session = paths.FirstOrDefault(p => p.EndsWith(SessionExtension, StringComparison.OrdinalIgnoreCase) || p.EndsWith(LegacySessionExtension, StringComparison.OrdinalIgnoreCase));
+        var session = paths.FirstOrDefault(p => p.EndsWith(SessionExtension, StringComparison.OrdinalIgnoreCase));
         if (session != null)
         {
             await LoadSessionAsync(session);
@@ -684,6 +685,7 @@ public sealed partial class MainWindow : Window
         RefreshAudioResults();
         RefreshQualitySetup();
         RefreshDiscTab();
+        RefreshBdInfoTab();
         RefreshSubtitleChoices();
         RefreshSubsSetup();
         RefreshSubResults();

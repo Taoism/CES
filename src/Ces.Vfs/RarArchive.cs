@@ -98,7 +98,7 @@ public sealed partial class RarArchive
     }
 
     /// <summary>Opens a stored entry as a seekable stream over its volume pieces.</summary>
-    public Stream OpenRead(RarEntry e)
+    public static Stream OpenRead(RarEntry e)
     {
         if (e.IsEncrypted)
         {

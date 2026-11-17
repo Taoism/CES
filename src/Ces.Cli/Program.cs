@@ -35,6 +35,11 @@ if (args[0] == "ls" && args.Length >= 2)
         return 2;
     }
 }
+if (args[0] == "bdinfo")
+{
+    // BDInfo report of a Blu-ray; no ffmpeg needed
+    return await BdInfoCommand.RunAsync(args[1..]);
+}
 if (args[0] == "spot")
 {
     // no ffmpeg needed: the spot engine reads the streams itself
@@ -329,7 +334,8 @@ try
             }
             var shotDir = Path.Combine(temp, "shots");
             var rows = items.Any(i => i.Title.Info?.Video != null) ? await ShotsAsync(items, tools, temp, shotDir, cli, cts.Token) : [];
-            var html = HtmlReport.Write(outDir, cli.Get("title") ?? string.Join(" vs ", items.Select(i => i.Name)), items, rows, metrics);
+            var bdinfo = cli.Has("no-bdinfo") ? [] : await BdInfoSectionsAsync(items, cli.Has("bdinfo-scan"), cts.Token);
+            var html = HtmlReport.Write(outDir, cli.Get("title") ?? string.Join(" vs ", items.Select(i => i.Name)), items, rows, metrics, bdinfo: bdinfo);
             Console.WriteLine("Report: " + html);
             break;
         }
@@ -614,4 +620,33 @@ static void PrintMetrics(CompareItem rf, CompareItem ds, MetricResult res)
         Console.WriteLine($"   {s.Name,-6} mean {Format.Num(s.Mean, f),8}   1% low {Format.Num(s.Low1, f),8}   min {Format.Num(s.Min, f),8}" + (m == Metric.Vmaf ? $"   harmonic {Format.Num(s.HarmonicMean, f)}" : ""));
     }
     Console.WriteLine("   worst frames: " + string.Join(", ", res.Worst(5).Select(w => $"{Format.Time(res.TimeOf(w.Frame))} ({w.Value:0.###})")));
+}
+
+static async Task<List<BdInfoSection>> BdInfoSectionsAsync(List<CompareItem> items, bool fullScan, CancellationToken ct)
+{
+    var sections = new List<BdInfoSection>();
+    for (var i = 0; i < items.Count; i++)
+    {
+        var it = items[i];
+        if (it.Source.Kind != SourceKind.BluRay)
+            continue;
+        try
+        {
+            using var disc = await Task.Run(() => BdInfoDisc.FromSource(it.Source), ct);
+            var pl = disc.FindPlaylist(it.Title.Name) ?? disc.MainPlaylist;
+            if (pl == null)
+                continue;
+            if (fullScan)
+            {
+                await Console.Error.WriteLineAsync($"BDInfo full scan: {it.Name} ({pl.Name})");
+                await disc.ScanAsync([pl], null, ct);
+            }
+            sections.Add(new BdInfoSection(i, it.Name, disc.Report([pl]), fullScan));
+        }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+        {
+            await Console.Error.WriteLineAsync($"BDInfo {it.Name}: {ex.Message}");
+        }
+    }
+    return sections;
 }

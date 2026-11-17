@@ -66,16 +66,12 @@ public sealed class AppSettings
     private static string Dir => Path.Combine(AppData, "CES");
     private static string FilePath => Path.Combine(Dir, "settings.json");
 
-    /// <summary>First start of CES: carry over the NothingElseCompares2u settings.</summary>
-    private static string LegacyFilePath => Path.Combine(AppData, "NothingElseCompares2u", "settings.json");
-
     public static AppSettings Load()
     {
         try
         {
-            string path = File.Exists(FilePath) ? FilePath : LegacyFilePath;
-            if (File.Exists(path))
-                return JsonSerializer.Deserialize(File.ReadAllText(path), SettingsJson.Default.AppSettings) ?? new AppSettings();
+            if (File.Exists(FilePath))
+                return JsonSerializer.Deserialize(File.ReadAllText(FilePath), SettingsJson.Default.AppSettings) ?? new AppSettings();
         }
         catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {

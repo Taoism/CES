@@ -45,8 +45,14 @@ done
   echo
   cat "$ROOT/LICENSE"
   echo
+  echo "Files: opt/ces/BDInfo.dll"
+  echo "License: LGPL-2.1+"
+  echo " See /usr/share/common-licenses/LGPL-2.1 and /usr/share/doc/ces/LICENSE-BDInfo.txt;"
+  echo " source and changes: https://github.com/Taoism/CES/tree/main/external/BDInfo"
+  echo
   cat "$ROOT/THIRD-PARTY-NOTICES.txt"
 } > "$DEB/usr/share/doc/ces/copyright"
+cp "$ROOT/external/BDInfo/LICENSE" "$DEB/usr/share/doc/ces/LICENSE-BDInfo.txt"
 find "$DEB" -type d -exec chmod 755 {} +
 find "$DEB" -type f -exec chmod 644 {} +
 chmod 755 "$DEB/opt/ces/ces-gui" "$DEB/opt/ces/ces"

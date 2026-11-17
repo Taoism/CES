@@ -312,7 +312,7 @@ public sealed class UdfImage
         }
     }
 
-    private byte[] ReadData(Stream s, Entry e)
+    private static byte[] ReadData(Stream s, Entry e)
     {
         if (e.Inline is { } inline)
         {

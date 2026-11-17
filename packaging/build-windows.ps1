@@ -14,6 +14,9 @@ Copy-Item (Join-Path $pub "_cli\ces.exe") $pub
 Remove-Item (Join-Path $pub "_cli") -Recurse -Force
 Get-ChildItem $pub -Filter *.pdb | Remove-Item
 Copy-Item (Join-Path $root "README.md") $pub
+Copy-Item (Join-Path $root "LICENSE") (Join-Path $pub "LICENSE.txt")
+Copy-Item (Join-Path $root "THIRD-PARTY-NOTICES.txt") $pub
+Copy-Item (Join-Path $root "external\BDInfo\LICENSE") (Join-Path $pub "LICENSE-BDInfo.txt")
 $out = Join-Path $root "release"
 New-Item -ItemType Directory -Force $out | Out-Null
 $zip = Join-Path $out "CES-$version-win-x64.zip"

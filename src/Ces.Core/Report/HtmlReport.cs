@@ -3,9 +3,13 @@ using System.Net;
 using System.Text;
 using Ces.Analysis;
 using Ces.Compare;
+using Ces.Disc;
 using Ces.Model;
 
 namespace Ces.Report;
+
+/// <summary>A source's BDInfo report for the HTML report: its index in the source list, and whether it was fully scanned.</summary>
+public sealed record BdInfoSection(int Index, string Name, string Report, bool FullScan);
 
 /// <summary>Writes a self-contained comparison report: index.html plus an images folder.</summary>
 public static class HtmlReport
@@ -13,7 +17,7 @@ public static class HtmlReport
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
     public static string Write(string outDir, string title, IReadOnlyList<CompareItem> items, IReadOnlyList<ShotRow> shots, IReadOnlyList<(CompareItem Reference, CompareItem Distorted, MetricResult Result)> metrics,
-        IReadOnlyList<SubtitleTimingReport>? subtitles = null, string? slowPicsUrl = null)
+        IReadOnlyList<SubtitleTimingReport>? subtitles = null, string? slowPicsUrl = null, IReadOnlyList<BdInfoSection>? bdinfo = null)
     {
         Directory.CreateDirectory(outDir);
         var imgDir = Path.Combine(outDir, "images");
@@ -57,6 +61,9 @@ public static class HtmlReport
             sb.Append("</tr>");
         }
         sb.Append("</tbody></table></div><p class=\"muted\">Highlighted rows differ between sources.</p></section>");
+
+        if (bdinfo is { Count: > 0 })
+            AppendBdInfo(sb, bdinfo);
 
         // findings
         if (items.Any(i => i.Video != null || i.Audio.Count > 0 || i.Grade != null) || subtitles is { Count: > 0 })
@@ -176,6 +183,33 @@ public static class HtmlReport
 
     private static string H(string s) => WebUtility.HtmlEncode(s);
 
+    /// <summary>BDInfo: the quick summaries side by side, then each full report (collapsed).</summary>
+    private static void AppendBdInfo(StringBuilder sb, IReadOnlyList<BdInfoSection> bdinfo)
+    {
+        sb.Append("<section><h2>BDInfo</h2><div class=\"scroll\"><table class=\"specs\"><thead><tr><th></th>");
+        foreach (var b in bdinfo)
+            sb.Append("<th><span class=\"chip c").Append(b.Index % 6).Append("\">").Append(b.Index + 1).Append("</span> ").Append(H(b.Name)).Append("</th>");
+        sb.Append("</tr></thead><tbody>");
+        foreach (var r in BdInfoTable.Build(bdinfo.Select(b => BdInfoDisc.QuickSummary(b.Report)).ToList()))
+        {
+            sb.Append(r.Differs ? "<tr class=\"diff\">" : "<tr>").Append("<td class=\"lbl\">").Append(H(r.Label)).Append("</td>");
+            foreach (var v in r.Values)
+                sb.Append("<td>").Append(H(v)).Append("</td>");
+            sb.Append("</tr>");
+        }
+        sb.Append("</tbody></table></div><p class=\"muted\">BDInfo quick summary; highlighted rows differ.");
+        if (bdinfo.Any(b => !b.FullScan))
+            sb.Append(" Sources without a full scan have estimated (zero) sizes and bitrates.");
+        sb.Append("</p>");
+        foreach (var b in bdinfo)
+        {
+            sb.Append("<details class=\"bdinfo\"><summary><span class=\"chip c").Append(b.Index % 6).Append("\">").Append(b.Index + 1).Append("</span> ")
+              .Append(H(b.Name)).Append(b.FullScan ? "" : " <span class=\"muted\">(quick read, no full scan)</span>").Append("</summary><pre>")
+              .Append(H(b.Report)).Append("</pre></details>");
+        }
+        sb.Append("</section>");
+    }
+
     private const string Css = """
         :root{--bg:#141518;--panel:#1d1f23;--edge:#33363c;--text:#e6e6e8;--muted:#9a9ca1;--accent:#4a8ce3;--diff:#2c2a1c;--warn:#e0a040;--bad:#e06060}
         *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif}
@@ -194,6 +228,8 @@ public static class HtmlReport
         .tab{background:#26282d;color:var(--text);border:1px solid var(--edge);border-radius:4px;padding:3px 8px;cursor:pointer;font:inherit}.tab.on{border-color:var(--accent);background:#2b3442}.tab em{color:var(--muted);font-style:normal}
         .frames figure{display:none;margin:0}.frames figure.on{display:block}.frames img{cursor:pointer;width:100%;image-rendering:auto}
         .shot.sbs .frames{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:6px}.shot.sbs .frames figure{display:block}
+        details.bdinfo{margin:8px 0;background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:6px 10px}details.bdinfo summary{cursor:pointer}
+        details.bdinfo pre{overflow-x:auto;font:12px/1.35 Cascadia Mono,Consolas,Menlo,monospace;margin:8px 0 2px}
         .missing{padding:40px;text-align:center;color:var(--muted);border:1px dashed var(--edge)}.chart svg{width:100%;height:160px;background:#17181b;border:1px solid var(--edge)}
         """;
 

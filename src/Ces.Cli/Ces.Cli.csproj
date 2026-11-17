@@ -10,4 +10,10 @@
     <ProjectReference Include="..\Ces.Spot\Ces.Spot.csproj" />
     <ProjectReference Include="..\Ces.Vfs\Ces.Vfs.csproj" />
   </ItemGroup>
+  <!-- BDInfo.dll is LGPL: keep it a separate, replaceable file next to ces(.exe), not inside the single-file bundle -->
+  <Target Name="KeepBDInfoOutsideBundle" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Update="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'BDInfo.dll'" ExcludeFromSingleFile="true" />
+    </ItemGroup>
+  </Target>
 </Project>

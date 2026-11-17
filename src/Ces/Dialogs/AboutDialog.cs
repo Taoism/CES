@@ -12,7 +12,6 @@ public sealed class AboutDialog : DialogWindow
     private const string Credits = """
 
         CES — Compare Enc Spot
-        (NothingElseCompares2u + EncoderSpot)
         frame-exact screenshots · grade & framing · audio · subtitles
         PSNR · SSIM · VMAF · XPSNR
         encoder spotting · MP3 frames & LAME tags · FLAC CRC & MD5

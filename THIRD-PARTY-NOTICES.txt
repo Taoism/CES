@@ -1,4 +1,4 @@
-NothingElseCompares2u uses third-party software.
+CES uses third-party software.
 
 Not bundled — used from your system (install them separately):
   FFmpeg / ffprobe (https://ffmpeg.org/) - LGPL 2.1+ / GPL depending on the build.
@@ -9,6 +9,14 @@ Bundled .NET libraries:
   SkiaSharp / HarfBuzzSharp - MIT License, Copyright (c) Microsoft Corporation / .NET Foundation.
   Inter font - SIL Open Font License 1.1, Copyright (c) The Inter Project Authors.
   .NET runtime - MIT License, Copyright (c) .NET Foundation and Contributors.
+  DiscUtils (https://github.com/DiscUtils/DiscUtils) - MIT License, Copyright (c) Kenneth Bell and contributors.
+
+Bundled as a separate library (BDInfo.dll), under its own license:
+  BDInfo (https://github.com/UniqProject/BDInfo) - GNU Lesser General Public License 2.1 or later,
+  Copyright (c) 2010 Cinema Squid and UniqProject contributors. The Blu-ray scan and report engine,
+  version 0.7.6.2, adapted for CES. BDInfo.dll is not covered by CES's MIT license; you may replace it
+  with your own build. Its source, the full license text and the list of changes are in the CES source
+  under external/BDInfo (https://github.com/Taoism/CES/tree/main/external/BDInfo).
 
 Online service (only when you choose to upload):
   slow.pics (https://slow.pics) - screenshot comparison hosting; uploads are public to anyone with the link.
