@@ -1,14 +1,10 @@
-<Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:m="using:EncoderSpot.Models"
-        x:Class="EncoderSpot.MainWindow"
-        x:DataType="m:FileRow"
-        Title="EncoderSpot"
-        Icon="avares://EncoderSpot/Assets/encoderspot.png"
-        MinWidth="760" MinHeight="420"
-        DragDrop.AllowDrop="True">
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:m="using:Ces.SpotUi"
+             x:Class="Ces.SpotUi.SpotView"
+             x:DataType="m:FileRow">
 
-  <Window.Styles>
+  <UserControl.Styles>
     <Style Selector="Border.q">
       <Setter Property="Background" Value="{DynamicResource QualityUnknownBrush}" />
       <Setter Property="CornerRadius" Value="3" />
@@ -32,77 +28,52 @@
     <Style Selector="DataGridCell TextBlock">
       <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
-  </Window.Styles>
+  </UserControl.Styles>
 
-  <DockPanel>
-    <Menu DockPanel.Dock="Top">
-      <MenuItem Header="_File">
-        <MenuItem Header="_Open folder…" InputGesture="Ctrl+O" Click="OnOpenFolder" />
-        <MenuItem Header="_Add files…" InputGesture="Ctrl+Shift+O" Click="OnAddFiles" />
-        <MenuItem Header="_Rescan" InputGesture="F5" Click="OnRescan" />
-        <Separator />
-        <MenuItem Header="_Export report…" InputGesture="Ctrl+E" Click="OnExport" />
-        <MenuItem Header="_Copy list as text" Click="OnCopyList" />
-        <Separator />
-        <MenuItem Header="E_xit" Click="OnExit" />
-      </MenuItem>
-      <MenuItem Header="_View">
-        <MenuItem x:Name="SubfoldersMenu" Header="Include _subfolders" ToggleType="CheckBox" Click="OnToggleSubfolders" />
-        <MenuItem x:Name="ProblemsMenu" Header="Only files with _problems" ToggleType="CheckBox" Click="OnToggleProblems" />
-        <MenuItem x:Name="DecodeMenu" Header="_Decode FLAC (CRC + MD5 check)" ToggleType="CheckBox" Click="OnToggleDecode" />
-        <Separator />
-        <MenuItem Header="_Details…" InputGesture="Enter" Click="OnDetails" />
-        <Separator />
-        <MenuItem Header="_Theme">
-          <MenuItem x:Name="ThemeSystem" Header="Follow _system" ToggleType="Radio" GroupName="theme" Click="OnTheme" Tag="System" />
-          <MenuItem x:Name="ThemeDark" Header="_Dark" ToggleType="Radio" GroupName="theme" Click="OnTheme" Tag="Dark" />
-          <MenuItem x:Name="ThemeLight" Header="_Light" ToggleType="Radio" GroupName="theme" Click="OnTheme" Tag="Light" />
-        </MenuItem>
-      </MenuItem>
-      <MenuItem Header="_Help">
-        <MenuItem Header="_About EncoderSpot" Click="OnAbout" />
-      </MenuItem>
-    </Menu>
-
-    <Border DockPanel.Dock="Top" Padding="8,6" Classes="footer">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto,180">
-        <TextBox x:Name="PathBox" Grid.Column="0" PlaceholderText="Folder or file — type a path and press Enter, or drop files here" KeyDown="OnPathKeyDown" />
-        <Button Grid.Column="1" Margin="6,0,0,0" Content="Browse…" Click="OnOpenFolder" />
-        <CheckBox x:Name="SubfoldersBox" Grid.Column="2" Margin="10,0,0,0" Content="Subfolders" IsCheckedChanged="OnSubfoldersBoxChanged" />
-        <Button x:Name="StopButton" Grid.Column="3" Margin="6,0,10,0" Content="Stop" IsEnabled="False" Click="OnStop" />
-        <TextBox x:Name="FilterBox" Grid.Column="4" PlaceholderText="Filter" TextChanged="OnFilterChanged" />
+  <Grid x:Name="MainGrid" ColumnDefinitions="340,5,*">
+    <!-- left: same pattern as Compare's Sources (header, buttons, hint, content) -->
+    <DockPanel Grid.Column="0" Margin="10,10,4,10">
+      <StackPanel DockPanel.Dock="Top" Spacing="8">
+        <TextBlock Text="Folders" Classes="h2" />
+        <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="6">
+          <Button Content="Open folder…" Click="OnOpenFolder" />
+          <Button Content="Add files…" Click="OnAddFiles" />
+          <CheckBox x:Name="SubfoldersBox" Content="Subfolders" IsCheckedChanged="OnSubfoldersBoxChanged" />
+        </WrapPanel>
+        <TextBlock Classes="muted" FontSize="12" TextWrapping="Wrap"
+                   Text="Pick a folder, or drop MP3 / FLAC files and folders here. Double-click a file for its details; select two or more to compare them." />
+      </StackPanel>
+      <Border Classes="panel" Margin="0,10,0,0">
+        <TreeView x:Name="FolderTree" SelectionChanged="OnTreeSelection">
+          <TreeView.Styles>
+            <Style Selector="TreeViewItem" x:DataType="m:FolderNode">
+              <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+            </Style>
+          </TreeView.Styles>
+          <TreeView.ItemTemplate>
+            <TreeDataTemplate x:DataType="m:FolderNode" ItemsSource="{Binding Children}">
+              <TextBlock Text="{Binding Name}" />
+            </TreeDataTemplate>
+          </TreeView.ItemTemplate>
+        </TreeView>
+      </Border>
+    </DockPanel>
+    <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
+    <!-- right: toolbar row + file list -->
+    <DockPanel Grid.Column="2" Margin="4,10,10,6">
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,200" Margin="0,0,0,8">
+        <TextBox x:Name="PathBox" Grid.Column="0" PlaceholderText="Folder or file: type a path and press Enter" KeyDown="OnPathKeyDown" />
+        <Button x:Name="CompareButton" Grid.Column="1" Margin="6,0,0,0" Content="Compare selected" IsEnabled="False" Click="OnCompareSelected"
+                ToolTip.Tip="Open the selected files in Compare mode (2 or more files)" />
+        <Button Grid.Column="2" Margin="6,0,6,0" Content="Export…" Click="OnExport" />
+        <TextBox x:Name="FilterBox" Grid.Column="3" PlaceholderText="Filter" TextChanged="OnFilterChanged" />
       </Grid>
-    </Border>
-
-    <Border DockPanel.Dock="Bottom" Classes="footer" Padding="10,4">
-      <Grid ColumnDefinitions="*,Auto">
-        <TextBlock x:Name="StatusText" Classes="muted" VerticalAlignment="Center" />
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-          <TextBlock x:Name="ProgressText" Classes="muted" VerticalAlignment="Center" />
-          <ProgressBar x:Name="Progress" Width="160" MinHeight="6" Height="6" IsVisible="False" VerticalAlignment="Center" />
-        </StackPanel>
-      </Grid>
-    </Border>
-
-    <Grid x:Name="MainGrid" ColumnDefinitions="260,4,*">
-      <TreeView x:Name="FolderTree" Grid.Column="0" SelectionChanged="OnTreeSelection">
-        <TreeView.Styles>
-          <Style Selector="TreeViewItem" x:DataType="m:FolderNode">
-            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
-          </Style>
-        </TreeView.Styles>
-        <TreeView.ItemTemplate>
-          <TreeDataTemplate x:DataType="m:FolderNode" ItemsSource="{Binding Children}">
-            <TextBlock Text="{Binding Name}" />
-          </TreeDataTemplate>
-        </TreeView.ItemTemplate>
-      </TreeView>
-      <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
-      <DataGrid x:Name="Grid" Grid.Column="2" IsReadOnly="True" SelectionMode="Extended"
-                CanUserSortColumns="True" DoubleTapped="OnGridDoubleTapped" KeyDown="OnGridKeyDown">
+      <DataGrid x:Name="Grid" IsReadOnly="True" SelectionMode="Extended"
+                CanUserSortColumns="True" DoubleTapped="OnGridDoubleTapped" KeyDown="OnGridKeyDown" SelectionChanged="OnGridSelection">
         <DataGrid.ContextMenu>
           <ContextMenu>
             <MenuItem Header="Details…" Click="OnDetails" />
+            <MenuItem Header="Compare selected" Click="OnCompareSelected" />
             <MenuItem Header="Open containing folder" Click="OnOpenContaining" />
             <MenuItem Header="Copy path" Click="OnCopyPath" />
             <MenuItem Header="Copy info" Click="OnCopyInfo" />
@@ -115,10 +86,10 @@
           <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="280" SortMemberPath="Name" />
           <DataGridTextColumn Header="Encoder" Binding="{Binding Encoder}" Width="170" SortMemberPath="Encoder" />
           <DataGridTextColumn Header="Settings" Binding="{Binding Settings}" Width="220" SortMemberPath="Settings" />
-          <DataGridTextColumn Header="kbps" Binding="{Binding BitrateText}" Width="70" SortMemberPath="Bitrate" />
+          <DataGridTextColumn Header="kbps" Binding="{Binding BitrateText}" Width="84" SortMemberPath="Bitrate" />
           <DataGridTextColumn Header="Length" Binding="{Binding LengthText}" Width="92" SortMemberPath="Seconds" />
           <DataGridTextColumn Header="Size" Binding="{Binding SizeText}" Width="96" SortMemberPath="Size" />
-          <DataGridTextColumn Header="VBR" Binding="{Binding VbrText}" Width="64" SortMemberPath="VbrText" />
+          <DataGridTextColumn Header="VBR" Binding="{Binding VbrText}" Width="74" SortMemberPath="VbrText" />
           <DataGridTemplateColumn Header="Quality" Width="88" SortMemberPath="QualitySort">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate x:DataType="m:FileRow">
@@ -129,10 +100,10 @@
               </DataTemplate>
             </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
-          <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="80" SortMemberPath="Format" />
-          <DataGridTextColumn Header="Hz" Binding="{Binding SampleRateText}" Width="72" SortMemberPath="SampleRate" />
+          <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="94" SortMemberPath="Format" />
+          <DataGridTextColumn Header="Hz" Binding="{Binding SampleRateText}" Width="80" SortMemberPath="SampleRate" />
           <DataGridTextColumn Header="Mode" Binding="{Binding ModeText}" Width="110" SortMemberPath="ModeText" />
-          <DataGridTextColumn Header="Frames" Binding="{Binding FramesText}" Width="84" SortMemberPath="Frames" />
+          <DataGridTextColumn Header="Frames" Binding="{Binding FramesText}" Width="98" SortMemberPath="Frames" />
           <DataGridTextColumn Header="Guess" Binding="{Binding Confidence}" Width="84" SortMemberPath="Confidence" />
           <DataGridTemplateColumn Header="Problems" Width="320" SortMemberPath="Problems">
             <DataGridTemplateColumn.CellTemplate>
@@ -146,6 +117,6 @@
           <DataGridTextColumn Header="Folder" Binding="{Binding Folder}" Width="260" SortMemberPath="Folder" />
         </DataGrid.Columns>
       </DataGrid>
-    </Grid>
-  </DockPanel>
-</Window>
+    </DockPanel>
+  </Grid>
+</UserControl>

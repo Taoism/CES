@@ -1,4 +1,4 @@
-namespace EncoderSpot.Core.Mp3;
+namespace Ces.Spot.Mp3;
 
 public enum MpegVersion
 {

@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace EncoderSpot.Core;
+namespace Ces.Spot;
 
 public static class Fmt
 {

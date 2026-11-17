@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace EncoderSpot.Core.Mp3;
+namespace Ces.Spot.Mp3;
 
 /// <summary>Turns an <see cref="Mp3Analysis"/> into the encoder guess, rating and detail rows.</summary>
 internal static partial class Mp3Report

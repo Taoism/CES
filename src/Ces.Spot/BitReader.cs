@@ -1,4 +1,4 @@
-namespace EncoderSpot.Core;
+namespace Ces.Spot;
 
 /// <summary>MSB-first bit reader over a byte span.</summary>
 internal ref struct BitReader

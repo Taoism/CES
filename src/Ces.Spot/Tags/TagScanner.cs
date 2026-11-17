@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Globalization;
 using System.Text;
 
-namespace EncoderSpot.Core.Tags;
+namespace Ces.Spot.Tags;
 
 /// <summary>Finds ID3v2 (start), and ID3v1, APE and Lyrics3 tags (end) of a file.</summary>
 public static class TagScanner

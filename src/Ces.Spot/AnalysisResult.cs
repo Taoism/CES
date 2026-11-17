@@ -1,8 +1,8 @@
-using EncoderSpot.Core.Flac;
-using EncoderSpot.Core.Mp3;
-using EncoderSpot.Core.Tags;
+using Ces.Spot.Flac;
+using Ces.Spot.Mp3;
+using Ces.Spot.Tags;
 
-namespace EncoderSpot.Core;
+namespace Ces.Spot;
 
 public enum GuessConfidence
 {

@@ -2,12 +2,11 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace EncoderSpot.Models;
+namespace Ces.SpotUi;
 
 /// <summary>A folder in the tree; sub folders are read the first time it is expanded.</summary>
 public sealed class FolderNode : INotifyPropertyChanged
 {
-    private static readonly FolderNode Placeholder = new("…", "", false);
     private bool _expanded;
     private bool _loaded;
 
@@ -17,7 +16,8 @@ public sealed class FolderNode : INotifyPropertyChanged
         FullPath = fullPath;
         if (lazy)
         {
-            Children.Add(Placeholder);
+            // one placeholder per node: the tree maps each item to a single container
+            Children.Add(new FolderNode("…", "", false));
         }
     }
 

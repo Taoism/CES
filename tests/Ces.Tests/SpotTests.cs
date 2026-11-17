@@ -1,8 +1,8 @@
 using System.Text;
-using EncoderSpot.Core;
-using EncoderSpot.Core.Mp3;
+using Ces.Spot;
+using Ces.Spot.Mp3;
 
-namespace EncoderSpot.Tests;
+namespace Ces.Tests;
 
 public sealed class AnalyzerTests : IDisposable
 {

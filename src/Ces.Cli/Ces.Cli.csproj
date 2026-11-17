@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Ces.Cli</RootNamespace>
+    <AssemblyName>ces</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ces.Core\Ces.Core.csproj" />
+    <ProjectReference Include="..\Ces.Spot\Ces.Spot.csproj" />
+  </ItemGroup>
+</Project>

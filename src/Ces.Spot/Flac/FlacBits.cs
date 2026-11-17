@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Numerics;
 
-namespace EncoderSpot.Core.Flac;
+namespace Ces.Spot.Flac;
 
 /// <summary>Fast MSB-first bit reader for FLAC frames (reads 64-bit words).</summary>
 internal sealed class FlacBits

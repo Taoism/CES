@@ -3,26 +3,22 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
-using Avalonia;
 using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using EncoderSpot.Core;
-using EncoderSpot.Models;
-using EncoderSpot.Services;
+using Ces.Spot;
 
-namespace EncoderSpot;
+namespace Ces.SpotUi;
 
-public sealed partial class MainWindow : Window
+/// <summary>Spot mode: folder tree + file list with encoder guesses and stream checks (the former EncoderSpot window).</summary>
+public sealed partial class SpotView : UserControl
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
-    private readonly AppSettings _settings = AppSettings.Load();
+    private readonly AppSettings _settings;
     private readonly ObservableCollection<FileRow> _rows = [];
     private readonly DataGridCollectionView _view;
     private readonly ConcurrentQueue<(FileRow Row, AnalysisResult Result)> _done = new();
@@ -31,54 +27,83 @@ public sealed partial class MainWindow : Window
     private int _pending;
     private int _total;
     private bool _revealing;
+    private bool _treeLoaded;
     private string[] _currentInputs = [];
     private string? _openWhenDone;
 
-    public static WindowIcon AppIcon { get; } = new(AssetLoader.Open(new Uri("avares://EncoderSpot/Assets/encoderspot.png")));
+    /// <summary>Status line text, files done, files to do (0 = nothing running) for the window's status bar.</summary>
+    public event Action<string, int, int>? StatusChanged;
 
-    public MainWindow() : this([])
+    /// <summary>The user asked to compare these files (switch to Compare mode).</summary>
+    public event Action<IReadOnlyList<string>>? CompareRequested;
+
+    public SpotView() : this(new AppSettings())
     {
     }
 
-    public MainWindow(string[] args)
+    public SpotView(AppSettings settings)
     {
+        _settings = settings;
         InitializeComponent();
-        App.ApplyTheme(_settings.Theme);
         _view = new DataGridCollectionView(_rows) { Filter = FilterRow };
         Grid.ItemsSource = _view;
-        FolderTree.ItemsSource = FolderNode.Roots().ToList();
-        SubfoldersBox.IsChecked = _settings.IncludeSubfolders;
-        SubfoldersMenu.IsChecked = _settings.IncludeSubfolders;
-        ProblemsMenu.IsChecked = _settings.ProblemsOnly;
-        DecodeMenu.IsChecked = _settings.DecodeFlac;
-        (_settings.Theme switch { "Dark" => ThemeDark, "Light" => ThemeLight, _ => ThemeSystem }).IsChecked = true;
-        MainGrid.ColumnDefinitions[0].Width = new GridLength(Math.Clamp(_settings.TreeWidth, 120, 800));
-        RestorePlacement();
-
+        SubfoldersBox.IsChecked = _settings.SpotSubfolders;
+        MainGrid.ColumnDefinitions[0].Width = new GridLength(Math.Clamp(_settings.SidebarWidth, 200, 800));
         _flush = new DispatcherTimer(TimeSpan.FromMilliseconds(150), DispatcherPriority.Background, (_, _) => Flush());
-        AddHandler(DragDrop.DropEvent, OnDrop);
-        AddHandler(DragDrop.DragOverEvent, (_, e) => e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None);
-        KeyDown += OnWindowKeyDown;
-        Closing += (_, _) => SavePlacement();
+    }
 
-        Opened += (_, _) =>
+    public int Count => _rows.Count;
+
+    /// <summary>Set when paths come from the command line: do not load the last folder first.</summary>
+    public bool SkipLastFolder { get; set; }
+
+    /// <summary>Fills the folder tree and loads the last folder; called when Spot mode is first shown.</summary>
+    public void EnsureStarted()
+    {
+        if (_treeLoaded)
         {
-            var start = args.Where(a => File.Exists(a) || Directory.Exists(a)).ToArray();
-            if (start.Length == 1 && File.Exists(start[0]))
-            {
-                // "Open with EncoderSpot" on one file: show its details as soon as it is analyzed.
-                _openWhenDone = Path.GetFullPath(start[0]);
-            }
-            if (start.Length > 0)
-            {
-                Load(start, false);
-            }
-            else if (_settings.LastFolder is { } last && Directory.Exists(last))
-            {
-                Load([last], false);
-            }
-            UpdateStatus();
-        };
+            return;
+        }
+        _treeLoaded = true;
+        FolderTree.ItemsSource = FolderNode.Roots().ToList();
+        if (!SkipLastFolder && _rows.Count == 0 && _settings.SpotFolder.Length > 0 && Directory.Exists(_settings.SpotFolder))
+        {
+            Load([_settings.SpotFolder], false);
+        }
+        UpdateStatus();
+    }
+
+    /// <summary>Saves layout state and stops work (window closing).</summary>
+    public void Shutdown()
+    {
+        Cancel();
+    }
+
+    /// <summary>Width of the left pane (kept the same in both modes).</summary>
+    public double SidebarWidth
+    {
+        get => MainGrid.ColumnDefinitions[0].ActualWidth;
+        set => MainGrid.ColumnDefinitions[0].Width = new GridLength(Math.Clamp(value, 200, 800));
+    }
+
+    public bool IsBusy => _pending > 0;
+
+    public void Stop()
+    {
+        Cancel();
+        UpdateStatus();
+    }
+
+    public void CompareSelected() => OnCompareSelected(null, new RoutedEventArgs());
+
+    /// <summary>Opens files/folders; a single file also opens its details window when analyzed.</summary>
+    public void Open(IReadOnlyList<string> paths, bool append)
+    {
+        if (paths.Count == 1 && File.Exists(paths[0]))
+        {
+            _openWhenDone = Path.GetFullPath(paths[0]);
+        }
+        Load([.. paths], append);
     }
 
     // ---------------------------------------------------------------- loading
@@ -98,7 +123,7 @@ public sealed partial class MainWindow : Window
         }
         if (inputs.Length == 1 && Directory.Exists(inputs[0]))
         {
-            _settings.LastFolder = inputs[0];
+            _settings.SpotFolder = inputs[0];
             PathBox.Text = inputs[0];
             Reveal(inputs[0]);
         }
@@ -106,11 +131,11 @@ public sealed partial class MainWindow : Window
         {
             PathBox.Text = inputs[0];
         }
-        bool recursive = _settings.IncludeSubfolders;
+        bool recursive = _settings.SpotSubfolders;
         _cts ??= new CancellationTokenSource();
         var ct = _cts.Token;
         var existing = new HashSet<string>(_rows.Select(r => r.Path), StringComparer.OrdinalIgnoreCase);
-        ProgressText.Text = "finding files…";
+        StatusChanged?.Invoke("Finding files…", 0, 1);
         Task.Run(() =>
         {
             var files = new List<string>();
@@ -125,7 +150,7 @@ public sealed partial class MainWindow : Window
                     files.AddRange(Enumerate(input, recursive, ct));
                 }
             }
-            return files.Where(f => existing.Add(f)).ToList();
+            return files.Where(existing.Add).ToList();
         }, ct).ContinueWith(t =>
         {
             if (t.IsCanceled || t.IsFaulted || ct.IsCancellationRequested)
@@ -138,13 +163,13 @@ public sealed partial class MainWindow : Window
                 _rows.Add(r);
             }
             Analyze(rows, ct);
-        }, TaskScheduler.FromCurrentSynchronizationContext());
+        }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.FromCurrentSynchronizationContext());
     }
 
     private static IEnumerable<string> Enumerate(string folder, bool recursive, CancellationToken ct)
     {
         var opts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = recursive, AttributesToSkip = FileAttributes.System };
-        IEnumerable<string> found;
+        List<string> found;
         try
         {
             found = Directory.EnumerateFiles(folder, "*", opts).Where(AudioAnalyzer.IsSupported).ToList();
@@ -166,10 +191,8 @@ public sealed partial class MainWindow : Window
         }
         _total += rows.Count;
         _pending += rows.Count;
-        StopButton.IsEnabled = true;
-        Progress.IsVisible = true;
         _flush.Start();
-        var options = new AnalyzeOptions { DecodeFlac = _settings.DecodeFlac };
+        var options = new AnalyzeOptions { DecodeFlac = _settings.SpotDecodeFlac };
         int threads = Math.Max(1, Environment.ProcessorCount / 2);
         Task.Run(() =>
         {
@@ -194,16 +217,16 @@ public sealed partial class MainWindow : Window
         while (_done.TryDequeue(out var item))
         {
             item.Row.Result = item.Result;
+            _pending--;
+            n++;
             if (_openWhenDone is not null && item.Row.Path.Equals(_openWhenDone, StringComparison.OrdinalIgnoreCase))
             {
                 _openWhenDone = null;
                 Grid.SelectedItem = item.Row;
-                new DetailsWindow(item.Row, _settings, Reanalyze).Show(this);
+                ShowDetails(item.Row);
             }
-            _pending--;
-            n++;
         }
-        if (n > 0 && (ProblemsMenu.IsChecked || !string.IsNullOrEmpty(FilterBox.Text)))
+        if (n > 0 && (_settings.SpotProblemsOnly || !string.IsNullOrEmpty(FilterBox.Text)))
         {
             _view.Refresh();
         }
@@ -213,9 +236,7 @@ public sealed partial class MainWindow : Window
             _pending = 0;
             _total = 0;
             _flush.Stop();
-            StopButton.IsEnabled = false;
-            Progress.IsVisible = false;
-            ProgressText.Text = "";
+            UpdateStatus();
         }
     }
 
@@ -227,9 +248,6 @@ public sealed partial class MainWindow : Window
         _pending = 0;
         _total = 0;
         _flush?.Stop();
-        StopButton.IsEnabled = false;
-        Progress.IsVisible = false;
-        ProgressText.Text = "";
     }
 
     private void UpdateStatus()
@@ -249,19 +267,21 @@ public sealed partial class MainWindow : Window
         {
             sb.Append(string.Create(Inv, $", {problems} with problems"));
         }
-        StatusText.Text = sb.ToString();
         if (_total > 0 && _pending > 0)
         {
-            Progress.Maximum = _total;
-            Progress.Value = _total - _pending;
-            ProgressText.Text = string.Create(Inv, $"analyzing {_total - _pending} / {_total}");
+            sb.Append(string.Create(Inv, $" · analyzing {_total - _pending} / {_total}"));
+            StatusChanged?.Invoke(sb.ToString(), _total - _pending, _total);
+        }
+        else
+        {
+            StatusChanged?.Invoke(sb.ToString(), 0, 0);
         }
     }
 
     private bool FilterRow(object o)
     {
         var r = (FileRow)o;
-        if (_settings.ProblemsOnly && r.IsDone && !r.HasProblems)
+        if (_settings.SpotProblemsOnly && r.IsDone && !r.HasProblems)
         {
             return false;
         }
@@ -294,52 +314,40 @@ public sealed partial class MainWindow : Window
             return;
         }
         _revealing = true;
-        try
+        var node = root;
+        while (!Norm(node.FullPath).Equals(full, cmp))
         {
-            var node = root;
-            while (!Norm(node.FullPath).Equals(full, cmp))
+            node.IsExpanded = true;
+            var next = node.Children.FirstOrDefault(c => c.FullPath.Length > 0 &&
+                (full.Equals(c.FullPath, cmp) || full.StartsWith(c.FullPath + Path.DirectorySeparatorChar, cmp)));
+            if (next is null)
             {
-                node.IsExpanded = true;
-                var next = node.Children.FirstOrDefault(c => c.FullPath.Length > 0 &&
-                    (full.Equals(c.FullPath, cmp) || full.StartsWith(c.FullPath + Path.DirectorySeparatorChar, cmp)));
-                if (next is null)
-                {
-                    break;
-                }
-                node = next;
+                break;
             }
-            FolderTree.SelectedItem = node;
-            Dispatcher.UIThread.Post(() =>
-            {
-                if (FolderTree.TreeContainerFromItem(node) is Control c)
-                {
-                    c.BringIntoView();
-                }
-                _revealing = false;
-            }, DispatcherPriority.Background);
+            node = next;
         }
-        catch
+        FolderTree.SelectedItem = node;
+        Dispatcher.UIThread.Post(() =>
         {
+            if (FolderTree.TreeContainerFromItem(node) is Control c)
+            {
+                c.BringIntoView();
+            }
             _revealing = false;
-            throw;
-        }
+        }, DispatcherPriority.Background);
     }
 
-    // ---------------------------------------------------------------- events
+    // ---------------------------------------------------------------- commands (also used by the main menu)
 
-    private void OnTreeSelection(object? sender, SelectionChangedEventArgs e)
+    public async Task OpenFolderAsync()
     {
-        if (_revealing || FolderTree.SelectedItem is not FolderNode node || node.FullPath.Length == 0)
+        var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (sp is null)
         {
             return;
         }
-        Load([node.FullPath], false);
-    }
-
-    private async void OnOpenFolder(object? sender, RoutedEventArgs e)
-    {
-        var start = _settings.LastFolder is { } lf && Directory.Exists(lf) ? await StorageProvider.TryGetFolderFromPathAsync(lf) : null;
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Open folder", SuggestedStartLocation = start });
+        var start = Directory.Exists(_settings.SpotFolder) ? await sp.TryGetFolderFromPathAsync(_settings.SpotFolder) : null;
+        var folders = await sp.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Open folder", SuggestedStartLocation = start });
         var path = folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
         if (path is not null)
         {
@@ -347,11 +355,16 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private async void OnAddFiles(object? sender, RoutedEventArgs e)
+    public async Task AddFilesAsync()
     {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (sp is null)
         {
-            Title = "Add files",
+            return;
+        }
+        var files = await sp.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Add MP3 / FLAC files",
             AllowMultiple = true,
             FileTypeFilter =
             [
@@ -366,18 +379,7 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void OnDrop(object? sender, DragEventArgs e)
-    {
-        var paths = e.DataTransfer.TryGetFiles()?.Select(f => f.TryGetLocalPath()).OfType<string>().ToArray() ?? [];
-        if (paths.Length == 0)
-        {
-            return;
-        }
-        bool replace = paths.Length == 1 && Directory.Exists(paths[0]);
-        Load(paths, !replace);
-    }
-
-    private void OnRescan(object? sender, RoutedEventArgs e)
+    public void Rescan()
     {
         if (_currentInputs.Length > 0)
         {
@@ -385,11 +387,76 @@ public sealed partial class MainWindow : Window
         }
     }
 
-    private void OnStop(object? sender, RoutedEventArgs e)
+    public void SetSubfolders(bool on)
     {
-        Cancel();
-        UpdateStatus();
+        if (on == _settings.SpotSubfolders)
+        {
+            return;
+        }
+        _settings.SpotSubfolders = on;
+        SubfoldersBox.IsChecked = on;
+        Rescan();
     }
+
+    public void SetProblemsOnly(bool on)
+    {
+        _settings.SpotProblemsOnly = on;
+        _view.Refresh();
+    }
+
+    public async Task ExportAsync()
+    {
+        var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (sp is null)
+        {
+            return;
+        }
+        var file = await sp.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export spot report",
+            SuggestedFileName = "ces-spot-report.csv",
+            FileTypeChoices =
+            [
+                new FilePickerFileType("CSV (spreadsheet)") { Patterns = ["*.csv"] },
+                new FilePickerFileType("Text report with details") { Patterns = ["*.txt"] },
+            ],
+        });
+        var path = file?.TryGetLocalPath();
+        if (path is null)
+        {
+            return;
+        }
+        var rows = _view.OfType<FileRow>().Where(r => r.IsDone).ToList();
+        string content = path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
+            ? string.Join(Environment.NewLine, rows.Select(r => SpotReport.Text(r.Result!)))
+            : SpotReport.Csv(rows);
+        await File.WriteAllTextAsync(path, content, new UTF8Encoding(true), CancellationToken.None);
+    }
+
+    public async Task CopyListAsync()
+    {
+        if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb)
+        {
+            await cb.SetTextAsync(SpotReport.Table(_view.OfType<FileRow>()));
+        }
+    }
+
+    // ---------------------------------------------------------------- events
+
+    private void OnTreeSelection(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_revealing || FolderTree.SelectedItem is not FolderNode node || node.FullPath.Length == 0)
+        {
+            return;
+        }
+        Load([node.FullPath], false);
+    }
+
+    private async void OnOpenFolder(object? sender, RoutedEventArgs e) => await OpenFolderAsync();
+
+    private async void OnAddFiles(object? sender, RoutedEventArgs e) => await AddFilesAsync();
+
+    private async void OnExport(object? sender, RoutedEventArgs e) => await ExportAsync();
 
     private void OnPathKeyDown(object? sender, KeyEventArgs e)
     {
@@ -407,74 +474,7 @@ public sealed partial class MainWindow : Window
 
     private void OnFilterChanged(object? sender, TextChangedEventArgs e) => _view?.Refresh();
 
-    private void OnSubfoldersBoxChanged(object? sender, RoutedEventArgs e)
-    {
-        bool on = SubfoldersBox.IsChecked == true;
-        if (on == _settings.IncludeSubfolders)
-        {
-            return;
-        }
-        SetSubfolders(on);
-    }
-
-    private void OnToggleSubfolders(object? sender, RoutedEventArgs e) => SetSubfolders(SubfoldersMenu.IsChecked);
-
-    private void SetSubfolders(bool on)
-    {
-        _settings.IncludeSubfolders = on;
-        SubfoldersMenu.IsChecked = on;
-        SubfoldersBox.IsChecked = on;
-        OnRescan(null, new RoutedEventArgs());
-    }
-
-    private void OnToggleProblems(object? sender, RoutedEventArgs e)
-    {
-        _settings.ProblemsOnly = ProblemsMenu.IsChecked;
-        _view.Refresh();
-    }
-
-    private void OnToggleDecode(object? sender, RoutedEventArgs e) => _settings.DecodeFlac = DecodeMenu.IsChecked;
-
-    private void OnTheme(object? sender, RoutedEventArgs e)
-    {
-        if (sender is MenuItem { Tag: string theme })
-        {
-            _settings.Theme = theme;
-            App.ApplyTheme(theme);
-        }
-    }
-
-    private void OnExit(object? sender, RoutedEventArgs e) => Close();
-
-    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
-    {
-        bool ctrl = e.KeyModifiers.HasFlag(KeyModifiers.Control);
-        bool shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
-        if (e.Key == Key.F5)
-        {
-            OnRescan(null, e);
-        }
-        else if (ctrl && e.Key == Key.O)
-        {
-            if (shift)
-            {
-                OnAddFiles(null, e);
-            }
-            else
-            {
-                OnOpenFolder(null, e);
-            }
-        }
-        else if (ctrl && e.Key == Key.E)
-        {
-            OnExport(null, e);
-        }
-        else
-        {
-            return;
-        }
-        e.Handled = true;
-    }
+    private void OnSubfoldersBoxChanged(object? sender, RoutedEventArgs e) => SetSubfolders(SubfoldersBox.IsChecked == true);
 
     private void OnGridKeyDown(object? sender, KeyEventArgs e)
     {
@@ -490,15 +490,35 @@ public sealed partial class MainWindow : Window
         }
     }
 
+    private void OnGridSelection(object? sender, SelectionChangedEventArgs e) =>
+        CompareButton.IsEnabled = Grid.SelectedItems.Count >= 2;
+
     private void OnGridDoubleTapped(object? sender, TappedEventArgs e) => OnDetails(null, e);
 
-    private IEnumerable<FileRow> SelectedRows => Grid.SelectedItems.OfType<FileRow>().ToList();
+    private List<FileRow> SelectedRows => Grid.SelectedItems.OfType<FileRow>().ToList();
 
     private void OnDetails(object? sender, RoutedEventArgs e)
     {
         if (Grid.SelectedItem is FileRow { IsDone: true } row)
         {
-            new DetailsWindow(row, _settings, Reanalyze).Show(this);
+            ShowDetails(row);
+        }
+    }
+
+    private void ShowDetails(FileRow row)
+    {
+        if (TopLevel.GetTopLevel(this) is Window owner)
+        {
+            new DetailsWindow(row, _settings, Reanalyze).Show(owner);
+        }
+    }
+
+    private void OnCompareSelected(object? sender, RoutedEventArgs e)
+    {
+        var paths = SelectedRows.Select(r => r.Path).ToList();
+        if (paths.Count > 0)
+        {
+            CompareRequested?.Invoke(paths);
         }
     }
 
@@ -527,26 +547,18 @@ public sealed partial class MainWindow : Window
     private async void OnCopyPath(object? sender, RoutedEventArgs e)
     {
         var text = string.Join(Environment.NewLine, SelectedRows.Select(r => r.Path));
-        if (Clipboard is not null && text.Length > 0)
+        if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb && text.Length > 0)
         {
-            await Clipboard.SetTextAsync(text);
+            await cb.SetTextAsync(text);
         }
     }
 
     private async void OnCopyInfo(object? sender, RoutedEventArgs e)
     {
-        var text = string.Join(Environment.NewLine, SelectedRows.Where(r => r.IsDone).Select(r => Report.Text(r.Result!)));
-        if (Clipboard is not null && text.Length > 0)
+        var text = string.Join(Environment.NewLine, SelectedRows.Where(r => r.IsDone).Select(r => SpotReport.Text(r.Result!)));
+        if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb && text.Length > 0)
         {
-            await Clipboard.SetTextAsync(text);
-        }
-    }
-
-    private async void OnCopyList(object? sender, RoutedEventArgs e)
-    {
-        if (Clipboard is not null)
-        {
-            await Clipboard.SetTextAsync(Report.Table(_view.OfType<FileRow>()));
+            await cb.SetTextAsync(text);
         }
     }
 
@@ -557,83 +569,6 @@ public sealed partial class MainWindow : Window
             _rows.Remove(r);
         }
         UpdateStatus();
-    }
-
-    private async void OnExport(object? sender, RoutedEventArgs e)
-    {
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Export report",
-            SuggestedFileName = "encoderspot-report.csv",
-            FileTypeChoices =
-            [
-                new FilePickerFileType("CSV (spreadsheet)") { Patterns = ["*.csv"] },
-                new FilePickerFileType("Text report with details") { Patterns = ["*.txt"] },
-            ],
-        });
-        var path = file?.TryGetLocalPath();
-        if (path is null)
-        {
-            return;
-        }
-        var rows = _view.OfType<FileRow>().Where(r => r.IsDone).ToList();
-        string content = path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
-            ? string.Join(Environment.NewLine, rows.Select(r => Report.Text(r.Result!, details: true)))
-            : Report.Csv(rows);
-        await File.WriteAllTextAsync(path, content, new UTF8Encoding(true), CancellationToken.None);
-    }
-
-    private void OnAbout(object? sender, RoutedEventArgs e)
-    {
-        string version = typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "";
-        var dlg = new Window
-        {
-            Title = "About EncoderSpot",
-            Icon = AppIcon,
-            Width = 460,
-            SizeToContent = SizeToContent.Height,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            ShowInTaskbar = false,
-        };
-        var ok = new Button { Content = "OK", IsDefault = true, IsCancel = true, MinWidth = 90, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center };
-        ok.Classes.Add("accent");
-        ok.Click += (_, _) => dlg.Close();
-        dlg.Content = new StackPanel
-        {
-            Margin = new Thickness(20),
-            Spacing = 10,
-            Children =
-            {
-                new StackPanel
-                {
-                    Orientation = Avalonia.Layout.Orientation.Horizontal,
-                    Spacing = 14,
-                    Children =
-                    {
-                        new Image { Source = new Bitmap(AssetLoader.Open(new Uri("avares://EncoderSpot/Assets/encoderspot.png"))), Width = 56, Height = 56 },
-                        new StackPanel
-                        {
-                            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
-                            Children =
-                            {
-                                new TextBlock { Text = "EncoderSpot " + version, FontSize = 18, FontWeight = Avalonia.Media.FontWeight.SemiBold },
-                                new TextBlock { Text = "MP3 and FLAC encoder spotter and stream analyzer", Classes = { "muted" } },
-                            },
-                        },
-                    },
-                },
-                new TextBlock
-                {
-                    TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                    Text = "A modern take on EncSpot (Jon Dee, Guerillasoft, 2001–2005) for Windows, Linux and macOS. "
-                         + "It reads every frame: MPEG headers, Layer III side info and bit reservoir, Xing/Info/LAME and VBRI headers, "
-                         + "and decodes FLAC to check frame CRCs and the MD5 signature.",
-                },
-                ok,
-            },
-        };
-        dlg.ShowDialog(this);
     }
 
     internal static void ShowInFileManager(string path)
@@ -659,45 +594,5 @@ public sealed partial class MainWindow : Window
         {
             // no file manager available
         }
-    }
-
-    // ---------------------------------------------------------------- window placement
-
-    private void RestorePlacement()
-    {
-        Width = Math.Max(MinWidth, _settings.WindowWidth);
-        Height = Math.Max(MinHeight, _settings.WindowHeight);
-        if (!double.IsNaN(_settings.WindowX) && !double.IsNaN(_settings.WindowY))
-        {
-            var pos = new PixelPoint((int)_settings.WindowX, (int)_settings.WindowY);
-            if (Screens.All.Any(s => s.WorkingArea.Contains(pos + new PixelPoint(40, 40))))
-            {
-                WindowStartupLocation = WindowStartupLocation.Manual;
-                Position = pos;
-            }
-        }
-        else
-        {
-            WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        }
-        if (_settings.WindowMaximized)
-        {
-            WindowState = WindowState.Maximized;
-        }
-    }
-
-    private void SavePlacement()
-    {
-        Cancel();
-        _settings.WindowMaximized = WindowState == WindowState.Maximized;
-        if (WindowState == WindowState.Normal)
-        {
-            _settings.WindowX = Position.X;
-            _settings.WindowY = Position.Y;
-            _settings.WindowWidth = Width;
-            _settings.WindowHeight = Height;
-        }
-        _settings.TreeWidth = MainGrid.ColumnDefinitions[0].ActualWidth;
-        _settings.Save();
     }
 }

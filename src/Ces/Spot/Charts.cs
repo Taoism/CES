@@ -3,7 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 
-namespace EncoderSpot.Controls;
+namespace Ces.SpotUi;
 
 /// <summary>Shared drawing helpers: theme brushes and text.</summary>
 public abstract class ChartBase : Control
@@ -242,7 +242,7 @@ public sealed class LineChart : ChartBase
             for (double t = 0; t <= dur; t += tStep)
             {
                 double x = plot.Left + (t / dur * plot.Width);
-                string label = dur >= 3600 ? Core.Fmt.Duration(t) : Core.Fmt.Duration(t)[3..];
+                string label = dur >= 3600 ? Spot.Fmt.Duration(t) : Spot.Fmt.Duration(t)[3..];
                 Text(context, label, x, plot.Bottom + 4, centered: true);
             }
         }

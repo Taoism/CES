@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 
-namespace EncoderSpot.Core.Tags;
+namespace Ces.Spot.Tags;
 
 internal static class Id3v2Reader
 {

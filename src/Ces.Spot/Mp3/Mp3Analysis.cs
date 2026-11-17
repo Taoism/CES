@@ -1,4 +1,4 @@
-namespace EncoderSpot.Core.Mp3;
+namespace Ces.Spot.Mp3;
 
 /// <summary>Everything learned from an MPEG audio stream.</summary>
 public sealed class Mp3Analysis

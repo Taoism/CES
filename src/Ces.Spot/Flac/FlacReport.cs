@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 
-namespace EncoderSpot.Core.Flac;
+namespace Ces.Spot.Flac;
 
 /// <summary>Turns a <see cref="FlacAnalysis"/> into the encoder guess, rating and detail rows.</summary>
 internal static partial class FlacReport

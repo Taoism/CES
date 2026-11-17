@@ -1,16 +1,43 @@
-# NothingElseCompares2u
+# CES — Compare Enc Spot
 
-*(…but a frame-exact screenshot does.)*
+A dark, cross-platform (Avalonia / .NET 10) tool with two modes and one command line, `ces`:
 
-A dark, cross-platform (Avalonia / .NET 10) comparison tool for Blu-ray, DVD and video files, with a matching
-command line, `nec2u`.
+- **Spot** — point it at a folder of MP3 or FLAC files and it tells you which encoder made each one, with which
+  settings, and whether the stream is intact (a modern take on EncSpot).
+- **Compare** — Blu-ray, DVD and video releases side by side: frame-exact screenshots, sync, audio, video, quality
+  metrics, remasters and subtitles.
+
+CES joins two earlier tools: NothingElseCompares2u (Compare) and EncoderSpot (Spot). Both modes share one window,
+menu and status bar; switch with the Spot / Compare buttons or Ctrl+1 / Ctrl+2. In Spot, select two or more files
+and choose **Compare selected** to open them in Compare.
+
+## Spot mode
+
+**MP3 / MP2 / MP1**: every frame header, Layer III side info (block types, scalefac_scale, scfsi, preflag, big_values),
+the bit reservoir and ancillary data, Xing/Info + LAME tag (preset, VBR method, lowpass, delay/padding, ReplayGain,
+**tag CRC and music CRC check**), VBRI (FhG), frame CRCs, ID3v1/ID3v2/APE/Lyrics3 tags. It reports sync errors,
+truncated last frames, junk after the audio, and files whose content does not match their extension.
+
+**FLAC**: all metadata blocks and the vendor string, plus a full decode of every frame: CRC-8/CRC-16 checks,
+**MD5 verification**, subframe types, LPC orders and precision, Rice partitions and stereo decorrelation. From these it
+estimates the libFLAC compression level, and it recognises FFmpeg-encoded FLAC from the frame layout when a tagger
+(e.g. Mutagen) has replaced the vendor string. Spot mode needs no ffmpeg.
+
+The file list has an EncSpot-style quality column; double-click a file for its details: bitrate histogram and graph,
+reservoir use, block types, big values, stereo modes, FLAC predictor and LPC-order charts.
+
+```
+ces spot [-r] [-d] [-j] [-q] [-p] [-t N] <file or folder>…
+  -r recursive   -d details   -j JSON   -q FLAC metadata only   -p only problems
+exit code 0 = ok, 1 = some files have problems
+```
+
+## Compare mode
 
 ![Wipe between a master and a remaster](docs/screenshots/screenshots-wipe.png)
 
 <sub>All screenshots are made from synthetic test sources (an ffmpeg mandelbrot zoom with generated audio): a master, a
 re-graded and reframed "remaster", and a 720p WEB encode.</sub>
-
-## What it does
 
 - **Sources**: MKV, MP4, M2TS/TS, VOB and other ffmpeg-readable files; Blu-ray folders (BDMV) and DVD folders
   (VIDEO_TS), read through their own playlists/IFOs (titles, segments, chapters, stream languages, angles); ISO images,
@@ -28,7 +55,7 @@ re-graded and reframed "remaster", and a 720p WEB encode.</sub>
   sections with their own offset and mark parts that are missing from a source; each cut is then placed on the exact
 frame by matching the pictures around it. **Telecine**: a 29.97 fps 3:2 pulldown source paired with 23.976 fps film
 is detected and inverse-telecined (field matching + decimation) so frames pair one to one.
-- **Comparisons are saved** as `.nec2u` files (sources, titles, time maps, screenshot times, analysis, metrics, ranking,
+- **Comparisons are saved** as `.ces` files (older `.nec2u` files still open) (sources, titles, time maps, screenshot times, analysis, metrics, ranking,
   grade and frame checks);
   screenshots are re-grabbed on open. Recent comparisons in the File menu.
 - **Specs**: side-by-side table (container, bitrates, codec/profile, resolution, DAR/SAR, bit depth, chroma, colour,
@@ -80,24 +107,24 @@ ffmpeg + ffprobe (with libvmaf for VMAF; zscale for HDR tone-mapping), optionall
 ## Command line
 
 ```
-nec2u info   <source…> [--titles]
-nec2u sync   <reference> <other…> [--whole] [--edits]
-nec2u shots  <source…> [-n 6 | --at 1:02:03,… | --random | --chapters | --smart] [--subs eng] [--auto-sync] [--out DIR] [--slowpics] [--summary bbcode]
-nec2u video  <source…> [--points 8] [--curve]
-nec2u audio  <source…> [--track 1|all] [--full] [--out DIR]
-nec2u metrics <reference> <other…> [--metrics psnr,ssim,vmaf,xpsnr] [--start T] [--length 60]
-nec2u grade  <reference> <other…> [-n 8 | --at T,…] [--windows 5] [--no-temporal] [--curve]
+ces info   <source…> [--titles]
+ces sync   <reference> <other…> [--whole] [--edits]
+ces shots  <source…> [-n 6 | --at 1:02:03,… | --random | --chapters | --smart] [--subs eng] [--auto-sync] [--out DIR] [--slowpics] [--summary bbcode]
+ces video  <source…> [--points 8] [--curve]
+ces audio  <source…> [--track 1|all] [--full] [--out DIR]
+ces metrics <reference> <other…> [--metrics psnr,ssim,vmaf,xpsnr] [--start T] [--length 60]
+ces grade  <reference> <other…> [-n 8 | --at T,…] [--windows 5] [--no-temporal] [--curve]
                                                           (remaster: framing, grade, grade over time, frame checks)
-nec2u subs   <reference> <other…> [--subs eng]           (subtitle timing)
-nec2u rank   <reference> <release… | folder> [--windows 5] [--length 20] [--edits]
-nec2u report <source…> [--metrics] [--out DIR]
+ces subs   <reference> <other…> [--subs eng]           (subtitle timing)
+ces rank   <reference> <release… | folder> [--windows 5] [--length 20] [--edits]
+ces report <source…> [--metrics] [--out DIR]
 ```
 
-Pick a disc title with `path@00800.mpls` or `path@3`; offsets with `--offset 2=-5.005`, speed with `--speed 2=pal`. See `nec2u --help`.
+Pick a disc title with `path@00800.mpls` or `path@3`; offsets with `--offset 2=-5.005`, speed with `--speed 2=pal`. See `ces --help`.
 
 ## Build
 
 ```
-dotnet build NothingElseCompares2u.sln
+dotnet build CES.sln
 dotnet test
 ```

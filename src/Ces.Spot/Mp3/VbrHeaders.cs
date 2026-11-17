@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 
-namespace EncoderSpot.Core.Mp3;
+namespace Ces.Spot.Mp3;
 
 /// <summary>Xing / Info header found in the first frame.</summary>
 public sealed class XingHeader

@@ -1,15 +1,16 @@
 using System.Globalization;
 using System.Text.Json;
-using EncoderSpot.Core;
+using Ces.Spot;
 
-namespace EncoderSpot.Cli;
+namespace Ces.Cli;
 
-internal static class Program
+/// <summary><c>ces spot</c>: encoder spotting and stream checks for MP3 / FLAC (the former EncoderSpot CLI).</summary>
+internal static class SpotCommand
 {
     private const string Usage = """
-        encspot - MP3 / FLAC encoder spotter and stream analyzer
+        ces spot - MP3 / FLAC encoder spotter and stream analyzer
 
-        usage: encspot [options] <file or folder>...
+        usage: ces spot [options] <file or folder>...
 
           -r, --recursive   include sub folders
           -d, --details     print every detail for each file
@@ -22,9 +23,8 @@ internal static class Program
         exit code: 0 ok, 1 some files have problems, 2 usage error
         """;
 
-    private static int Main(string[] args)
+    public static int Run(string[] args)
     {
-        Console.OutputEncoding = System.Text.Encoding.UTF8;
         bool recursive = false, details = false, json = false, quick = false, problemsOnly = false;
         int threads = Environment.ProcessorCount;
         string? dumpPcm = null;

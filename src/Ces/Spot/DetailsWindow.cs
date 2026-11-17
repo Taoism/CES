@@ -8,14 +8,11 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
-using EncoderSpot.Controls;
-using EncoderSpot.Core;
-using EncoderSpot.Core.Flac;
-using EncoderSpot.Core.Mp3;
-using EncoderSpot.Models;
-using EncoderSpot.Services;
+using Ces.Spot;
+using Ces.Spot.Flac;
+using Ces.Spot.Mp3;
 
-namespace EncoderSpot;
+namespace Ces.SpotUi;
 
 /// <summary>Per-file window: details table, flags and graphs (EncSpot's file window).</summary>
 public sealed class DetailsWindow : Window
@@ -37,10 +34,10 @@ public sealed class DetailsWindow : Window
         Height = Math.Max(420, settings.DetailsHeight);
         MinWidth = 600;
         MinHeight = 420;
-        if (!double.IsNaN(settings.DetailsX) && !double.IsNaN(settings.DetailsY))
+        if (settings.DetailsX is int dx && settings.DetailsY is int dy)
         {
             WindowStartupLocation = WindowStartupLocation.Manual;
-            Position = new PixelPoint((int)settings.DetailsX, (int)settings.DetailsY);
+            Position = new PixelPoint(dx, dy);
         }
         else
         {
@@ -48,7 +45,7 @@ public sealed class DetailsWindow : Window
         }
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        buttons.Children.Add(MakeButton("Go to folder", () => MainWindow.ShowInFileManager(_row.Path)));
+        buttons.Children.Add(MakeButton("Go to folder", () => SpotView.ShowInFileManager(_row.Path)));
         buttons.Children.Add(MakeButton("Refresh", () => _reanalyze(_row)));
         buttons.Children.Add(MakeButton("Copy info", CopyInfo));
         var close = MakeButton("Close", Close);
@@ -98,7 +95,7 @@ public sealed class DetailsWindow : Window
     {
         if (_row.Result is { } r && Clipboard is not null)
         {
-            await Clipboard.SetTextAsync(Report.Text(r));
+            await Clipboard.SetTextAsync(SpotReport.Text(r));
         }
     }
 

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace EncoderSpot.Core.Tags;
+namespace Ces.Spot.Tags;
 
 /// <summary>Tags found around the audio stream and the byte range of the audio itself.</summary>
 public sealed class TagInfo

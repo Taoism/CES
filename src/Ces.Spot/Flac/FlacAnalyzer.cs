@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace EncoderSpot.Core.Flac;
+namespace Ces.Spot.Flac;
 
 /// <summary>Reads FLAC metadata and decodes every frame (CRC and MD5 checks, subframe statistics).</summary>
 public static class FlacAnalyzer

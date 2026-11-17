@@ -16,3 +16,12 @@ Open:
 - [ ] Inverse telecine on real (not synthetic) pulldown material, incl. mixed film/video
 - [ ] Release cards / per-GB value view, timeline strip, region zoom across sources
 - [ ] Packaging like TaoExif (installer, bundled ffmpeg full + MediaInfo, updater, .deb, macOS)
+- [ ] Calibrate the untagged-MP3 heuristics (Xing old/new, Blade, FhG, GOGO...) against the original
+      EncSpot 2.2 on the same files (reference/orig has the old installers) and against mp3guessenc output.
+- [ ] More real-world encoder samples: FhG (ACM, fastenc, mp3enc), Xing, Blade, Helix, iTunes, GOGO, old LAME.
+- [ ] FLAC: lossy-source / upsampling detection (spectral cutoff, fake 24-bit via wasted bits) + spectrogram tab.
+- [ ] Packaging like TaoExif: Inno installer + win zip, .deb (Ubuntu/Debian), linux tarball, macOS .app.
+- [ ] Results cache (path + size + mtime) so re-opening big folders is instant.
+- [ ] Column chooser / saved column layout; remember sort.
+- [ ] Possible extra formats: Ogg Vorbis/Opus, M4A (AAC/ALAC), WAV.
+- [ ] Publish CES on GitHub when the user says so (NEC2u repo to be deleted by the user)

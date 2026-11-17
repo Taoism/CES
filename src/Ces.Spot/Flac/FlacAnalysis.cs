@@ -1,4 +1,4 @@
-namespace EncoderSpot.Core.Flac;
+namespace Ces.Spot.Flac;
 
 public enum FlacChannelAssignment
 {

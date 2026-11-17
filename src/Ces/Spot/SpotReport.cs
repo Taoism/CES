@@ -1,12 +1,11 @@
 using System.Globalization;
 using System.Text;
-using EncoderSpot.Core;
-using EncoderSpot.Models;
+using Ces.Spot;
 
-namespace EncoderSpot.Services;
+namespace Ces.SpotUi;
 
 /// <summary>Plain-text and CSV renderings of results (clipboard and export).</summary>
-public static class Report
+public static class SpotReport
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 

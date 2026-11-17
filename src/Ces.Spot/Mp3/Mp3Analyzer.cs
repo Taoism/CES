@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace EncoderSpot.Core.Mp3;
+namespace Ces.Spot.Mp3;
 
 /// <summary>Walks every frame of an MPEG audio stream and gathers statistics.</summary>
 public static class Mp3Analyzer

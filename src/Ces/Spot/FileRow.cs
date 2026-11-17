@@ -1,9 +1,9 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
-using EncoderSpot.Core;
+using Ces.Spot;
 
-namespace EncoderSpot.Models;
+namespace Ces.SpotUi;
 
 /// <summary>One file in the list; filled in when its analysis finishes.</summary>
 public sealed class FileRow(string path) : INotifyPropertyChanged
