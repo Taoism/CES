@@ -266,7 +266,7 @@ public sealed partial class MainWindow : Window
         left.Children.Add(leftTop);
         // the same directory tree as Spot, with media files and disc folders; the added sources below it
         _compareTree.ActivateText = "Add as source";
-        _compareTree.Roots = FolderNode.Roots(p => Disc.SourceOpener.MediaExtensions.Contains(Path.GetExtension(p), StringComparer.OrdinalIgnoreCase)).ToList();
+        _compareTree.Roots = FolderNode.Roots(p => Disc.SourceOpener.MediaExtensions.Contains(Path.GetExtension(p), StringComparer.OrdinalIgnoreCase) || Ces.Vfs.Vfs.IsRarSet(p)).ToList();
         _compareTree.NodeActivated += async node => await AddPathsAsync([node.FullPath]);
         _busyDisabled.Add(_compareTree);
         var sourcesLabel = new TextBlock { Text = "Added sources", Classes = { "header" }, Margin = new Thickness(2, 8, 0, 6) };
@@ -441,13 +441,25 @@ public sealed partial class MainWindow : Window
     /// <summary>MP3 / FLAC files and plain folders go to Spot mode; media files, discs and sessions to Compare.</summary>
     private static bool IsSpotInput(string p)
     {
+        if (File.Exists(p) && Ces.Vfs.Vfs.IsRarSet(p))
+            return RarIsAudioOnly(p);
         if (File.Exists(p))
             return Ces.Spot.AudioAnalyzer.IsSupported(p);
         if (!Directory.Exists(p))
             return false;
+        if (Disc.SourceOpener.FirstRarIn(p) is { } rar)
+            return RarIsAudioOnly(rar); // a packed release folder
         var name = Path.GetFileName(p.TrimEnd('\\', '/'));
         return !name.Equals("BDMV", StringComparison.OrdinalIgnoreCase) && !name.Equals("VIDEO_TS", StringComparison.OrdinalIgnoreCase)
             && !Directory.Exists(Path.Combine(p, "BDMV")) && !Directory.Exists(Path.Combine(p, "VIDEO_TS"));
+    }
+
+    /// <summary>A RAR set with MP3 / FLAC and nothing else Compare could open (video, ISO).</summary>
+    private static bool RarIsAudioOnly(string rar)
+    {
+        var inside = Ces.Vfs.Vfs.FilesInside(rar, _ => true);
+        return inside.Any(Ces.Spot.AudioAnalyzer.IsSupported)
+            && !inside.Any(f => Disc.SourceOpener.MediaExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase) && !Ces.Spot.AudioAnalyzer.IsSupported(f));
     }
 
     private MenuItem MenuItemFor(string header, Func<Task> action, KeyGesture? gesture = null)
@@ -573,7 +585,7 @@ public sealed partial class MainWindow : Window
             SuggestedStartLocation = await StartFolderAsync(),
             FileTypeFilter =
             [
-                new FilePickerFileType("Media, ISO, disc files") { Patterns = SourceOpener.MediaExtensions.Select(e => "*" + e).Concat(["*.mpls", "*.ifo", "*.bdmv"]).ToList() },
+                new FilePickerFileType("Media, ISO, RAR sets, disc files") { Patterns = SourceOpener.MediaExtensions.Select(e => "*" + e).Concat(["*.rar", "*.mpls", "*.ifo", "*.bdmv"]).ToList() },
                 new FilePickerFileType("All files") { Patterns = ["*"] },
             ],
         });

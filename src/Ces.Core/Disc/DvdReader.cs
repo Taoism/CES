@@ -1,6 +1,8 @@
 using System.Globalization;
 using Ces.Model;
 
+using V = Ces.Vfs.Vfs;
+
 namespace Ces.Disc;
 
 /// <summary>Reads VIDEO_TS: titles from VIDEO_TS.IFO, cells/chapters/languages from the VTS IFOs.</summary>
@@ -11,10 +13,10 @@ public static class DvdReader
     public static string? FindVideoTs(string dir)
     {
         if (Path.GetFileName(dir.TrimEnd('\\', '/')).Equals("VIDEO_TS", StringComparison.OrdinalIgnoreCase) &&
-            File.Exists(Path.Combine(dir, "VIDEO_TS.IFO")))
+            V.FileExists(Path.Combine(dir, "VIDEO_TS.IFO")))
             return dir;
         var sub = Path.Combine(dir, "VIDEO_TS");
-        return File.Exists(Path.Combine(sub, "VIDEO_TS.IFO")) ? sub : null;
+        return V.FileExists(Path.Combine(sub, "VIDEO_TS.IFO")) ? sub : null;
     }
 
     internal sealed record Cell(double Duration, uint FirstSector, uint LastSector, int VobId);
@@ -39,7 +41,7 @@ public static class DvdReader
 
     public static List<MediaTitle> ReadTitles(string videoTs, double minSeconds = 30)
     {
-        var vmg = File.ReadAllBytes(Path.Combine(videoTs, "VIDEO_TS.IFO"));
+        var vmg = V.ReadAllBytes(Path.Combine(videoTs, "VIDEO_TS.IFO"));
         if (vmg.Length < 0x100 || System.Text.Encoding.ASCII.GetString(vmg, 0, 12) != "DVDVIDEO-VMG")
             throw new InvalidDataException("VIDEO_TS.IFO is not a DVD video manager.");
         var ttSrpt = (int)BeReader.U32At(vmg, 0xC4) * Sector;
@@ -89,8 +91,8 @@ public static class DvdReader
             return null;
         var vobs = Enumerable.Range(1, 9)
             .Select(i => Path.Combine(videoTs, $"VTS_{vtsn:00}_{i}.VOB"))
-            .TakeWhile(File.Exists)
-            .Select(p => (Path: p, Size: new FileInfo(p).Length))
+            .TakeWhile(V.FileExists)
+            .Select(p => (Path: p, Size: V.Length(p)))
             .ToList();
         if (vobs.Count == 0)
             return null;
@@ -211,7 +213,7 @@ public static class DvdReader
 
     internal static Vts ReadVts(string ifoPath)
     {
-        var d = File.ReadAllBytes(ifoPath);
+        var d = V.ReadAllBytes(ifoPath);
         if (d.Length < 0x400 || System.Text.Encoding.ASCII.GetString(d, 0, 12) != "DVDVIDEO-VTS")
             throw new InvalidDataException(Path.GetFileName(ifoPath) + " is not a VTS IFO.");
         var vts = new Vts();

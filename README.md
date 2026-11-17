@@ -16,6 +16,21 @@ Both modes navigate the same way: a directory tree on the left (opening where yo
 In Compare the tree also lists media files and tags Blu-ray (BD) and DVD folders; double-click one to add it as a
 source. **Compare** lines the sources up with source 1 (audio match, refined to the exact frame).
 
+## RAR sets and disc images
+
+Both modes read **inside RAR sets and ISO images without unpacking or mounting**:
+
+- RAR 4 and RAR 5, multi-volume (`.rar` + `.r00…`, or `.part1.rar…`): stored (`-m0`) files — as most release groups use —
+  are read in place. Compressed or password-protected sets are reported, not misread.
+- ISO images are read with CES's own UDF reader (DVD-Video UDF 1.02 and Blu-ray UDF 2.50 with its metadata partition),
+  so a **Blu-ray or DVD ISO inside a RAR set** opens directly, on Windows, Linux and macOS alike.
+- Open a `.rar`, an `.iso` or a release folder: CES picks the disc structure, ISO or main video inside
+  (samples skipped). Spot lists the MP3 / FLAC inside RAR sets.
+- ffmpeg, ffprobe and MediaInfo read these files through a small built-in HTTP server on 127.0.0.1 (byte ranges,
+  so seeking works); nothing is extracted to disk.
+- `ces ls <set.rar | image.iso | set.rar::inner.iso>` lists what is inside. Inner paths use `::`, e.g.
+  `ces spot "music.rar::01-track.flac"`.
+
 ## Spot mode
 
 **MP3 / MP2 / MP1**: every frame header, Layer III side info (block types, scalefac_scale, scfsi, preflag, big_values),

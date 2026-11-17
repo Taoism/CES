@@ -8,4 +8,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Ces.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ces.Vfs\Ces.Vfs.csproj" />
+  </ItemGroup>
 </Project>

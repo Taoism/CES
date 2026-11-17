@@ -15,6 +15,32 @@ public static class ProcessRunner
     /// <summary>Every command line that is started (for the log tab / --verbose).</summary>
     public static event Action<string>? CommandStarted;
 
+    private const string NestedWhitelist = "file,subfile,concat,crypto,data,http,tcp";
+
+    /// <summary>
+    /// Files inside RAR sets / disc images are handed over as URLs of the built-in media server. A "concat:" or
+    /// "subfile," input that now reads over HTTP needs http/tcp on ffmpeg's protocol whitelist.
+    /// </summary>
+    internal static List<string> ExternalizeArgs(string exe, IEnumerable<string> args)
+    {
+        var list = new List<string>();
+        bool ffprobe = Path.GetFileNameWithoutExtension(exe).Equals("ffprobe", StringComparison.OrdinalIgnoreCase);
+        foreach (var a in args)
+        {
+            var x = Ces.Vfs.Vfs.Externalize(a);
+            bool nestedHttp = !ReferenceEquals(x, a) && x != a && (x.StartsWith("concat:", StringComparison.Ordinal) || x.StartsWith("subfile,", StringComparison.Ordinal));
+            if (nestedHttp)
+            {
+                if (list.Count > 0 && list[^1] == "-i")
+                    list.InsertRange(list.Count - 1, ["-protocol_whitelist", NestedWhitelist]);
+                else if (ffprobe)
+                    list.InsertRange(0, ["-protocol_whitelist", NestedWhitelist]);
+            }
+            list.Add(x);
+        }
+        return list;
+    }
+
     public static async Task<ProcessResult> RunAsync(
         string exe,
         IEnumerable<string> args,
@@ -32,7 +58,7 @@ public static class ProcessRunner
             CreateNoWindow = true,
             StandardErrorEncoding = Encoding.UTF8,
         };
-        foreach (var a in args)
+        foreach (var a in ExternalizeArgs(exe, args))
             psi.ArgumentList.Add(a);
         if (workingDirectory != null)
         {

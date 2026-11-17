@@ -55,11 +55,13 @@ public sealed class MediaProber(FfTools tools)
         {
             var miTarget = source.Kind switch
             {
+                // MediaInfo reads a playlist with its clips from disk; inside an image it gets the main clip over HTTP
+                SourceKind.BluRay when source.MountedRoot is { } vr && Ces.Vfs.Vfs.IsVirtual(vr) => seg.Url,
                 SourceKind.BluRay => Path.Combine(source.MountedRoot is { } mr && Disc.BluRayReader.IsBluRayRoot(mr) ? mr : source.Path, "BDMV", "PLAYLIST", title.Name),
                 SourceKind.Dvd => FirstFile(seg.Url),
                 _ => source.Path,
             };
-            if (File.Exists(miTarget))
+            if (Ces.Vfs.Vfs.FileExists(FirstFile(miTarget)))
                 await EnrichWithMediaInfoAsync(miTarget, info, source.Kind, ct).ConfigureAwait(false);
         }
         title.Info = info;

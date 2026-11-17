@@ -8,5 +8,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Ces.Core\Ces.Core.csproj" />
     <ProjectReference Include="..\Ces.Spot\Ces.Spot.csproj" />
+    <ProjectReference Include="..\Ces.Vfs\Ces.Vfs.csproj" />
   </ItemGroup>
 </Project>

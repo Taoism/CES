@@ -1,6 +1,8 @@
 using System.Globalization;
 using Ces.Model;
 
+using V = Ces.Vfs.Vfs;
+
 namespace Ces.Disc;
 
 /// <summary>Turns a BDMV folder into titles (one per distinct movie playlist).</summary>
@@ -10,7 +12,7 @@ public static class BluRayReader
     public const double ShortPlaylistSeconds = 60;
 
     public static bool IsBluRayRoot(string dir) =>
-        Directory.Exists(Path.Combine(dir, "BDMV", "PLAYLIST")) && Directory.Exists(Path.Combine(dir, "BDMV", "STREAM"));
+        V.DirectoryExists(Path.Combine(dir, "BDMV", "PLAYLIST")) && V.DirectoryExists(Path.Combine(dir, "BDMV", "STREAM"));
 
     public static List<MediaTitle> ReadTitles(string root, bool includeShort = false)
     {
@@ -22,12 +24,12 @@ public static class BluRayReader
         var titles = new List<MediaTitle>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
-        foreach (var file in Directory.EnumerateFiles(playlistDir, "*.mpls").Order(StringComparer.OrdinalIgnoreCase))
+        foreach (var file in V.EnumerateFiles(playlistDir, ".mpls").Order(StringComparer.OrdinalIgnoreCase))
         {
             Mpls mpls;
             try
             {
-                mpls = Mpls.Parse(File.ReadAllBytes(file));
+                mpls = Mpls.Parse(V.ReadAllBytes(file));
             }
             catch (Exception ex) when (ex is InvalidDataException or IOException)
             {
@@ -57,7 +59,7 @@ public static class BluRayReader
                     var cp = Path.Combine(clipDir, item.Clip + ".clpi");
                     try
                     {
-                        clpi = File.Exists(cp) ? Clpi.Parse(File.ReadAllBytes(cp)) : null;
+                        clpi = V.FileExists(cp) ? Clpi.Parse(V.ReadAllBytes(cp)) : null;
                     }
                     catch (Exception ex) when (ex is InvalidDataException or IOException)
                     {
@@ -66,7 +68,7 @@ public static class BluRayReader
                     clpiCache[item.Clip] = clpi;
                 }
                 var clipStart = clpi != null && item.StcId < clpi.StcStarts.Count ? clpi.StcStarts[item.StcId] : item.InTime;
-                var size = new FileInfo(m2ts).Length;
+                var size = V.Length(m2ts);
                 itemStarts.Add(t);
                 title.Segments.Add(new TitleSegment
                 {
@@ -126,10 +128,10 @@ public static class BluRayReader
     private static string? FindStream(string streamDir, string clip)
     {
         var p = Path.Combine(streamDir, clip + ".m2ts");
-        if (File.Exists(p))
+        if (V.FileExists(p))
             return p;
         // some file systems/rippers use the short name
         p = Path.Combine(streamDir, clip + ".MTS");
-        return File.Exists(p) ? p : null;
+        return V.FileExists(p) ? p : null;
     }
 }

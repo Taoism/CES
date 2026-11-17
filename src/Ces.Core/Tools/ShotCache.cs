@@ -54,8 +54,8 @@ public static class ShotCache
         {
             try
             {
-                var fi = new FileInfo(f);
-                sb.Append(fi.FullName).Append('|').Append(fi.Length).Append('|').Append(fi.LastWriteTimeUtc.Ticks).Append('|');
+                // a file inside a RAR set / image: the real file's size and time plus the inner path
+                sb.Append(Ces.Vfs.Vfs.Identity(f)).Append('|');
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
             {

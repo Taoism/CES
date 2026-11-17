@@ -24,16 +24,20 @@ public static class AudioAnalyzer
     public static AnalysisResult Analyze(string path, AnalyzeOptions? options = null, CancellationToken ct = default)
     {
         options ??= new AnalyzeOptions();
-        var fi = new FileInfo(path);
+        // a file inside a RAR set ("set.rar::track.flac") is read in place
+        bool inside = Vfs.Vfs.IsVirtual(path);
+        var fi = new FileInfo(Vfs.Vfs.RealFile(path));
         var result = new AnalysisResult
         {
-            Path = fi.FullName,
-            FileSize = fi.Exists ? fi.Length : 0,
+            Path = inside ? path : fi.FullName,
+            FileSize = !fi.Exists ? 0 : inside ? SafeLength(path) : fi.Length,
             LastWriteUtc = fi.Exists ? fi.LastWriteTimeUtc : default,
         };
         try
         {
-            using var s = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 16, FileOptions.SequentialScan);
+            using var s = inside
+                ? Vfs.Vfs.OpenRead(path)
+                : new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 16, FileOptions.SequentialScan);
             var tags = TagScanner.Scan(s);
             result.Tags = tags;
             var magic = new byte[4];
@@ -88,7 +92,19 @@ public static class AudioAnalyzer
         }
     }
 
-    private static void AnalyzeMpeg(FileStream s, TagInfo tags, AnalysisResult result, CancellationToken ct)
+    private static long SafeLength(string path)
+    {
+        try
+        {
+            return Vfs.Vfs.Length(path);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
+        {
+            return 0;
+        }
+    }
+
+    private static void AnalyzeMpeg(Stream s, TagInfo tags, AnalysisResult result, CancellationToken ct)
     {
         long length = tags.AudioEnd - tags.AudioStart;
         if (length <= 0)

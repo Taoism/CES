@@ -14,7 +14,7 @@
     </Style>
   </UserControl.Styles>
   <Border Classes="panel">
-    <TreeView x:Name="Tree" SelectionChanged="OnSelection" DoubleTapped="OnDoubleTapped" KeyDown="OnKeyDown">
+    <TreeView x:Name="Tree" ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="OnSelection" DoubleTapped="OnDoubleTapped" KeyDown="OnKeyDown">
       <TreeView.Styles>
         <Style Selector="TreeViewItem" x:DataType="m:FolderNode">
           <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />

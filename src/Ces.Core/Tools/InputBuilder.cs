@@ -111,7 +111,7 @@ public static class InputBuilder
         {
             if (s.TitleStart >= end)
                 break;
-            list.Append("file '").Append(s.Url.Replace("'", "'\\''")).Append("'\n");
+            list.Append("file '").Append(Ces.Vfs.Vfs.Externalize(s.Url).Replace("'", "'\\''")).Append("'\n");
             if (s.InPoint.HasValue)
                 list.Append("inpoint ").Append(S(s.InPoint.Value)).Append('\n');
             if (s.OutPoint.HasValue)
@@ -121,7 +121,7 @@ public static class InputBuilder
         Directory.CreateDirectory(tempDir);
         var listPath = Path.Combine(tempDir, $"concat-{Guid.NewGuid():N}.ffconcat");
         File.WriteAllText(listPath, list.ToString(), new UTF8Encoding(false));
-        args.AddRange(["-f", "concat", "-safe", "0", "-protocol_whitelist", "file,subfile,concat,crypto,data", "-i", listPath]);
+        args.AddRange(["-f", "concat", "-safe", "0", "-protocol_whitelist", "file,subfile,concat,crypto,data,http,tcp", "-i", listPath]);
         return new InputSpec(args, skip) { VideoTrimStart = VideoTrim(title, skip) };
     }
 

@@ -99,7 +99,7 @@ public sealed partial class SpotView : UserControl
     /// <summary>Opens files/folders; a single file also opens its details window when analyzed.</summary>
     public void Open(IReadOnlyList<string> paths, bool append)
     {
-        if (paths.Count == 1 && File.Exists(paths[0]))
+        if (paths.Count == 1 && File.Exists(paths[0]) && !Vfs.Vfs.IsRarSet(paths[0]))
         {
             _openWhenDone = Path.GetFullPath(paths[0]);
         }
@@ -141,9 +141,13 @@ public sealed partial class SpotView : UserControl
             var files = new List<string>();
             foreach (var input in inputs)
             {
-                if (File.Exists(input))
+                if (File.Exists(input) && Vfs.Vfs.IsRarSet(input))
                 {
-                    files.Add(Path.GetFullPath(input));
+                    files.AddRange(Vfs.Vfs.FilesInside(Path.GetFullPath(input), AudioAnalyzer.IsSupported));
+                }
+                else if (File.Exists(input) || Vfs.Vfs.IsVirtual(input))
+                {
+                    files.Add(Vfs.Vfs.IsVirtual(input) ? input : Path.GetFullPath(input));
                 }
                 else if (Directory.Exists(input))
                 {
@@ -172,7 +176,14 @@ public sealed partial class SpotView : UserControl
         List<string> found;
         try
         {
-            found = Directory.EnumerateFiles(folder, "*", opts).Where(AudioAnalyzer.IsSupported).ToList();
+            var all = Directory.EnumerateFiles(folder, "*", opts).ToList();
+            found = all.Where(AudioAnalyzer.IsSupported).ToList();
+            // MP3 / FLAC packed in RAR sets (read in place)
+            foreach (var rar in all.Where(Vfs.Vfs.IsRarSet))
+            {
+                ct.ThrowIfCancellationRequested();
+                found.AddRange(Vfs.Vfs.FilesInside(rar, AudioAnalyzer.IsSupported));
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -330,7 +341,7 @@ public sealed partial class SpotView : UserControl
             AllowMultiple = true,
             FileTypeFilter =
             [
-                new FilePickerFileType("MP3 / FLAC") { Patterns = AudioAnalyzer.Extensions.Select(x => "*" + x).ToList() },
+                new FilePickerFileType("MP3 / FLAC, RAR sets") { Patterns = AudioAnalyzer.Extensions.Select(x => "*" + x).Append("*.rar").ToList() },
                 FilePickerFileTypes.All,
             ],
         });

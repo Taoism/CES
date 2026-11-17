@@ -15,8 +15,9 @@ public sealed class FileRow(string path) : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public string Path { get; } = path;
-    public string Name { get; } = System.IO.Path.GetFileName(path);
-    public string Folder { get; } = System.IO.Path.GetDirectoryName(path) ?? "";
+    /// <summary>File name; for a file inside a RAR set "set.rar › track.flac".</summary>
+    public string Name { get; } = Vfs.Vfs.IsVirtual(path) ? Vfs.Vfs.Display(path) : System.IO.Path.GetFileName(path);
+    public string Folder { get; } = System.IO.Path.GetDirectoryName(Vfs.Vfs.RealFile(path)) ?? "";
     public long Size { get; } = SafeLength(path);
     public string SizeText => Size.ToString("N0", Inv);
 
@@ -80,9 +81,9 @@ public sealed class FileRow(string path) : INotifyPropertyChanged
     {
         try
         {
-            return new FileInfo(path).Length;
+            return Vfs.Vfs.Length(path);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
             return 0;
         }

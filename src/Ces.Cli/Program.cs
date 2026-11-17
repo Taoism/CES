@@ -17,6 +17,24 @@ if (args.Length == 0 || args[0] is "-h" or "--help" or "help")
     Console.WriteLine(Help.Text);
     return args.Length == 0 ? 1 : 0;
 }
+if (args[0] == "ls" && args.Length >= 2)
+{
+    // list what is inside a RAR set or disc image (also nested: set.rar::disc.iso)
+    try
+    {
+        foreach (var f in Ces.Vfs.Vfs.ListContainer(args[1]))
+        {
+            var problem = Ces.Vfs.Vfs.Problem(f);
+            Console.WriteLine($"{Ces.Vfs.Vfs.Length(f),15:N0}  {f[(args[1].Length + 2)..]}{(problem is null ? "" : "  (" + problem + ")")}");
+        }
+        return 0;
+    }
+    catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+    {
+        await Console.Error.WriteLineAsync("ces: " + ex.Message);
+        return 2;
+    }
+}
 if (args[0] == "spot")
 {
     // no ffmpeg needed: the spot engine reads the streams itself
@@ -378,7 +396,7 @@ static async Task<CompareItem> OpenItemAsync(string spec, CliArgs cli, FfTools t
 static void PrintInfo(CompareItem it, bool titles)
 {
     var src = it.Source;
-    Console.WriteLine($"{src.DisplayName}  ({src.Kind}{(src.MountedRoot != null ? ", mounted at " + src.MountedRoot : "")})");
+    Console.WriteLine($"{src.DisplayName}  ({src.Kind}{(src.MountedRoot == null ? "" : Ces.Vfs.Vfs.IsVirtual(src.MountedRoot) ? ", read in place" : ", mounted at " + src.MountedRoot)})");
     if (src.Kind != SourceKind.File && (titles || src.Titles.Count <= 12))
     {
         for (var i = 0; i < src.Titles.Count; i++)

@@ -79,13 +79,26 @@ internal static class SpotCommand
         {
             if (Directory.Exists(input))
             {
-                files.AddRange(Directory.EnumerateFiles(input, "*", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
-                    .Where(AudioAnalyzer.IsSupported)
-                    .Order(StringComparer.OrdinalIgnoreCase));
+                foreach (var f in Directory.EnumerateFiles(input, "*", recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly)
+                    .Order(StringComparer.OrdinalIgnoreCase))
+                {
+                    if (AudioAnalyzer.IsSupported(f))
+                    {
+                        files.Add(f);
+                    }
+                    else if (Ces.Vfs.Vfs.IsRarSet(f))
+                    {
+                        files.AddRange(Ces.Vfs.Vfs.FilesInside(f, AudioAnalyzer.IsSupported)); // MP3 / FLAC packed in RAR sets
+                    }
+                }
             }
-            else if (File.Exists(input))
+            else if (File.Exists(input) && Ces.Vfs.Vfs.IsRarSet(input))
             {
-                files.Add(input);
+                files.AddRange(Ces.Vfs.Vfs.FilesInside(Path.GetFullPath(input), AudioAnalyzer.IsSupported));
+            }
+            else if (File.Exists(input) || Ces.Vfs.Vfs.FileExists(input))
+            {
+                files.Add(input); // also "set.rar::track.flac" or "disc.iso::path"
             }
             else
             {
