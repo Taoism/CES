@@ -223,9 +223,30 @@ public sealed class LameTag
             MusicLength = BinaryPrimitives.ReadUInt32BigEndian(frame[(p + 28)..]),
             MusicCrc = BinaryPrimitives.ReadUInt16BigEndian(frame[(p + 32)..]),
             TagCrc = tagCrc,
-            TagCrcOk = Crc16Arc.Compute(frame[..(p + 34)]) == tagCrc,
+            TagCrcOk = TagCrcMatches(frame, p + 34, tagCrc),
             HasExtendedInfo = true,
         };
+    }
+
+    /// <summary>
+    /// LAME covers every byte before the CRC field. FFmpeg always covers the first 190 bytes, computed while the
+    /// CRC field is still zero; for MPEG-1 stereo the two are identical, for MPEG-2 / mono frames they differ.
+    /// </summary>
+    private static bool TagCrcMatches(ReadOnlySpan<byte> frame, int crcPos, ushort stored)
+    {
+        if (Crc16Arc.Compute(frame[..crcPos]) == stored)
+        {
+            return true;
+        }
+        if (frame.Length < 190 || crcPos + 2 > 190)
+        {
+            return false;
+        }
+        Span<byte> copy = stackalloc byte[190];
+        frame[..190].CopyTo(copy);
+        copy[crcPos] = 0;
+        copy[crcPos + 1] = 0;
+        return Crc16Arc.Compute(copy) == stored;
     }
 
     private static double? ReplayGain(ushort v, int expectedName)

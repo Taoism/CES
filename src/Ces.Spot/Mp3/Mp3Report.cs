@@ -165,11 +165,13 @@ internal static partial class Mp3Report
         parts.Add(t.VbrMethodName);
         if (t.VbrMethod is 1 or 8 && t.BitrateField > 0)
         {
-            parts.Add(string.Create(Inv, $"{t.BitrateField} kbps"));
+            // the tag's bitrate byte tops out at 255: above that the stream's own bitrate is the answer
+            int cbr = t.BitrateField == 255 && a.BitrateHistogram.Count > 0 ? a.BitrateHistogram.Keys.Max() : t.BitrateField;
+            parts.Add(string.Create(Inv, $"{cbr} kbps"));
         }
         else if (t.VbrMethod is 2 or 9 && t.BitrateField > 0)
         {
-            parts.Add(string.Create(Inv, $"target {t.BitrateField} kbps"));
+            parts.Add(t.BitrateField == 255 ? "target 255+ kbps" : string.Create(Inv, $"target {t.BitrateField} kbps"));
         }
         if (t.LowpassHz > 0)
         {

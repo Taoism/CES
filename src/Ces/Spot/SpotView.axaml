@@ -87,11 +87,6 @@
               </DataTemplate>
             </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
-          <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="94" SortMemberPath="Format" />
-          <DataGridTextColumn Header="Hz" Binding="{Binding SampleRateText}" Width="80" SortMemberPath="SampleRate" />
-          <DataGridTextColumn Header="Mode" Binding="{Binding ModeText}" Width="110" SortMemberPath="ModeText" />
-          <DataGridTextColumn Header="Frames" Binding="{Binding FramesText}" Width="98" SortMemberPath="Frames" />
-          <DataGridTextColumn Header="Guess" Binding="{Binding Confidence}" Width="84" SortMemberPath="Confidence" />
           <DataGridTemplateColumn Header="Problems" Width="320" SortMemberPath="Problems">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate x:DataType="m:FileRow">
@@ -99,6 +94,11 @@
               </DataTemplate>
             </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
+          <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="94" SortMemberPath="Format" />
+          <DataGridTextColumn Header="Hz" Binding="{Binding SampleRateText}" Width="80" SortMemberPath="SampleRate" />
+          <DataGridTextColumn Header="Mode" Binding="{Binding ModeText}" Width="110" SortMemberPath="ModeText" />
+          <DataGridTextColumn Header="Frames" Binding="{Binding FramesText}" Width="98" SortMemberPath="Frames" />
+          <DataGridTextColumn Header="Guess" Binding="{Binding Confidence}" Width="84" SortMemberPath="Confidence" />
           <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="140" SortMemberPath="Artist" />
           <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="160" SortMemberPath="Title" />
           <DataGridTextColumn Header="Folder" Binding="{Binding Folder}" Width="260" SortMemberPath="Folder" />

@@ -102,7 +102,7 @@ public sealed class AnalyzerTests : IDisposable
     [Fact]
     public void Lame_vbr_tag_is_read()
     {
-        var r = AudioAnalyzer.Analyze(Fixture("lame397-v2.mp3"));
+        var r = AudioAnalyzer.Analyze(Fixture("lame3100-v2.mp3"));
         var mp3 = r.Mp3!;
         var lame = mp3.Xing!.Lame!;
 
@@ -121,7 +121,7 @@ public sealed class AnalyzerTests : IDisposable
     [Fact]
     public void Crc_protected_frames_are_checked()
     {
-        var r = AudioAnalyzer.Analyze(Fixture("lame397-cbr128-crc.mp3"));
+        var r = AudioAnalyzer.Analyze(Fixture("lame3100-cbr128-crc.mp3"));
         var mp3 = r.Mp3!;
         Assert.Equal(mp3.Frames, mp3.CrcFrames);
         Assert.Equal(0, mp3.CrcErrors);
@@ -132,7 +132,7 @@ public sealed class AnalyzerTests : IDisposable
     [Fact]
     public void Damaged_side_info_fails_the_crc()
     {
-        string path = Copy("lame397-cbr128-crc.mp3", "damaged.mp3");
+        string path = Copy("lame3100-cbr128-crc.mp3", "damaged.mp3");
         byte[] b = File.ReadAllBytes(path);
         // frame 20: header at 20 * 417/418 bytes is not exact, so find it by walking headers
         int pos = 0;
@@ -153,7 +153,7 @@ public sealed class AnalyzerTests : IDisposable
     [Fact]
     public void Truncated_mp3_is_reported()
     {
-        string path = Copy("lame397-v2.mp3", "cut.mp3");
+        string path = Copy("lame3100-v2.mp3", "cut.mp3");
         byte[] b = File.ReadAllBytes(path);
         File.WriteAllBytes(path, b[..(b.Length - 300)]);
 
@@ -174,9 +174,18 @@ public sealed class AnalyzerTests : IDisposable
     }
 
     [Fact]
+    public void Ffmpeg_mpeg2_mono_tag_crc_is_accepted()
+    {
+        var r = AudioAnalyzer.Analyze(Fixture("ffmpeg-mono22k.mp3"));
+        Assert.Equal(22050, r.SampleRate);
+        Assert.True(r.Mp3!.Xing!.Lame!.TagCrcOk);
+        Assert.Empty(r.Problems);
+    }
+
+    [Fact]
     public void Tags_around_the_stream_are_skipped_and_read()
     {
-        byte[] audio = File.ReadAllBytes(Fixture("lame397-v2.mp3"));
+        byte[] audio = File.ReadAllBytes(Fixture("lame3100-v2.mp3"));
         string path = Path.Combine(_tmp, "tagged.mp3");
         using (var f = File.Create(path))
         {
@@ -191,7 +200,7 @@ public sealed class AnalyzerTests : IDisposable
         }
 
         var r = AudioAnalyzer.Analyze(path);
-        var plain = AudioAnalyzer.Analyze(Fixture("lame397-v2.mp3"));
+        var plain = AudioAnalyzer.Analyze(Fixture("lame3100-v2.mp3"));
 
         Assert.Equal("Hello", r.Title);
         Assert.Equal("Somebody", r.Artist);
@@ -205,7 +214,7 @@ public sealed class AnalyzerTests : IDisposable
     [Fact]
     public void Wrong_extension_is_reported()
     {
-        string path = Copy("lame397-v2.mp3", "actually-mp3.flac");
+        string path = Copy("lame3100-v2.mp3", "actually-mp3.flac");
         var r = AudioAnalyzer.Analyze(path);
         Assert.Equal("MP3", r.Format);
         Assert.Contains(r.Problems, p => p.Contains("named .flac", StringComparison.Ordinal));

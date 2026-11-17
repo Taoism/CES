@@ -33,6 +33,16 @@ Both modes read **inside RAR sets and ISO images without unpacking or mounting**
 
 ## Spot mode
 
+![Spot mode: encoder, settings, quality and problems per file](docs/screenshots/spot.png)
+
+| | |
+|---|---|
+| ![Details: stream, encoder and LAME tag, flags](docs/screenshots/spot-details.png) | ![Bitrate per frame](docs/screenshots/spot-bitrate-graph.png) |
+| ![Bit reservoir use per frame](docs/screenshots/spot-reservoir.png) | ![FLAC LPC predictor orders](docs/screenshots/spot-flac-lpc.png) |
+
+<sub>Made from synthetic test tones encoded with stock LAME 3.100 and FFmpeg, plus a truncated MP3, an MP3 named
+.flac, a damaged FLAC and a RAR set with FLACs inside.</sub>
+
 **MP3 / MP2 / MP1**: every frame header, Layer III side info (block types, scalefac_scale, scfsi, preflag, big_values),
 the bit reservoir and ancillary data, Xing/Info + LAME tag (preset, VBR method, lowpass, delay/padding, ReplayGain,
 **tag CRC and music CRC check**), VBRI (FhG), frame CRCs, ID3v1/ID3v2/APE/Lyrics3 tags. It reports sync errors,

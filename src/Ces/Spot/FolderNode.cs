@@ -136,6 +136,12 @@ public sealed class FolderNode : INotifyPropertyChanged
     /// <summary>Drives (Windows) or the usual mount points (Linux/macOS), plus the home and music/video folders.</summary>
     public static IEnumerable<FolderNode> Roots(Func<string, bool>? files = null)
     {
+        // CES_TREE_ROOT=<folder> shows only that folder (README screenshots without personal drives)
+        if (Environment.GetEnvironmentVariable("CES_TREE_ROOT") is { Length: > 0 } only && Directory.Exists(only))
+        {
+            yield return new FolderNode(System.IO.Path.GetFileName(only.TrimEnd(System.IO.Path.DirectorySeparatorChar, '/')), only, files: files);
+            yield break;
+        }
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         // the same roots in both modes
         var special = new[] { ("Music", Environment.GetFolderPath(Environment.SpecialFolder.MyMusic)), ("Videos", Environment.GetFolderPath(Environment.SpecialFolder.MyVideos)) };

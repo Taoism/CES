@@ -20,7 +20,7 @@ public sealed class VfsTests
         Assert.Equal(4, a.Version);
         Assert.Equal(4, a.Volumes.Count); // .rar .r00 .r01 .r02
         var files = V.ListContainer(Rar4).Select(V.FileName).Order().ToList();
-        Assert.Equal(["lame397-v2.mp3", "udf102.iso"], files);
+        Assert.Equal(["lame3100-v2.mp3", "udf102.iso"], files);
         Assert.Equal(File.ReadAllBytes(Fx("udf102.iso")), V.ReadAllBytes(V.Combine(Rar4, "udf102.iso")));
     }
 
@@ -54,7 +54,7 @@ public sealed class VfsTests
         Assert.True(img.FileExists("BDMV/STREAM/00001.m2ts"));
         using var r = new StreamReader(img.OpenRead("readme.txt"));
         Assert.Equal("hello udf", r.ReadToEnd().Trim());
-        Assert.Equal(File.ReadAllBytes(Fx("lame397-v2.mp3")), V.ReadAllBytes(Fx(iso) + "::VIDEO_TS/VTS_01_1.VOB"));
+        Assert.Equal(File.ReadAllBytes(Fx("lame3100-v2.mp3")), V.ReadAllBytes(Fx(iso) + "::VIDEO_TS/VTS_01_1.VOB"));
         Assert.Equal(File.ReadAllBytes(Fx("ffmpeg-l5.flac")), V.ReadAllBytes(Fx(iso) + "::BDMV/STREAM/00001.m2ts"));
     }
 
@@ -73,7 +73,7 @@ public sealed class VfsTests
     [Fact]
     public void Compressed_rar_entries_are_reported_not_misread()
     {
-        string packed = V.Combine(Fx(Path.Combine("rar", "packed.rar")), "lame397-v2.mp3");
+        string packed = V.Combine(Fx(Path.Combine("rar", "packed.rar")), "lame3100-v2.mp3");
         Assert.StartsWith("compressed", V.Problem(packed));
         var ex = Assert.Throws<InvalidDataException>(() => V.OpenRead(packed));
         Assert.Contains("compressed", ex.Message, StringComparison.Ordinal);
