@@ -1,6 +1,6 @@
 # CES TODO
 
-CES = Compare + Spot modes, v0.3.0 (2026-11-16).
+CES = Compare + Spot modes, v0.3.1 (2026-11-17).
 
 Done: whole-title sync, PAL speed, edits, sessions, ranking, difference/flicker, detailed shots (2026-11-15);
 artefacts (grain/banding/halos/chroma), audio remaster/upmix checks, HDR10+/DV metadata, subtitles (burn-in, timing),
@@ -36,4 +36,4 @@ Open:
         HDR, bitrate, encoder library + settings (x264/x265 info string), audio + subtitle tracks; details window.
         BD folders/ISOs via BDInfo's quick read; MKV/MP4 need ffprobe or MediaInfo (Spot needs no ffmpeg today).
   - [ ] A built-in Blu-ray test fixture (tiny BD authored with tsMuxeR); real-disc test runs with CES_BD_SAMPLE.
-- [x] Published on GitHub as Taoism/CES (v0.3.0)
+- [x] Published on GitHub as Taoism/CES (v0.3.0 2026-11-16, v0.3.1 2026-11-17)
