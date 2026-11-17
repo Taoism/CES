@@ -1,4 +1,6 @@
-# TODO
+# CES TODO
+
+CES = NothingElseCompares2u (Compare) + EncoderSpot (Spot), merged 2026-11-16 as v0.3.0 (local only).
 
 Done: whole-title sync, PAL speed, edits, sessions, ranking, difference/flicker, detailed shots (2026-11-15);
 artefacts (grain/banding/halos/chroma), audio remaster/upmix checks, HDR10+/DV metadata, subtitles (burn-in, timing),
@@ -15,12 +17,13 @@ Open:
       refine should rescue it
 - [ ] Inverse telecine on real (not synthetic) pulldown material, incl. mixed film/video
 - [ ] Release cards / per-GB value view, timeline strip, region zoom across sources
-- [ ] Packaging like TaoExif (installer, bundled ffmpeg full + MediaInfo, updater, .deb, macOS)
 - [ ] Calibrate the untagged-MP3 heuristics (Xing old/new, Blade, FhG, GOGO...) against the original
       EncSpot 2.2 on the same files (reference/orig has the old installers) and against mp3guessenc output.
 - [ ] More real-world encoder samples: FhG (ACM, fastenc, mp3enc), Xing, Blade, Helix, iTunes, GOGO, old LAME.
-- [ ] FLAC: lossy-source / upsampling detection (spectral cutoff, fake 24-bit via wasted bits) + spectrogram tab.
-- [ ] Packaging like TaoExif: Inno installer + win zip, .deb (Ubuntu/Debian), linux tarball, macOS .app.
+- [ ] Spot: lossy-source / upsampling check for FLAC: reuse Compare's spectrum cutoff + spectrogram
+      (Ces.Core AudioAnalyzer); fake 24-bit via wasted bits; as a column + details tab.
+- [ ] Packaging like TaoExif: Inno installer + win zip (bundled ffmpeg full + MediaInfo, updater), .deb, linux
+      tarball, macOS .app; replaces the D:\Program Files\NothingElseCompares2u install.
 - [ ] Results cache (path + size + mtime) so re-opening big folders is instant.
 - [ ] Column chooser / saved column layout; remember sort.
 - [ ] Possible extra formats: Ogg Vorbis/Opus, M4A (AAC/ALAC), WAV.
