@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EncoderSpot.Cli", "src\Enco
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EncoderSpot.Tests", "tests\EncoderSpot.Tests\EncoderSpot.Tests.csproj", "{0A01C09C-99BE-47E6-9BF9-AFB31E723177}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EncoderSpot", "src\EncoderSpot\EncoderSpot.csproj", "{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,6 +57,18 @@ Global
 		{0A01C09C-99BE-47E6-9BF9-AFB31E723177}.Release|x64.Build.0 = Release|Any CPU
 		{0A01C09C-99BE-47E6-9BF9-AFB31E723177}.Release|x86.ActiveCfg = Release|Any CPU
 		{0A01C09C-99BE-47E6-9BF9-AFB31E723177}.Release|x86.Build.0 = Release|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Debug|x64.Build.0 = Debug|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Debug|x86.Build.0 = Debug|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Release|x64.ActiveCfg = Release|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Release|x64.Build.0 = Release|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Release|x86.ActiveCfg = Release|Any CPU
+		{5E65C448-6C57-45CA-8FC8-E6F2793A6F40}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
