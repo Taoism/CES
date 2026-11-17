@@ -1,0 +1,11 @@
+bin/
+obj/
+publish/
+.vs/
+*.user
+.sonarqube/
+TestResults/
+run/
+release/
+testmedia/
+reference/
