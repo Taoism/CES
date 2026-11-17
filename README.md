@@ -149,8 +149,9 @@ sudo apt install ./ces_0.3.0-1~debian13_amd64.deb        # Debian 13
 sudo apt install ./ces_0.3.0-1~ubuntu24.04_amd64.deb     # Ubuntu 24.04
 ```
 
-Installs to `/opt/ces` with the commands `ces` (command line) and `ces-gui`, plus a menu entry. ffmpeg and MediaInfo
-come along as recommended packages (Compare mode needs ffmpeg; Spot mode does not). Packages are built with
+Installs to `/opt/ces` with the commands `ces` (command line) and `ces-gui`, plus a menu entry.
+**Compare mode needs ffmpeg**: `sudo apt install ffmpeg mediainfo` (apt installs them along with CES unless
+recommended packages are turned off). Spot mode does not need ffmpeg. Packages are built with
 `pwsh packaging/build-linux.ps1` (add `-Test` to install, run and purge each one in its WSL distro).
 
 ## Build

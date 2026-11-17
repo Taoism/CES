@@ -23,7 +23,7 @@ Open:
 - [ ] Spot: lossy-source / upsampling check for FLAC: reuse Compare's spectrum cutoff + spectrogram
       (Ces.Core AudioAnalyzer); fake 24-bit via wasted bits; as a column + details tab.
 - [ ] Packaging like TaoExif: Inno installer + win zip (bundled ffmpeg full + MediaInfo, updater), .deb, linux
-      tarball, macOS .app; replaces the D:\Program Files\NothingElseCompares2u install.
+      tarball (done: Debian 13 + Ubuntu 24.04 .deb), macOS .app.
 - [ ] Results cache (path + size + mtime) so re-opening big folders is instant.
 - [ ] Column chooser / saved column layout; remember sort.
 - [ ] Possible extra formats: Ogg Vorbis/Opus, M4A (AAC/ALAC), WAV.
