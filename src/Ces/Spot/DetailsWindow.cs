@@ -129,7 +129,7 @@ public sealed class DetailsWindow : Window
         header.Children.Add(new TextBlock { Text = summary, Classes = { "muted" }, TextTrimming = TextTrimming.CharacterEllipsis });
         foreach (var p in r.Problems)
         {
-            header.Children.Add(new TextBlock { Text = "⚠ " + p, Foreground = ProblemBrush(), TextWrapping = TextWrapping.Wrap });
+            header.Children.Add(new TextBlock { Text = "⚠ " + p, TextWrapping = TextWrapping.Wrap }.Themed(TextBlock.ForegroundProperty, "ProblemBrush"));
         }
         var dock = new DockPanel();
         DockPanel.SetDock(header, Dock.Top);
@@ -137,9 +137,6 @@ public sealed class DetailsWindow : Window
         dock.Children.Add(tabs);
         _body.Content = dock;
     }
-
-    private IBrush ProblemBrush() =>
-        this.TryFindResource("ProblemBrush", ActualThemeVariant, out var v) && v is IBrush b ? b : Brushes.IndianRed;
 
     private static TabItem Tab(string header, Control content) => new() { Header = header, Content = content };
 

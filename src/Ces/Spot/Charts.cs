@@ -19,8 +19,19 @@ public abstract class ChartBase : Control
         set => SetValue(TitleProperty, value);
     }
 
-    protected IBrush Brush(string key, IBrush fallback) =>
-        this.TryFindResource(key, ActualThemeVariant, out var v) && v is IBrush b ? b : fallback;
+    protected IBrush Brush(string key, IBrush fallback) => this.ThemeBrush(key, fallback);
+
+    private bool _themeHooked;
+
+    protected override void OnAttachedToLogicalTree(Avalonia.LogicalTree.LogicalTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToLogicalTree(e);
+        // theme colours are read while drawing: repaint when Light / Dark switches
+        if (_themeHooked)
+            return;
+        _themeHooked = true;
+        ActualThemeVariantChanged += (_, _) => InvalidateVisual();
+    }
 
     protected IBrush TextBrush => Brush("MutedTextBrush", Brushes.Gray);
     protected IBrush GridBrush => Brush("ChartGridBrush", Brushes.DimGray);

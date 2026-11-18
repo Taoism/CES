@@ -36,4 +36,10 @@ Open:
         HDR, bitrate, encoder library + settings (x264/x265 info string), audio + subtitle tracks; details window.
         BD folders/ISOs via BDInfo's quick read; MKV/MP4 need ffprobe or MediaInfo (Spot needs no ffmpeg today).
   - [ ] A built-in Blu-ray test fixture (tiny BD authored with tsMuxeR); real-disc test runs with CES_BD_SAMPLE.
+- [x] Light mode and Follow system (switches live with the OS theme), 2026-11-18: Light and Dark define the same 97
+      keys in Theme/Colors.axaml (Fluent overrides incl. buttons, toggles, text/combo boxes, check/radio, scrollbars,
+      expander, menus, tooltips, progress); no hard-coded UI colours left in code (ThemeResources.Themed binds code-built
+      controls, custom-drawn charts repaint on ActualThemeVariantChanged); title bar, message boxes and About follow the
+      theme. CES_THEME=Light|Dark|System overrides the setting for one run. Dark is pixel-identical to 0.3.1 (tour diff).
+      The HTML report stays dark.
 - [x] Published on GitHub as Taoism/CES (v0.3.0 2026-11-16, v0.3.1 2026-11-17)

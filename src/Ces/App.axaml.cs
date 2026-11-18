@@ -43,7 +43,8 @@ public sealed class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var settings = AppSettings.Load();
-            ApplyTheme(settings.Theme);
+            // CES_THEME=Light|Dark|System overrides the setting for one run (screenshots, tests)
+            ApplyTheme(Environment.GetEnvironmentVariable("CES_THEME") is { Length: > 0 } forced ? forced : settings.Theme);
             desktop.MainWindow = new MainWindow(settings, desktop.Args ?? []);
         }
         base.OnFrameworkInitializationCompleted();

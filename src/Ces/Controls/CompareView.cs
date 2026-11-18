@@ -300,18 +300,18 @@ public sealed class CompareView : Control
     {
         if (i < 0 || i >= _labels.Length)
             return;
-        var ft = new FormattedText($" {i + 1}  {_labels[i]} ", CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(FontFamily.Default, FontStyle.Normal, FontWeight.SemiBold), 12.5, Brushes.White);
+        var ft = new FormattedText($" {i + 1}  {_labels[i]} ", CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(FontFamily.Default, FontStyle.Normal, FontWeight.SemiBold), 12.5, Res("OverlayTextBrush", Brushes.White));
         var x = rightAlignAt.HasValue ? rightAlignAt.Value - ft.Width - 10 : at.X;
         var rect = new Rect(x, at.Y, ft.Width + 10, ft.Height + 6);
-        ctx.DrawRectangle(new SolidColorBrush(Color.FromArgb(200, 20, 21, 24)), null, rect, 4, 4);
+        ctx.DrawRectangle(Res("OverlayBrush", Brushes.Black), null, rect, 4, 4);
         ctx.FillRectangle(i < _colors.Length ? _colors[i] : Brushes.Gray, new Rect(rect.X, rect.Y, 4, rect.Height));
         ctx.DrawText(ft, new Point(rect.X + 6, rect.Y + 3));
     }
 
-    private static void TextBadge(DrawingContext ctx, string text, Point at)
+    private void TextBadge(DrawingContext ctx, string text, Point at)
     {
-        var ft = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(FontFamily.Default, FontStyle.Normal, FontWeight.SemiBold), 12.5, Brushes.White);
-        ctx.DrawRectangle(new SolidColorBrush(Color.FromArgb(200, 20, 21, 24)), null, new Rect(at.X, at.Y, ft.Width + 8, ft.Height + 6), 4, 4);
+        var ft = new FormattedText(text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(FontFamily.Default, FontStyle.Normal, FontWeight.SemiBold), 12.5, Res("OverlayTextBrush", Brushes.White));
+        ctx.DrawRectangle(Res("OverlayBrush", Brushes.Black), null, new Rect(at.X, at.Y, ft.Width + 8, ft.Height + 6), 4, 4);
         ctx.DrawText(ft, new Point(at.X + 4, at.Y + 3));
     }
 
@@ -389,8 +389,19 @@ public sealed class CompareView : Control
         ctx.DrawText(ft, new Point(r.Center.X - ft.Width / 2, r.Center.Y - ft.Height / 2));
     }
 
-    private IBrush Res(string key, IBrush fallback) =>
-        this.TryFindResource(key, ActualThemeVariant, out var v) && v is IBrush b ? b : fallback;
+    private IBrush Res(string key, IBrush fallback) => this.ThemeBrush(key, fallback);
+
+    private bool _themeHooked;
+
+    protected override void OnAttachedToLogicalTree(Avalonia.LogicalTree.LogicalTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToLogicalTree(e);
+        // theme colours are read while drawing: repaint when Light / Dark switches
+        if (_themeHooked)
+            return;
+        _themeHooked = true;
+        ActualThemeVariantChanged += (_, _) => InvalidateVisual();
+    }
 
     // ---------- input ----------
 

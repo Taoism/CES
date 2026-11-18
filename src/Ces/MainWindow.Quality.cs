@@ -283,7 +283,7 @@ public sealed partial class MainWindow
             var v = r.Item.Title.Info?.Video;
             var cells = new List<Control>
             {
-                new TextBlock { Text = r.Rank > 0 ? r.Rank.ToString(CultureInfo.InvariantCulture) : "–", FontWeight = FontWeight.Bold, FontSize = 15, Foreground = r.Rank == 1 ? Brush("AccentBrush") : Brush("TextBrush") },
+                new TextBlock { Text = r.Rank > 0 ? r.Rank.ToString(CultureInfo.InvariantCulture) : "–", FontWeight = FontWeight.Bold, FontSize = 15 }.Themed(TextBlock.ForegroundProperty, r.Rank == 1 ? "AccentBrush" : "TextBrush"),
                 ChipLabel(idx, r.Item.Name),
             };
             if (r.Result == null)

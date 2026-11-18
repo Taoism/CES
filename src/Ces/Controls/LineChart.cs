@@ -170,7 +170,7 @@ public sealed class LineChart : Control
             var hh = fts.Sum(f => f.Height) + 8;
             var bx = h.X + 12 + w > Bounds.Width ? h.X - 12 - w : h.X + 12;
             var box = new Rect(bx, plot.Y + 4, w, hh);
-            ctx.DrawRectangle(new SolidColorBrush(Color.FromArgb(230, 24, 25, 28)), new Pen(edge, 1), box, 4, 4);
+            ctx.DrawRectangle(Res("ChartTooltipBrush", Brushes.Black), new Pen(edge, 1), box, 4, 4);
             var yy = box.Y + 4;
             foreach (var f in fts)
             {
@@ -198,8 +198,19 @@ public sealed class LineChart : Control
     private static FormattedText Text(string s, double size, IBrush brush, FontWeight weight = FontWeight.Normal) =>
         new(s, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, new Typeface(FontFamily.Default, FontStyle.Normal, weight), size, brush);
 
-    private IBrush Res(string key, IBrush fallback) =>
-        this.TryFindResource(key, ActualThemeVariant, out var v) && v is IBrush b ? b : fallback;
+    private IBrush Res(string key, IBrush fallback) => this.ThemeBrush(key, fallback);
+
+    private bool _themeHooked;
+
+    protected override void OnAttachedToLogicalTree(Avalonia.LogicalTree.LogicalTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToLogicalTree(e);
+        // theme colours are read while drawing: repaint when Light / Dark switches
+        if (_themeHooked)
+            return;
+        _themeHooked = true;
+        ActualThemeVariantChanged += (_, _) => InvalidateVisual();
+    }
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {

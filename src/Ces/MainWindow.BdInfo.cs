@@ -160,14 +160,13 @@ public sealed partial class MainWindow
             Grid.SetColumn(h, c + 1);
             _bdGrid.Children.Add(h);
         }
-        var diffBrush = new SolidColorBrush(Color.FromArgb(40, 224, 160, 64));
         var y = 1;
         foreach (var r in BdInfoTable.Build(reports.Select(x => BdInfoDisc.QuickSummary(x.Report)).ToList()).Where(r => _bdDiffOnly.IsChecked != true || r.Differs))
         {
             _bdGrid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             if (r.Differs && reports.Count > 1)
             {
-                var bg = new Border { Background = diffBrush, CornerRadius = new CornerRadius(3) };
+                var bg = new Border { CornerRadius = new CornerRadius(3) }.Themed(Border.BackgroundProperty, "DiffHighlightBrush");
                 Grid.SetRow(bg, y);
                 Grid.SetColumnSpan(bg, reports.Count + 1);
                 _bdGrid.Children.Add(bg);
@@ -205,10 +204,10 @@ public sealed partial class MainWindow
             : $"{r.Playlist.Name}{(r.Playlist.Name.Equals(it.Title.Name, StringComparison.OrdinalIgnoreCase) ? "" : " (BDInfo leaves out " + it.Title.Name + ")")}  ·  {(scanned ? "full scan" : "quick read")}";
         card.Children.Add(ChipLabel(idx, $"{it.Name}  ·  {state}"));
         foreach (var p in r.Disc.Problems)
-            card.Children.Add(new TextBlock { Text = "Could not read " + p, Foreground = Brush("ProblemBrush"), TextWrapping = TextWrapping.Wrap });
+            card.Children.Add(new TextBlock { Text = "Could not read " + p, TextWrapping = TextWrapping.Wrap }.Themed(TextBlock.ForegroundProperty, "ProblemBrush"));
         if (r.Disc.ScanResult?.FileExceptions is { Count: > 0 } fileErrors && scanned)
             foreach (var (file, ex) in fileErrors)
-                card.Children.Add(new TextBlock { Text = $"Scan error in {file}: {ex.Message}", Foreground = Brush("ProblemBrush"), TextWrapping = TextWrapping.Wrap });
+                card.Children.Add(new TextBlock { Text = $"Scan error in {file}: {ex.Message}", TextWrapping = TextWrapping.Wrap }.Themed(TextBlock.ForegroundProperty, "ProblemBrush"));
         var text = new SelectableTextBlock { Text = r.Report, FontFamily = MonoFont, FontSize = 12, TextWrapping = TextWrapping.NoWrap };
         var copy = new Button { Content = "Copy" };
         copy.Click += async (_, _) =>

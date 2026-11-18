@@ -219,7 +219,7 @@ public sealed partial class MainWindow : Window
             _spotStop.IsVisible = total > 0;
             _spotProgress.Value = total > 0 ? (double)done / total : 0;
         };
-        var statusBar = new Border { Classes = { "footer" }, Padding = new Thickness(10, 5), Child = new Panel { Children = { statusGrid, spotGrid } }, BorderBrush = Brush("EdgeBrush"), BorderThickness = new Thickness(0, 1, 0, 0) };
+        var statusBar = new Border { Classes = { "footer" }, Padding = new Thickness(10, 5), Child = new Panel { Children = { statusGrid, spotGrid } }, BorderThickness = new Thickness(0, 1, 0, 0) }.Themed(Border.BorderBrushProperty, "EdgeBrush");
         DockPanel.SetDock(statusBar, Dock.Bottom);
 
         // sources
@@ -318,10 +318,9 @@ public sealed partial class MainWindow : Window
         {
             Classes = { "footer" },
             Padding = new Thickness(10, 5),
-            BorderBrush = Brush("EdgeBrush"),
             BorderThickness = new Thickness(0, 0, 0, 1),
             Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { _spotToggle, _compareToggle, new Border { Width = 10 }, _modeHint } },
-        };
+        }.Themed(Border.BorderBrushProperty, "EdgeBrush");
         DockPanel.SetDock(modeBar, Dock.Top);
 
         var dock = new DockPanel();
@@ -840,10 +839,9 @@ public sealed partial class MainWindow : Window
                 var edit = new TextBlock
                 {
                     Text = $"Different edit: {item.Sections.Count} sections{(missing > 0 ? $", {missing} missing" : "")}",
-                    Foreground = new SolidColorBrush(Color.Parse("#FFE0A040")),
                     FontSize = 12,
                     VerticalAlignment = VerticalAlignment.Center,
-                };
+                }.Themed(TextBlock.ForegroundProperty, "FindingWarnBrush");
                 ToolTip.SetTip(edit, string.Join("\n", lines));
                 var clear = new Button { Content = "Clear", Classes = { "small" } };
                 ToolTip.SetTip(clear, "Forget the sections and use one offset for the whole title.");
@@ -1019,9 +1017,6 @@ public sealed partial class MainWindow : Window
     }
 
     // ---------- helpers ----------
-
-    private IBrush Brush(string key) =>
-        this.TryFindResource(key, ActualThemeVariant, out var v) && v is IBrush b ? b : Brushes.Gray;
 
     private static TextBlock Muted(string text, double size = 12) => new() { Text = text, Classes = { "muted" }, FontSize = size, TextWrapping = TextWrapping.Wrap };
 

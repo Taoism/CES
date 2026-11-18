@@ -209,7 +209,7 @@ public sealed partial class MainWindow
 
     // ---------- comparison findings for the analysis tabs ----------
 
-    private Border CrossCard(int index, string title, IEnumerable<Finding> own, IEnumerable<Finding> cross)
+    private static Border CrossCard(int index, string title, IEnumerable<Finding> own, IEnumerable<Finding> cross)
     {
         var all = own.ToList();
         all.AddRange(cross.Select(f => new Finding { Area = "vs 1 · " + f.Area, Text = f.Text, Level = f.Level }));

@@ -106,7 +106,7 @@ public sealed partial class MainWindow
             if (r.Length > 1)
             {
                 if (series.Count == 0)
-                    series.Add(new ChartSeries("same", new SolidColorBrush(Color.Parse("#FF6A6D74")), [0, 100], [0, 100]));
+                    series.Add(new ChartSeries("same", this.ThemeBrush("ChartNeutralBrush", Brushes.Gray), [0, 100], [0, 100]));
                 series.Add(new ChartSeries($"{i + 1}", Palette[i % Palette.Length], r, o));
             }
         }

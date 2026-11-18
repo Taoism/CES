@@ -136,18 +136,16 @@ public sealed partial class MainWindow
         }
     }
 
-    private Border FindingsCard(int index, string name, IEnumerable<Finding> findings)
+    private static Border FindingsCard(int index, string name, IEnumerable<Finding> findings)
     {
         var panel = new StackPanel { Spacing = 4 };
         panel.Children.Add(ChipLabel(index, name));
         foreach (var f in findings.OrderByDescending(f => f.Level))
         {
             var t = new SelectableTextBlock { TextWrapping = TextWrapping.Wrap };
-            t.Inlines!.Add(new Avalonia.Controls.Documents.Run((f.Level == 2 ? "⚠ " : f.Level == 1 ? "• " : "") + f.Area + ": ")
-            {
-                FontWeight = FontWeight.SemiBold,
-                Foreground = f.Level == 2 ? new SolidColorBrush(Color.Parse("#FFE87070")) : f.Level == 1 ? new SolidColorBrush(Color.Parse("#FFE0A040")) : Brush("MutedTextBrush"),
-            });
+            var area = new Avalonia.Controls.Documents.Run((f.Level == 2 ? "⚠ " : f.Level == 1 ? "• " : "") + f.Area + ": ") { FontWeight = FontWeight.SemiBold };
+            area.Bind(Avalonia.Controls.Documents.TextElement.ForegroundProperty, t.GetResourceObservable(f.Level == 2 ? "FindingBadBrush" : f.Level == 1 ? "FindingWarnBrush" : "MutedTextBrush"));
+            t.Inlines!.Add(area);
             t.Inlines.Add(new Avalonia.Controls.Documents.Run(f.Text));
             panel.Children.Add(t);
         }

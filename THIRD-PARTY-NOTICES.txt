@@ -20,4 +20,3 @@ Bundled as a separate library (BDInfo.dll), under its own license:
 
 Online service (only when you choose to upload):
   slow.pics (https://slow.pics) - screenshot comparison hosting; uploads are public to anyone with the link.
-

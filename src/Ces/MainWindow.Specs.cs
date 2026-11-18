@@ -66,21 +66,20 @@ public sealed partial class MainWindow
         }
         y++;
         string? group = null;
-        var diffBrush = new SolidColorBrush(Color.FromArgb(40, 224, 160, 64));
         foreach (var r in rows)
         {
             if (r.Group != group)
             {
                 group = r.Group;
                 AddRow();
-                var g = new TextBlock { Text = group, Foreground = Brush("AccentBrush"), FontWeight = FontWeight.SemiBold, Margin = new Thickness(4, 12, 4, 4) };
+                var g = new TextBlock { Text = group, FontWeight = FontWeight.SemiBold, Margin = new Thickness(4, 12, 4, 4) }.Themed(TextBlock.ForegroundProperty, "AccentBrush");
                 Grid.SetRow(g, y++);
                 _specGrid.Children.Add(g);
             }
             AddRow();
             if (r.Differs)
             {
-                var bg = new Border { Background = diffBrush, CornerRadius = new CornerRadius(3) };
+                var bg = new Border { CornerRadius = new CornerRadius(3) }.Themed(Border.BackgroundProperty, "DiffHighlightBrush");
                 Grid.SetRow(bg, y);
                 Grid.SetColumnSpan(bg, _items.Count + 1);
                 _specGrid.Children.Add(bg);
