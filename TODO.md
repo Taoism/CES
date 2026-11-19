@@ -33,8 +33,9 @@ Open:
       LAME 3.95.1 and 3.99.5o, fpMP3 (LAME 3.98r; writes a truncated last frame), tooLAME / TwoLAME MP2 (still
       Unknown). Then (RareWares retro): Blade 0.94.2 (fingerprint: reservoir unused, simple stereo, no scfsi), FhG
       FastEnc 1.02 (no scfsi, heavy preflag, zero ancillary; VBR via VBRI), LAME 3.80 / 3.88 (pre-3.90 tags have no
-      extended fields or CRC) / 3.90 / 3.93.1 — all 25 MP3 samples identified. Still missing: FhG mp3enc 3.1 and MP3
-      Surround (licence prompt — needs the user), FhG ACM via acmenc (needs MSVCR71 + MACDll + a codec install),
+      extended fields or CRC) / 3.90 / 3.93.1 — all 25 MP3 samples identified. FhG MP3 Surround 1.5 (licence accepted
+      with the user's OK): CBR confirmed by the same Fraunhofer fingerprint (VBR modes fail silently). Still missing:
+      FhG mp3enc 3.1 (blocks without output on Windows 11), FhG ACM via acmenc (needs MSVCR71 + MACDll + a codec install),
       Xing 1.5b9 (GUI installer), iTunes (system install), DOS-only l3enc / LAME 3.97d.
 - [x] Spot: lossless-source check for FLAC and WAV (2026-11-18): lossy-source brick wall, upsampling cliff at
       22.05/24 kHz, padded bits; Source column, Spectrum tab, CSV.

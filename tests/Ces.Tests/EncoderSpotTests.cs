@@ -54,8 +54,10 @@ public sealed class EncoderFingerprintTests
         Assert.Equal(GuessConfidence.Medium, r.Confidence);
     }
 
-    [Fact]
-    public void FraunhoferByPreflagWithoutScfsi() => Assert.Equal("FhG (untagged)", Analyze("fastenc102-128.mp3").Encoder);
+    [Theory]
+    [InlineData("fastenc102-128.mp3")]
+    [InlineData("fhgmp3s15-128.mp3")]
+    public void FraunhoferByPreflagWithoutScfsi(string file) => Assert.Equal("FhG (untagged)", Analyze(file).Encoder);
 
     [Fact]
     public void LameBefore390HasNoTagCrcToCheck()
