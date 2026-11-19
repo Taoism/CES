@@ -57,6 +57,7 @@ public sealed class EncoderFingerprintTests
     [Theory]
     [InlineData("fastenc102-128.mp3")]
     [InlineData("fhgmp3s15-128.mp3")]
+    [InlineData("fhgacm34-128.mp3")]
     public void FraunhoferByPreflagWithoutScfsi(string file) => Assert.Equal("FhG (untagged)", Analyze(file).Encoder);
 
     [Fact]

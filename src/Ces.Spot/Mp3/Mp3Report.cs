@@ -89,6 +89,11 @@ internal static partial class Mp3Report
             {
                 Set(r, "Xing (new)", GuessConfidence.Medium, "Xing VBR header without LAME tag");
             }
+            else if (Fingerprint(r, a))
+            {
+                // a CBR Info header without LAME tag is added by front ends (acmenc), not by the encoder itself
+                r.GuessReason += "; Info header added by a front end";
+            }
             else
             {
                 Set(r, "Unknown", GuessConfidence.Low, "Info header without LAME tag");
