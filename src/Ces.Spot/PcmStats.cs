@@ -8,7 +8,7 @@ namespace Ces.Spot;
 /// lossy source (brick-wall lowpass of an MP3/AAC encoder) or upsampling (nothing above the old Nyquist).
 /// Fed with interleaved little-endian PCM as it is decoded.
 /// </summary>
-public sealed class PcmStats(int sampleRate, int channels, int bitsPerSample, long totalFrames)
+public sealed class PcmStats(int sampleRate, int channels, int bitsPerSample, long totalFrames, bool floatSamples = false)
 {
     public const int WindowSize = 8192;
     private const int Windows = 32;
@@ -23,6 +23,7 @@ public sealed class PcmStats(int sampleRate, int channels, int bitsPerSample, lo
     private long _frame;
     private long _orBits;
     private long _peak;
+    private double _peakFloat;
 
     public int SampleRate => sampleRate;
     public int BitsPerSample => bitsPerSample;
@@ -39,6 +40,13 @@ public sealed class PcmStats(int sampleRate, int channels, int bitsPerSample, lo
 
     public void Add(ReadOnlySpan<byte> pcm)
     {
+        if (floatSamples)
+        {
+            AddFloat(pcm);
+            return;
+        }
+        // 8-bit PCM (WAV) is unsigned
+        var offset = bitsPerSample <= 8 ? 128L : 0;
         var frameBytes = _bytes * channels;
         var scale = 1.0 / (1L << (bitsPerSample - 1));
         for (var p = 0; p + frameBytes <= pcm.Length; p += frameBytes)
@@ -49,14 +57,42 @@ public sealed class PcmStats(int sampleRate, int channels, int bitsPerSample, lo
                 long v = 0;
                 for (var k = 0; k < _bytes; k++)
                     v |= (long)pcm[p + c * _bytes + k] << (8 * k);
-                // sign-extend from the sample width
-                var shift = 64 - 8 * _bytes;
-                v = (v << shift) >> shift;
+                if (offset != 0)
+                {
+                    v -= offset;
+                }
+                else
+                {
+                    // sign-extend from the sample width
+                    var shift = 64 - 8 * _bytes;
+                    v = (v << shift) >> shift;
+                }
                 _orBits |= v;
                 var a = Math.Abs(v);
                 if (a > _peak)
                     _peak = a;
                 mono += v * scale;
+            }
+            Collect((float)(mono / channels));
+            _frame++;
+        }
+    }
+
+    /// <summary>32/64-bit float samples: spectrum and peak only (there are no "bits used" in floating point).</summary>
+    private void AddFloat(ReadOnlySpan<byte> pcm)
+    {
+        var frameBytes = _bytes * channels;
+        for (var p = 0; p + frameBytes <= pcm.Length; p += frameBytes)
+        {
+            double mono = 0;
+            for (var c = 0; c < channels; c++)
+            {
+                var at = pcm.Slice(p + c * _bytes, _bytes);
+                double v = _bytes == 8 ? BitConverter.ToDouble(at) : BitConverter.ToSingle(at);
+                if (double.IsNaN(v))
+                    continue;
+                _peakFloat = Math.Max(_peakFloat, Math.Abs(v));
+                mono += v;
             }
             Collect((float)(mono / channels));
             _frame++;
@@ -87,7 +123,7 @@ public sealed class PcmStats(int sampleRate, int channels, int bitsPerSample, lo
     {
         get
         {
-            if (_orBits == 0)
+            if (_orBits == 0 || floatSamples)
                 return 0;
             var zeros = 0;
             while (zeros < bitsPerSample && ((_orBits >> zeros) & 1) == 0)
@@ -96,7 +132,7 @@ public sealed class PcmStats(int sampleRate, int channels, int bitsPerSample, lo
         }
     }
 
-    public double PeakDb => _peak == 0 ? double.NegativeInfinity : 20 * Math.Log10(_peak / (double)(1L << (bitsPerSample - 1)));
+    public double PeakDb => floatSamples ? (_peakFloat > 0 ? 20 * Math.Log10(_peakFloat) : double.NegativeInfinity) : _peak == 0 ? double.NegativeInfinity : 20 * Math.Log10(_peak / (double)(1L << (bitsPerSample - 1)));
 
     /// <summary>Average spectrum in dB (WindowSize / 2 + 1 bins up to Nyquist), or empty when the file was too short.</summary>
     public double[] Spectrum => _power == null ? [] : _power.Select(p => 10 * Math.Log10(Math.Max(p / _spectra, 1e-30))).ToArray();

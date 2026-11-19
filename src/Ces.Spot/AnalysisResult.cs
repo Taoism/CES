@@ -37,6 +37,9 @@ public sealed class AnalysisResult
     public TagInfo? Tags { get; internal set; }
     public Mp3Analysis? Mp3 { get; internal set; }
     public FlacAnalysis? Flac { get; internal set; }
+    public Wav.WavAnalysis? Wav { get; internal set; }
+    public Ogg.OggAnalysis? Ogg { get; internal set; }
+    public Mp4.Mp4Analysis? Mp4 { get; internal set; }
 
     public string Encoder { get; internal set; } = "Unknown";
 

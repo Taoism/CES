@@ -16,7 +16,7 @@ public sealed record AnalyzeOptions
 /// <summary>Entry point: analyzes one file of any supported format.</summary>
 public static class AudioAnalyzer
 {
-    public static readonly string[] Extensions = [".mp3", ".mp2", ".mp1", ".mpa", ".flac"];
+    public static readonly string[] Extensions = [".mp3", ".mp2", ".mp1", ".mpa", ".flac", ".wav", ".ogg", ".oga", ".opus", ".m4a", ".m4b"];
 
     public static bool IsSupported(string path) =>
         Extensions.Contains(System.IO.Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
@@ -40,19 +40,27 @@ public static class AudioAnalyzer
                 : new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 1 << 16, FileOptions.SequentialScan);
             var tags = TagScanner.Scan(s);
             result.Tags = tags;
-            var magic = new byte[4];
+            var magic = new byte[12];
             s.Position = tags.AudioStart;
-            int got = s.ReadAtLeast(magic, 4, false);
-            if (got == 4 && magic[0] == 'f' && magic[1] == 'L' && magic[2] == 'a' && magic[3] == 'C')
+            int got = s.ReadAtLeast(magic, 12, false);
+            if (Wav.WavAnalyzer.IsWave(magic.AsSpan(0, got)))
+            {
+                Wav.WavAnalyzer.Analyze(s, tags.AudioStart, result, ct);
+            }
+            else if (Mp4.Mp4Analyzer.IsMp4(magic.AsSpan(0, got)))
+            {
+                Mp4.Mp4Analyzer.Analyze(s, tags.AudioStart, tags.AudioEnd, result, ct);
+            }
+            else if (got >= 4 && magic[0] == 'f' && magic[1] == 'L' && magic[2] == 'a' && magic[3] == 'C')
             {
                 // FLAC files must not carry ID3v1/APE at the end, but some do: the frames stop where the tags start.
                 result.Format = "FLAC";
                 result.Flac = FlacAnalyzer.Analyze(s, tags.AudioStart, tags.AudioEnd, options.DecodeFlac, ct, options.PcmOutput);
                 FlacReport.Fill(result);
             }
-            else if (got == 4 && magic[0] == 'O' && magic[1] == 'g' && magic[2] == 'g' && magic[3] == 'S')
+            else if (Ogg.OggAnalyzer.IsOgg(magic.AsSpan(0, got)))
             {
-                result.Error = "Ogg files are not supported yet";
+                Ogg.OggAnalyzer.Analyze(s, tags.AudioStart, tags.AudioEnd, result, ct);
             }
             else
             {
@@ -84,6 +92,10 @@ public static class AudioAnalyzer
             "MP3" => ext is ".mp3" or ".mpa",
             "MP2" => ext is ".mp2" or ".mpa" or ".mp3",
             "MP1" => ext is ".mp1" or ".mpa",
+            "WAV" => ext is ".wav",
+            "Vorbis" or "Ogg FLAC" => ext is ".ogg" or ".oga",
+            "Opus" => ext is ".opus" or ".ogg" or ".oga",
+            "AAC (M4A)" or "ALAC (M4A)" or "MP3 (M4A)" or "Opus (M4A)" or "FLAC (M4A)" or "AC-3 (M4A)" or "E-AC-3 (M4A)" or "MP4" => ext is ".m4a" or ".m4b" or ".mp4",
             _ => true,
         };
         if (!ok)

@@ -132,6 +132,20 @@ public sealed class DetailsWindow : Window
         {
             AddFlacTabs(tabs, flac, r);
         }
+        else if (r.Wav is { } wav)
+        {
+            AddSpectrumTab(tabs, wav.Spectrum, wav.SampleRate, wav.CutoffHz, r.SourceCheck);
+        }
+        else if (r.Ogg is { SecondBitrates.Count: > 1 } ogg)
+        {
+            tabs.Items.Add(Tab("Bitrate graph", new LineChart
+            {
+                Title = "Bitrate per second",
+                Values = ogg.SecondBitrates,
+                Duration = r.DurationSeconds,
+                Unit = "kbps",
+            }));
+        }
         tabs.SelectedIndex = Math.Min(_selectedTab, tabs.ItemCount - 1);
         tabs.SelectionChanged += (_, _) => _selectedTab = tabs.SelectedIndex;
 
