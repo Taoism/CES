@@ -1,6 +1,6 @@
 # CES TODO
 
-CES = Compare + Spot modes, v0.3.3 (2026-11-18).
+CES = Compare + Spot modes, v0.3.4 (2026-11-18).
 
 Done: whole-title sync, PAL speed, edits, sessions, ranking, difference/flicker, detailed shots (2026-11-15);
 artefacts (grain/banding/halos/chroma), audio remaster/upmix checks, HDR10+/DV metadata, subtitles (burn-in, timing),
@@ -27,7 +27,14 @@ Open:
 - [x] Inverse telecine on real material (2026-11-18): Night of the Living Dead, public-domain NTSC DVD (film by
       repeated frames, 1 in 5) vs a 1080p 23.976 release: frame-repeat pulldown detected, a different and shorter cut
       mapped in 16 sections (weak but agreeing audio probes count), screenshots land on the same frames.
-  - [ ] No frame-exact cuts on that pair yet (picture cut refinement needs work for very different transfers).
+  - [~] Frame-exact cuts on that pair (2026-11-18): picture matching no longer needs similar transfers (another grade /
+        framing / grain): neighbour shifts are left out of the clarity check, and when pixels are unclear the motion
+        signature (frame-to-frame change) finds the shift and pixels pick the exact frame — 6 of the pair's sections
+        now get a picture-matched offset (was 0); cuts split by summed costs instead of a fixed threshold (1 placed).
+  - [ ] Picture-based edit mapping: a whole-film motion-signature alignment of this pair (10 s windows, FFT NCC)
+        shows the real edit — the DVD has everything; the transfers differ by ~70 small splices (offset creeping
+        -4.9 → -39.1 s in steps of a few frames) plus a few longer cuts. The audio map (different restorations, ncc
+        ≈ 0.1) invents "not in this source" sections there. Use signatures to build or verify the edit map.
 - [x] Release cards with value (share of the best score at share of its size, VMAF per GB), timeline strip under the
       viewer, Shift+drag region zoom across sources (2026-11-18).
 - [ ] Calibrate the untagged-MP3 heuristics (Xing old/new, Blade, FhG, GOGO...) against the original

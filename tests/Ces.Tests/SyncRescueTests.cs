@@ -52,3 +52,55 @@ public sealed class SyncRescueTests : IDisposable
         Assert.InRange(r.Offset, 0.2, 0.3);
     }
 }
+
+public sealed class FrameMatchTests
+{
+    private static Ces.Analysis.GrayFrame Frame(int i, double gain, Random noise)
+    {
+        // a moving bar on a gradient; gain changes the contrast like another grade, noise like grain
+        var px = new float[64];
+        // content unique to each frame (seeded by its number), so only one shift is right
+        var content = new Random(i);
+        for (var k = 0; k < 64; k++)
+            px[k] = (float)(gain * content.Next(0, 80) + noise.NextDouble() * 6);
+        var mean = px.Average();
+        return new Ces.Analysis.GrayFrame(i / 24.0, px.Select(x => x - mean).ToArray(), mean);
+    }
+
+    [Fact]
+    public void FindsTheShiftUnderAnotherGradeAndGrain()
+    {
+        var rnd = new Random(5);
+        var a = Enumerable.Range(100, 48).Select(i => Frame(i, 1.0, rnd)).ToList();
+        var b = Enumerable.Range(93, 72).Select(i => Frame(i, 2.2, rnd)).ToList();
+        Assert.Equal(7, Ces.Analysis.SyncDetector.MatchShift(a, b)?.Shift);
+    }
+
+    [Fact]
+    public void SplitsNoisyCostsWhereTheSectionsChange()
+    {
+        var rnd = new Random(3);
+        // true matches cost ≈25, wrong ones ≈35 (another transfer), with frame-to-frame noise of ±6
+        var a = Enumerable.Range(0, 120).Select(k => (k < 70 ? 25 : 35) + rnd.NextDouble() * 12 - 6).ToList();
+        var b = Enumerable.Range(0, 120).Select(k => (k < 70 ? 35 : 25) + rnd.NextDouble() * 12 - 6).ToList();
+        Assert.InRange(Ces.Analysis.SyncDetector.SplitCut(a, b, true, true), 69, 71);
+    }
+
+    [Fact]
+    public void SplitsAgainstAMissingSection()
+    {
+        var rnd = new Random(4);
+        var a = Enumerable.Range(0, 120).Select(k => (k < 40 ? 24 : 36) + rnd.NextDouble() * 10 - 5).ToList();
+        var missing = Enumerable.Repeat(double.NaN, 120).ToList();
+        Assert.InRange(Ces.Analysis.SyncDetector.SplitCut(a, missing, true, false), 39, 41);
+    }
+
+    [Fact]
+    public void NoSplitWhenNothingChanges()
+    {
+        var rnd = new Random(6);
+        var a = Enumerable.Range(0, 120).Select(_ => 30 + rnd.NextDouble() * 10).ToList();
+        var b = Enumerable.Range(0, 120).Select(_ => 30 + rnd.NextDouble() * 10).ToList();
+        Assert.Equal(-1, Ces.Analysis.SyncDetector.SplitCut(a, b, true, true));
+    }
+}

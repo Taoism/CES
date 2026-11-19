@@ -455,6 +455,7 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
 
     private const double CutSnippet = 3;
 
+
     /// <summary>Whether a short reference snippet at <paramref name="t"/> is found at offset <paramref name="off"/>.</summary>
     private async Task<bool> MatchesAsync(MediaTitle reference, double t, double speed, double off, Track full, CancellationToken ct, double minNcc = 0.4)
     {
@@ -517,7 +518,7 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
         // frames pair one to one only when the other source shows the same frames per reference second
         if (fr <= 0 || fo <= 0 || Math.Abs(fr - fo * speed) > 0.01)
             return (null, 0, 0);
-        const int n = 36;
+        const int n = 48;
         const int m = 12;
         var votes = new List<(double Offset, double Margin)>();
         var points = times.Count > 0 ? times : InputBuilder.EvenPoints(Math.Min(reference.Duration, other.Duration), 3, 20, 20);
@@ -532,17 +533,10 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
             var motion = Enumerable.Range(1, a.Count - 1).Average(i => Diff(a[i - 1].Pixels, a[i].Pixels));
             if (motion < 0.4)
                 continue;
-            var costs = new List<(int Shift, double Cost)>();
-            for (var s = 0; s + a.Count <= b.Count; s++)
-                costs.Add((s, Enumerable.Range(0, a.Count).Average(i => Diff(a[i].Pixels, b[i + s].Pixels))));
-            var sorted = costs.OrderBy(c => c.Cost).ToList();
-            var best = sorted[0];
-            var next = sorted.Count > 1 ? sorted[1].Cost : best.Cost * 2;
-            var margin = best.Cost > 0 ? (next - best.Cost) / best.Cost : 10;
-            if (margin < 0.15)
+            if (MatchShift(a, b) is not var (shift, margin))
                 continue;
             // offset from the matched frames' own timestamps
-            var pairs = Enumerable.Range(0, a.Count).Select(i => b[i + best.Shift].Time - a[i].Time * speed).Order().ToList();
+            var pairs = Enumerable.Range(0, a.Count).Select(i => b[i + shift].Time - a[i].Time * speed).Order().ToList();
             votes.Add((pairs[pairs.Count / 2], margin));
         }
         if (votes.Count == 0)
@@ -553,6 +547,71 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
         if (votes.Count >= 2 && group.Count < 2)
             return (null, 0, 0);
         return (group.Select(g => g.Offset).Order().ElementAt(group.Count / 2), group.Count, group.Sum(g => g.Margin));
+    }
+
+    /// <summary>
+    /// Where the frames <paramref name="a"/> sit inside <paramref name="b"/>, and how clearly. Neighbouring shifts are
+    /// always close on film (adjacent frames look alike), so clarity is measured against shifts at least two frames
+    /// away. When the pictures differ too much for that (another transfer: grade, framing, grain), the motion
+    /// signature decides: the frame-to-frame change over time, which shot changes and movement put on the same frames
+    /// whatever the picture looks like; the pixels then choose between that shift and its neighbours.
+    /// </summary>
+    internal static (int Shift, double Margin)? MatchShift(IReadOnlyList<GrayFrame> a, IReadOnlyList<GrayFrame> b)
+    {
+        var shifts = b.Count - a.Count + 1;
+        if (shifts < 3)
+            return null;
+        var cost = new double[shifts];
+        for (var s = 0; s < shifts; s++)
+            cost[s] = Enumerable.Range(0, a.Count).Average(i => Diff(a[i].Pixels, b[i + s].Pixels));
+        var best = Array.IndexOf(cost, cost.Min());
+        var far = Enumerable.Range(0, shifts).Where(s => Math.Abs(s - best) > 1).Select(s => cost[s]).DefaultIfEmpty(cost[best] * 2).Min();
+        var margin = cost[best] > 0 ? (far - cost[best]) / cost[best] : 10;
+        if (margin >= 0.15)
+        {
+            return (best, margin);
+        }
+        var sa = Signature(a);
+        var sb = Signature(b);
+        var q = new double[shifts];
+        for (var s = 0; s < shifts; s++)
+            q[s] = Ncc(sa, sb, s);
+        var k = Array.IndexOf(q, q.Max());
+        var qFar = Enumerable.Range(0, shifts).Where(s => Math.Abs(s - k) > 1).Select(s => q[s]).DefaultIfEmpty(0).Max();
+        if (q[k] < 0.8 || q[k] - qFar < 0.3)
+            return null;
+        var exact = Enumerable.Range(k - 1, 3).Where(s => s >= 0 && s < shifts).MinBy(s => cost[s]);
+        return (exact, q[k] - qFar);
+    }
+
+    /// <summary>How much each frame differs from the one before it.</summary>
+    private static double[] Signature(IReadOnlyList<GrayFrame> f)
+    {
+        var s = new double[Math.Max(0, f.Count - 1)];
+        for (var i = 1; i < f.Count; i++)
+            s[i - 1] = Diff(f[i - 1].Pixels, f[i].Pixels);
+        return s;
+    }
+
+    /// <summary>Normalised correlation of <paramref name="x"/> with <paramref name="y"/> from <paramref name="at"/>.</summary>
+    private static double Ncc(double[] x, double[] y, int at)
+    {
+        var n = x.Length;
+        if (n < 8 || at + n > y.Length)
+            return 0;
+        double mx = x.Average(), my = 0;
+        for (var i = 0; i < n; i++)
+            my += y[at + i];
+        my /= n;
+        double sxy = 0, sxx = 0, syy = 0;
+        for (var i = 0; i < n; i++)
+        {
+            double dx = x[i] - mx, dy = y[at + i] - my;
+            sxy += dx * dy;
+            sxx += dx * dx;
+            syy += dy * dy;
+        }
+        return sxx > 0 && syy > 0 ? sxy / Math.Sqrt(sxx * syy) : 0;
     }
 
     /// <summary>
@@ -616,45 +675,98 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
             list != null && off is { } o && FrameSequence.At(list, r.Time * speed + o, fo) is { } m ? Diff(r.Pixels, m.Pixels) : double.NaN;
         var costA = refFrames.Select(r => Cost(a, sections[i - 1].Offset, r)).ToList();
         var costB = refFrames.Select(r => Cost(b, sections[i].Offset, r)).ToList();
-        // a frame "matches" a section when it is as close as true matches are (near the best costs seen)
-        var all = costA.Concat(costB).Where(x => !double.IsNaN(x)).Order().ToList();
-        if (all.Count < 10)
-            return false;
-        // true matches sit near zero; mismatches are many times higher. Anchor on the best costs, not the bulk.
-        var low = all[Math.Max(0, all.Count / 10 - 1)];
-        if (low > 10)
-            return false;
-        var thr = Math.Max(4.0, 2.5 * low);
-        var n = refFrames.Count;
-        var mA = costA.Select(x => !double.IsNaN(x) && x <= thr).ToArray();
-        var mB = costB.Select(x => !double.IsNaN(x) && x <= thr).ToArray();
-        // penalties: before the cut a frame should be section A (or, when A is missing, not B);
-        // from the cut on it should be section B (or, when B is missing, not A)
-        bool BadBefore(int k) => a != null ? !mA[k] : mB[k];
-        bool BadAfter(int k) => b != null ? !mB[k] : mA[k];
-        var bestK = -1;
-        var bestBad = int.MaxValue;
-        var before = 0;
-        var afterTotal = Enumerable.Range(0, n).Count(BadAfter);
-        for (var k = 1; k < n; k++)
-        {
-            before += BadBefore(k - 1) ? 1 : 0;
-            afterTotal -= BadAfter(k - 1) ? 1 : 0;
-            var bad = before + afterTotal;
-            if (bad < bestBad)
-            {
-                bestBad = bad;
-                bestK = k;
-            }
-        }
-        // both sides must be clearly what they claim: few contradicting frames, real matches on the present side(s)
-        var matchesBefore = Enumerable.Range(0, Math.Max(0, bestK)).Count(k => a != null ? mA[k] : !mB[k]);
-        var matchesAfter = Enumerable.Range(Math.Max(0, bestK), n - Math.Max(0, bestK)).Count(k => b != null ? mB[k] : !mA[k]);
-        if (bestK <= 0 || bestBad > n * 0.15 || matchesBefore < 3 || matchesAfter < 3)
+        var bestK = SplitCut(costA, costB, a != null, b != null);
+        if (bestK <= 0)
             return false;
         // halfway between the last frame of A and the first of B
         sections[i].Start = (refFrames[bestK - 1].Time + refFrames[bestK].Time) / 2;
         return true;
+    }
+
+    /// <summary>
+    /// The first reference frame of the second section, or -1 when unclear. The cost of a true match depends on how
+    /// alike the two transfers are (near 0 for the same master, far higher for another grade, framing or grain), so
+    /// nothing is compared with a fixed threshold: the cut goes where section A's costs before it plus section B's
+    /// after it add up to the least (a section missing from the other source costs the midpoint between the present
+    /// one's matching and non-matching frames). It counts only when, on lightly smoothed costs, most frames on each
+    /// side really prefer their own section.
+    /// </summary>
+    internal static int SplitCut(IReadOnlyList<double> costA, IReadOnlyList<double> costB, bool aPresent, bool bPresent)
+    {
+        var n = costA.Count;
+        if (n < 10 || costB.Count != n || (!aPresent && !bPresent))
+            return -1;
+        var A = new double[n];
+        var B = new double[n];
+        if (aPresent && bPresent)
+        {
+            if (Fill(costA, A, Median(costA)) < 10 || Fill(costB, B, Median(costB)) < 10)
+                return -1;
+        }
+        else
+        {
+            var present = aPresent ? costA : costB;
+            var valid = present.Where(x => !double.IsNaN(x)).Order().ToList();
+            if (valid.Count < 10)
+                return -1;
+            double low = valid[valid.Count / 10], high = valid[valid.Count * 9 / 10];
+            // one group only: every frame matches, or none does
+            if (high < low * 1.3 + 1)
+                return -1;
+            var thr = (low + high) / 2;
+            Fill(present, aPresent ? A : B, thr);
+            Array.Fill(aPresent ? B : A, thr);
+        }
+        // S(k) = Σ_{j<k} A[j] + Σ_{j≥k} B[j]
+        var totalB = B.Sum();
+        double before = 0, after = totalB, bestS = double.MaxValue;
+        var best = -1;
+        for (var k = 1; k < n; k++)
+        {
+            before += A[k - 1];
+            after -= B[k - 1];
+            if (before + after < bestS)
+            {
+                bestS = before + after;
+                best = k;
+            }
+        }
+        if (best < 3 || best > n - 3)
+            return -1;
+        var sa = Smooth(A, 2);
+        var sb = Smooth(B, 2);
+        var okBefore = Enumerable.Range(0, best).Count(j => sa[j] < sb[j]) / (double)best;
+        var okAfter = Enumerable.Range(best, n - best).Count(j => sb[j] < sa[j]) / (double)(n - best);
+        return okBefore >= 0.75 && okAfter >= 0.75 ? best : -1;
+
+        static double Median(IReadOnlyList<double> c)
+        {
+            var v = c.Where(x => !double.IsNaN(x)).Order().ToList();
+            return v.Count > 0 ? v[v.Count / 2] : double.NaN;
+        }
+        static int Fill(IReadOnlyList<double> src, double[] dst, double missing)
+        {
+            var valid = 0;
+            for (var j = 0; j < src.Count; j++)
+            {
+                dst[j] = double.IsNaN(src[j]) ? missing : src[j];
+                valid += double.IsNaN(src[j]) ? 0 : 1;
+            }
+            return valid;
+        }
+        static double[] Smooth(double[] x, int r)
+        {
+            var o = new double[x.Length];
+            for (var j = 0; j < x.Length; j++)
+            {
+                int lo = Math.Max(0, j - r), hi = Math.Min(x.Length - 1, j + r);
+                double s = 0;
+                for (var q = lo; q <= hi; q++)
+                    s += x[q];
+                o[j] = s / (hi - lo + 1);
+            }
+            return o;
+        }
     }
 
     [GeneratedRegex(@"out_time_us=(\d+)")]
