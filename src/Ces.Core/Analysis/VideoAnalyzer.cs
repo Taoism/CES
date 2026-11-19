@@ -298,25 +298,7 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
         if (!double.IsNaN(rep.AvgHalo))
             f.Add(new Finding { Area = "Halos", Level = 0, Text = $"Edge overshoot {rep.AvgHalo:P0} of the edge height (content-dependent: compare with the reference)." });
         if (!double.IsNaN(rep.ChromaHfH))
-        {
-            var hLow = rep.ChromaHfH < ChromaLimit;
-            var vLow = rep.ChromaHfV < ChromaLimit;
-            var origin = v.ChromaSubsampling switch
-            {
-                "4:4:4" when hLow && vLow => "4:2:0",
-                "4:4:4" when hLow => "4:2:2",
-                "4:2:2" when vLow => "4:2:0",
-                _ => null,
-            };
-            f.Add(new Finding
-            {
-                Area = "Chroma",
-                Level = origin != null ? 2 : 0,
-                Text = origin != null
-                    ? $"{v.ChromaSubsampling} stream, but the colour planes have no fine detail ({rep.ChromaHfH:0} / {rep.ChromaHfV:0} dB vs luma): upsampled from {origin}."
-                    : $"No sign of upsampled chroma ({rep.ChromaHfH:0} / {rep.ChromaHfV:0} dB vs luma; a lossy re-encode can hide it).",
-            });
-        }
+            f.Add(ChromaFinding(v.ChromaSubsampling, rep.ChromaHfH, rep.ChromaHfV));
         DynamicHdrFindings(rep, v, f);
 
         // interlace
@@ -333,6 +315,31 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
 
     /// <summary>Chroma high-frequency level (dB vs luma) below which a chroma plane is considered upsampled.</summary>
     internal const double ChromaLimit = -8;
+
+    /// <summary>
+    /// Between this and <see cref="ChromaLimit"/>: probably upsampled. A lossy re-encode fills the missing chroma
+    /// detail with its own noise (clean upsampled 4:4:4 measures about −15 dB, the same at CRF 35 about −5 dB, genuine
+    /// 4:4:4 about −1 dB); soft camera chroma can land here too, so it is a hint, not a verdict.
+    /// </summary>
+    internal const double ChromaHint = -4;
+
+    internal static Finding ChromaFinding(string subsampling, double h, double v)
+    {
+        // the hint tier allows some slack on the second direction: a re-encode lifts both a little unevenly
+        string? Origin(double limit, double slack = 0) => subsampling switch
+        {
+            "4:4:4" when (h < limit && v < limit + slack) || (v < limit && h < limit + slack) => "4:2:0",
+            "4:4:4" when h < limit => "4:2:2",
+            "4:2:2" when v < limit => "4:2:0",
+            _ => null,
+        };
+        var measured = string.Create(CultureInfo.InvariantCulture, $"{h:0} / {v:0} dB vs luma");
+        if (Origin(ChromaLimit) is { } sure)
+            return new Finding { Area = "Chroma", Level = 2, Text = $"{subsampling} stream, but the colour planes have no fine detail ({measured}): upsampled from {sure}." };
+        if (Origin(ChromaHint, 1.5) is { } likely)
+            return new Finding { Area = "Chroma", Level = 1, Text = $"{subsampling} stream with little fine colour detail ({measured}): probably upsampled from {likely} and re-encoded (a lossy encode adds its own noise to the colour planes; soft camera chroma looks similar)." };
+        return new Finding { Area = "Chroma", Level = 0, Text = $"No sign of upsampled chroma ({measured}; a heavy lossy re-encode can hide it)." };
+    }
 
     private static void DynamicHdrFindings(VideoReport rep, StreamInfo v, List<Finding> f)
     {
