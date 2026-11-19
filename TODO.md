@@ -33,11 +33,13 @@ Open:
       LAME 3.95.1 and 3.99.5o, fpMP3 (LAME 3.98r; writes a truncated last frame), tooLAME / TwoLAME MP2 (still
       Unknown). Then (RareWares retro): Blade 0.94.2 (fingerprint: reservoir unused, simple stereo, no scfsi), FhG
       FastEnc 1.02 (no scfsi, heavy preflag, zero ancillary; VBR via VBRI), LAME 3.80 / 3.88 (pre-3.90 tags have no
-      extended fields or CRC) / 3.90 / 3.93.1 — all 25 MP3 samples identified. Xing 1.5 (installed into testmedia-ext; its x3enc CLI: CBR = "Xing (old)" by no short blocks, VBR by its Xing
+      extended fields or CRC) / 3.90 / 3.93.1 — all 25 MP3 samples identified. FhG ACM professional 3.4 (acmenc 0.4 — needs no MSVCR71; codec registered as WOW64 msacm.l3codecp; the
+      front end adds an Info header, the stream fingerprint still says FhG), iTunes 12.13.12.3 (COM ConvertFile2:
+      named from ID3v2.2 TEN + iTunSMPB delay/padding; untagged: no scfsi and no preflag at all), Xing 1.5 (installed into testmedia-ext; its x3enc CLI: CBR = "Xing (old)" by no short blocks, VBR by its Xing
       header, whose frame count includes the header frame itself — no longer reported), FhG MP3 Surround 1.5 (licence accepted
       with the user's OK): CBR confirmed by the same Fraunhofer fingerprint (VBR modes fail silently). Still missing:
-      FhG mp3enc 3.1 (blocks without output on Windows 11), FhG ACM via acmenc (needs MSVCR71 + MACDll + a codec install),
-      iTunes (system install), DOS-only l3enc / LAME 3.97d.
+      FhG mp3enc 3.1 (blocks without output on Windows 11), DOS-only l3enc / LAME 3.97d, a fingerprint for MP2
+      (tooLAME / TwoLAME).
 - [x] Spot: lossless-source check for FLAC and WAV (2026-11-18): lossy-source brick wall, upsampling cliff at
       22.05/24 kHz, padded bits; Source column, Spectrum tab, CSV.
 - [ ] Packaging like TaoExif: Inno installer + win zip (bundled ffmpeg full + MediaInfo, updater), .deb, linux

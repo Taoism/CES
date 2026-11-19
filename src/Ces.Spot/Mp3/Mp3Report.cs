@@ -83,6 +83,10 @@ internal static partial class Mp3Report
             r.EncoderSettings = "VBR";
             return;
         }
+        if (ITunes(r))
+        {
+            return;
+        }
         if (a.Xing is not null)
         {
             if (a.Xing.Id == "Xing")
@@ -154,12 +158,47 @@ internal static partial class Mp3Report
             Set(r, "Blade", GuessConfidence.Medium, string.Create(Inv, $"no scfsi, bit reservoir hardly used (avg {l3.AverageReservoir:0} bytes), simple stereo only"));
             return true;
         }
+        if (scfsi < 0.01 && l3.Preflag == 0 && l3.AverageReservoir >= 32 && l3.AncillaryBytes > 0 && l3.AncillaryZeroBytes == l3.AncillaryBytes)
+        {
+            Set(r, "iTunes (untagged)", GuessConfidence.Low, "neither scfsi nor preflag ever used, zero-filled ancillary data (measured on iTunes 12)");
+            return true;
+        }
         if (scfsi < 0.01 && preflag > 0.2 && l3.AverageReservoir >= 32 && l3.AncillaryZeroBytes * 2 >= l3.AncillaryBytes)
         {
             Set(r, "FhG (untagged)", GuessConfidence.Medium, string.Create(Inv, $"no scfsi, preflag in {preflag:P0} of granules, zero-filled ancillary data (Fraunhofer encoders)"));
             return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// iTunes names itself in the ID3 "encoded by" frame and stores its encoder delay and padding in an iTunSMPB
+    /// comment; either one is enough (tags can be edited, so not High).
+    /// </summary>
+    private static bool ITunes(AnalysisResult r)
+    {
+        var fields = r.Tags?.Fields;
+        if (fields is null)
+            return false;
+        var by = fields.TryGetValue("EncodedBy", out var e) && e.StartsWith("iTunes", StringComparison.Ordinal) ? e : null;
+        var smpb = fields.TryGetValue("iTunSMPB", out var s) ? ITunesGapless(s) : null;
+        if (by is null && smpb is null)
+            return false;
+        Set(r, by ?? "iTunes", by is null ? GuessConfidence.Low : GuessConfidence.Medium,
+            by is null ? "iTunes gapless comment (iTunSMPB)" : "iTunes named in the ID3 \"encoded by\" frame" + (smpb is null ? "" : " and its iTunSMPB gapless comment"));
+        r.EncoderSettings = smpb ?? "";
+        return true;
+    }
+
+    /// <summary>" 00000000 00000210 000008A0 00000000000D7550 ..." → "delay 528, padding 2208".</summary>
+    internal static string? ITunesGapless(string smpb)
+    {
+        var parts = smpb.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 3
+            || !int.TryParse(parts[1], System.Globalization.NumberStyles.HexNumber, Inv, out var delay)
+            || !int.TryParse(parts[2], System.Globalization.NumberStyles.HexNumber, Inv, out var padding))
+            return null;
+        return string.Create(Inv, $"delay {delay}, padding {padding}");
     }
 
     private static void AddXingNote(AnalysisResult r, Mp3Analysis a)

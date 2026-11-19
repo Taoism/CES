@@ -86,3 +86,44 @@ public sealed class EncoderFingerprintTests
     [InlineData("LAMEH5.24", false)]
     public void ExtendedTagFrom390(string encoder, bool before) => Assert.Equal(before, Ces.Spot.Mp3.LameTag.BeforeExtendedTag(encoder));
 }
+
+public sealed class ITunesSpotTests
+{
+    private static string Fixture => Path.Combine(AppContext.BaseDirectory, "Fixtures", "itunes12-160.mp3");
+
+    [Fact]
+    public void NamedByEncodedByWithGaplessValues()
+    {
+        var r = AudioAnalyzer.Analyze(Fixture, new AnalyzeOptions(), CancellationToken.None);
+        Assert.Equal("iTunes 12.13.12.3", r.Encoder);
+        Assert.Equal(GuessConfidence.Medium, r.Confidence);
+        Assert.Equal("delay 528, padding 2784", r.EncoderSettings);
+        // iTunes' own comment frames are not the user's comment
+        Assert.False(r.Tags!.Fields.ContainsKey("Comment"));
+    }
+
+    [Fact]
+    public void WithoutTagsTheStreamStillPointsAtITunes()
+    {
+        var bytes = File.ReadAllBytes(Fixture);
+        // ID3v2 size: 4 syncsafe bytes after the 6-byte header start
+        var size = 10 + ((bytes[6] & 0x7F) << 21 | (bytes[7] & 0x7F) << 14 | (bytes[8] & 0x7F) << 7 | (bytes[9] & 0x7F));
+        var path = Path.Combine(Path.GetTempPath(), $"ces-itunes-untagged-{Guid.NewGuid():N}.mp3");
+        File.WriteAllBytes(path, bytes[size..]);
+        try
+        {
+            var r = AudioAnalyzer.Analyze(path, new AnalyzeOptions(), CancellationToken.None);
+            Assert.Equal("iTunes (untagged)", r.Encoder);
+            Assert.Equal(GuessConfidence.Low, r.Confidence);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Theory]
+    [InlineData(" 00000000 00000210 000008A0 00000000000D7550 00000000", "delay 528, padding 2208")]
+    [InlineData("garbage", null)]
+    public void GaplessComment(string smpb, string? expected) => Assert.Equal(expected, Ces.Spot.Mp3.Mp3Report.ITunesGapless(smpb));
+}
