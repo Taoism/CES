@@ -47,6 +47,9 @@ public sealed class SyncResult
     /// <summary>The audio-only answer, before the video refinement.</summary>
     public double AudioOffset { get; set; }
 
+    /// <summary>The audio did not match (another mix or language, silence) and the pictures alone gave the offset.</summary>
+    public bool PictureOnly { get; set; }
+
     /// <summary>Seconds the picture comparison moved the offset by, null when not refined.</summary>
     public double? VideoCorrection { get; set; }
 
@@ -67,6 +70,8 @@ public sealed class SyncResult
                 return "No audio match found.";
             if (!Reliable)
                 return $"No reliable match (best {Offset:+0.000;-0.000;0.000} s, confidence {Confidence:0.0}) — set the offset by hand or search the whole title";
+            if (PictureOnly)
+                return $"Offset {Offset:+0.000;-0.000;0.000} s, matched by the picture alone (the audio did not line up: another mix or language?)";
             var s = $"Offset {Offset:+0.000;-0.000;0.000} s (confidence {Confidence:0.0})";
             if (Math.Abs(Speed - 1) > 1e-6)
                 s += $", speed ×{Speed:0.#####} ({SpeedName(Speed)})";
@@ -214,6 +219,14 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
         if (strong.Count >= 2)
             result.Drift = strong[^1].Offset - strong[0].Offset;
         result.AudioOffset = result.Offset;
+
+        // unreliable audio (another mix or language, a commentary, silence): the pictures can still say where it lines up
+        if (!result.Reliable && opt.RefineWithVideo && reference.Info?.Video != null && other.Info?.Video != null)
+        {
+            progress?.Report("Audio is not conclusive: matching frames…");
+            await RescueWithPictureAsync(reference, other, speed, strong.Select(p => p.Offset).Append(result.Offset), result, ct).ConfigureAwait(false);
+            return result;
+        }
 
         // audio is only as exact as each file's own A/V sync: snap to the frame that really matches
         if (opt.RefineWithVideo && result.Reliable && reference.Info?.Video != null && other.Info?.Video != null)
@@ -446,13 +459,48 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
     /// Compares small grey frames around the audio offset (±12 frames) at a few places and returns the offset of the
     /// best-matching frame pair (from real frame timestamps), or null when the picture gives no clear answer.
     /// </summary>
-    public async Task<double?> RefineWithVideoAsync(MediaTitle reference, MediaTitle other, double offset, double speed, IReadOnlyList<double> times, CancellationToken ct)
+    /// <summary>
+    /// Tries the picture match around each candidate offset (the audio's guesses and a grid near zero: each refine
+    /// covers about ±half a second) and keeps the answer the most clear frame matches agree on (at least two); ties go
+    /// to the clearer match, then the smaller offset (repeating pictures can match in more than one place).
+    /// </summary>
+    private async Task RescueWithPictureAsync(MediaTitle reference, MediaTitle other, double speed, IEnumerable<double> guesses, SyncResult result, CancellationToken ct)
+    {
+        var candidates = new List<double>();
+        foreach (var c in guesses.Concat([0, -0.9, 0.9, -1.8, 1.8, -2.7, 2.7]))
+        {
+            if (candidates.All(x => Math.Abs(x - c) > 0.4))
+                candidates.Add(c);
+        }
+        (double Offset, int Votes, double Margin)? best = null;
+        foreach (var c in candidates)
+        {
+            var (offset, votes, margin) = await RefineVotesAsync(reference, other, c, speed, [], ct).ConfigureAwait(false);
+            if (offset is not { } o || votes < 2)
+                continue;
+            if (best is not { } b || votes > b.Votes || (votes == b.Votes && (margin > b.Margin * 1.2 || (margin >= b.Margin / 1.2 && Math.Abs(o) < Math.Abs(b.Offset)))))
+                best = (o, votes, margin);
+        }
+        if (best is { } win)
+        {
+            result.Offset = win.Offset;
+            result.Reliable = true;
+            result.PictureOnly = true;
+            result.VideoCorrection = win.Offset - result.AudioOffset;
+        }
+    }
+
+    public async Task<double?> RefineWithVideoAsync(MediaTitle reference, MediaTitle other, double offset, double speed, IReadOnlyList<double> times, CancellationToken ct) =>
+        (await RefineVotesAsync(reference, other, offset, speed, times, ct).ConfigureAwait(false)).Offset;
+
+    /// <summary>The picture-matched offset near <paramref name="offset"/>, how many probe points agree and how clearly.</summary>
+    private async Task<(double? Offset, int Votes, double Margin)> RefineVotesAsync(MediaTitle reference, MediaTitle other, double offset, double speed, IReadOnlyList<double> times, CancellationToken ct)
     {
         var fr = InputBuilder.FrameRate(reference);
         var fo = InputBuilder.FrameRate(other);
         // frames pair one to one only when the other source shows the same frames per reference second
         if (fr <= 0 || fo <= 0 || Math.Abs(fr - fo * speed) > 0.01)
-            return null;
+            return (null, 0, 0);
         const int n = 36;
         const int m = 12;
         var votes = new List<(double Offset, double Margin)>();
@@ -482,13 +530,13 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
             votes.Add((pairs[pairs.Count / 2], margin));
         }
         if (votes.Count == 0)
-            return null;
+            return (null, 0, 0);
         // the most common answer (within half a frame), weighted by how clear it was
         var group = votes.Select(v => votes.Where(w => Math.Abs(w.Offset - v.Offset) < 0.5 / fo).ToList())
             .OrderByDescending(g => g.Count).ThenByDescending(g => g.Sum(x => x.Margin)).First();
         if (votes.Count >= 2 && group.Count < 2)
-            return null;
-        return group.Select(g => g.Offset).Order().ElementAt(group.Count / 2);
+            return (null, 0, 0);
+        return (group.Select(g => g.Offset).Order().ElementAt(group.Count / 2), group.Count, group.Sum(g => g.Margin));
     }
 
     // brightness-neutral: HDR vs SDR or a level shift should not decide the match
