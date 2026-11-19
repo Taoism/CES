@@ -6,7 +6,7 @@ using Ces.Tools;
 namespace Ces.Probe;
 
 /// <summary>Stream and container details from ffprobe, enriched with MediaInfo (HDR format, commercial codec names, bit depth).</summary>
-public sealed class MediaProber(FfTools tools)
+public sealed partial class MediaProber(FfTools tools)
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
@@ -145,6 +145,8 @@ public sealed class MediaProber(FfTools tools)
                         foreach (var e in sd.EnumerateArray())
                         {
                             var t = Str(e, "side_data_type");
+                            if (t.Contains("DOVI", StringComparison.OrdinalIgnoreCase))
+                                st.DvProfile = Int(e, "dv_profile");
                             if (t.Contains("DOVI", StringComparison.OrdinalIgnoreCase))
                                 st.HdrFormat = $"Dolby Vision profile {Int(e, "dv_profile")}.{Int(e, "dv_bl_signal_compatibility_id")}" +
                                                (Int(e, "el_present_flag") == 1 ? " BL+EL+RPU" : " BL+RPU");
@@ -342,7 +344,7 @@ public sealed class MediaProber(FfTools tools)
                     {
                         var prof = Str(t, "HDR_Format_Profile");
                         var compat = Str(t, "HDR_Format_Compatibility");
-                        s.HdrFormat = string.Join(" / ", new[] { hdr, prof, compat }.Where(x => x.Length > 0));
+                        s.HdrFormat = HdrText(hdr, prof, compat, s);
                     }
                     var scan = Str(t, "ScanType");
                     if (scan.Length > 0)
@@ -424,6 +426,33 @@ public sealed class MediaProber(FfTools tools)
             return a / b;
         return 0;
     }
+
+    /// <summary>
+    /// MediaInfo's HDR fields as one line without empty or repeated parts ("Dolby Vision / SMPTE ST 2086", "dvhe.08 / ",
+    /// "HDR10 / HDR10" → "Dolby Vision / SMPTE ST 2086 / profile 8 (dvhe.08) / HDR10"); the Dolby Vision profile is
+    /// taken from the codec string when ffprobe did not report it.
+    /// </summary>
+    internal static string HdrText(string format, string profile, string compat, StreamInfo s)
+    {
+        var parts = new List<string>();
+        foreach (var part in new[] { format, profile, compat }.SelectMany(x => x.Split('/')).Select(x => x.Trim()).Where(x => x.Length > 0))
+        {
+            var text = part;
+            if (DvCodecRegex().Match(part) is { Success: true } m)
+            {
+                var n = int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture);
+                if (s.DvProfile == 0)
+                    s.DvProfile = n;
+                text = $"profile {n} ({part})";
+            }
+            if (!parts.Contains(text, StringComparer.OrdinalIgnoreCase))
+                parts.Add(text);
+        }
+        return string.Join(" / ", parts);
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^dv(?:he|h1|av|a1)\.(\d{2})")]
+    private static partial System.Text.RegularExpressions.Regex DvCodecRegex();
 
     private static string Str(JsonElement e, string name) =>
         e.TryGetProperty(name, out var v) ? v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : v.ValueKind == JsonValueKind.Number ? v.GetRawText() : "" : "";

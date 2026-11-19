@@ -53,3 +53,29 @@ public sealed class ChromaOriginTests
         Assert.Contains(text, f.Text, StringComparison.Ordinal);
     }
 }
+
+public sealed class DolbyVisionTests
+{
+    [Fact]
+    public void MediaInfoHdrFieldsBecomeOneTidyLine()
+    {
+        var s = new Ces.Model.StreamInfo();
+        var text = Ces.Probe.MediaProber.HdrText("Dolby Vision / SMPTE ST 2086", "dvhe.08 / ", "HDR10 / HDR10", s);
+        Assert.Equal("Dolby Vision / SMPTE ST 2086 / profile 8 (dvhe.08) / HDR10", text);
+        Assert.Equal(8, s.DvProfile);
+    }
+
+    [Fact]
+    public void RpuWithoutLevel1IsMasteringOnly()
+    {
+        // what ffprobe (ffmpeg 9) prints for a real profile 5 frame: no level-1 blocks, the mastering maximum as a number
+        const string json = """
+            {"frames":[{"pts_time":"5.066667","side_data_list":[{"side_data_type":"Dolby Vision RPU Data"},
+            {"side_data_type":"Dolby Vision Metadata","rpu_type":2,"source_min_pq":7,"source_max_pq":3079}]}]}
+            """;
+        var d = Ces.Analysis.HdrMetadata.Parse(json, 5.1);
+        Assert.NotNull(d);
+        Assert.True(d.MasteringOnly);
+        Assert.InRange(d.MaxNits, 950, 1050);
+    }
+}

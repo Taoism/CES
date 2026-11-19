@@ -134,6 +134,9 @@ public sealed class StreamInfo
     public string ColorSpace { get; set; } = "";
     public string FieldOrder { get; set; } = "";
     public string HdrFormat { get; set; } = "";
+
+    /// <summary>Dolby Vision profile (5, 7, 8, ...), 0 when none.</summary>
+    public int DvProfile { get; set; }
     public string MasteringDisplay { get; set; } = "";
     public string ContentLight { get; set; } = "";
     public string ScanType { get; set; } = "";

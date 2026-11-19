@@ -17,6 +17,12 @@ public sealed class DynamicHdr
     public double AvgNits { get; set; } = double.NaN;
 
     public double TargetNits { get; set; } = double.NaN;
+
+    /// <summary>
+    /// Dolby Vision without level-1 blocks (ffprobe does not print them): MaxNits is the RPU's mastering-display
+    /// maximum, the same in every frame — not a per-shot value.
+    /// </summary>
+    public bool MasteringOnly { get; set; }
 }
 
 /// <summary>Reads HDR10+ / Dolby Vision frame metadata with ffprobe at a title time.</summary>
@@ -132,9 +138,14 @@ public sealed class HdrMetadata(FfTools tools)
         }
         Walk(sd);
         if (max is { } m)
+        {
             d.MaxNits = PqNits(m / 4095);
+        }
         else if (srcMax is { } s)
+        {
             d.MaxNits = PqNits(s / 4095);
+            d.MasteringOnly = true;
+        }
         if (avg is { } a)
             d.AvgNits = PqNits(a / 4095);
         return d;

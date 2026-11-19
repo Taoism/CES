@@ -119,7 +119,8 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
         var grabbed = new (LumaFrame Frame, VideoFrameResult Result)?[points.Count];
         var done = 0;
         var chromaPlanes = v.ChromaSubsampling is "4:4:4" or "4:2:2";
-        var dynamicHdr = v.IsHdr && v.ColorTransfer == "smpte2084";
+        // PQ streams, and Dolby Vision whatever its base layer says (profile 5 is IPT-PQ, 8.4 has an HLG base)
+        var dynamicHdr = v.IsHdr && (v.ColorTransfer == "smpte2084" || v.DvProfile > 0 || v.HdrFormat.Contains("Dolby Vision", StringComparison.OrdinalIgnoreCase));
         var meta = new HdrMetadata(tools);
         using (var gate = new SemaphoreSlim(3))
         {
@@ -343,9 +344,25 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
 
     private static void DynamicHdrFindings(VideoReport rep, StreamInfo v, List<Finding> f)
     {
-        if (v.HdrFormat.Contains("profile 5", StringComparison.OrdinalIgnoreCase))
+        if (v.DvProfile == 5)
             f.Add(new Finding { Area = "Dolby Vision", Level = 1, Text = "Profile 5 (IPT-PQ base layer): without Dolby Vision processing colours look wrong — screenshots and metrics of this source are not representative." });
-        var dyn = rep.Frames.Where(x => x.DynamicHdr is { } d && !double.IsNaN(d.MaxNits)).ToList();
+        var all = rep.Frames.Where(x => x.DynamicHdr is { } d && !double.IsNaN(d.MaxNits)).ToList();
+        // Dolby Vision with only the mastering maximum: there is nothing per shot to compare
+        if (all.Count > 0 && all.All(x => x.DynamicHdr!.MasteringOnly))
+        {
+            var top = all.Max(x => x.DynamicHdr!.MaxNits);
+            var picturePeak = all.Select(x => x.PeakNits).Where(x => !double.IsNaN(x)).DefaultIfEmpty(double.NaN).Max();
+            var over = !double.IsNaN(picturePeak) && picturePeak > top * 1.25 + 20;
+            f.Add(new Finding
+            {
+                Area = "Dolby Vision",
+                Level = over ? 1 : 0,
+                Text = $"RPU metadata in every sampled frame{(v.DvProfile > 0 ? $" (profile {v.DvProfile})" : "")}: mastering display up to {top:0} nits" +
+                       (over ? $", but the picture reaches ≈{picturePeak:0} nits." : ". Per-shot (level 1) values are not available from ffprobe, so they are not checked."),
+            });
+            return;
+        }
+        var dyn = all;
         var declared = v.HdrFormat.Contains("HDR10+", StringComparison.Ordinal) || v.HdrFormat.Contains("2094", StringComparison.Ordinal) || v.HdrFormat.Contains("Dolby Vision", StringComparison.OrdinalIgnoreCase);
         if (dyn.Count == 0)
         {
