@@ -281,7 +281,9 @@ internal static partial class Mp3Report
                 r.Problems.Add("LAME music CRC mismatch (audio changed after encoding)");
             }
         }
-        if (a.Xing?.Frames is int xf && xf != a.Frames)
+        // Xing's own encoder counts the header frame too: one extra frame is how it writes the field, not damage
+        var xingCountsItself = a.Xing is { Lame: null } && a.Xing.Frames == a.Frames + 1;
+        if (a.Xing?.Frames is int xf && xf != a.Frames && !xingCountsItself)
         {
             r.Problems.Add(string.Create(Inv, $"Xing header says {xf} frames, found {a.Frames}"));
         }

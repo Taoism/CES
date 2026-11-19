@@ -68,6 +68,15 @@ public sealed class EncoderFingerprintTests
         Assert.False(r.Mp3!.Xing!.Lame!.HasExtendedInfo);
     }
 
+    [Fact]
+    public void XingCountsItsHeaderFrameWithoutComplaint()
+    {
+        var r = Analyze("xing15-vbr50.mp3");
+        Assert.Equal("Xing (new)", r.Encoder);
+        Assert.Equal(r.Mp3!.Frames + 1, r.Mp3.Xing!.Frames);
+        Assert.DoesNotContain(r.Problems, p => p.Contains("frames", StringComparison.Ordinal));
+    }
+
     [Theory]
     [InlineData("LAME3.80", true)]
     [InlineData("LAME3.88 (beta)", true)]
