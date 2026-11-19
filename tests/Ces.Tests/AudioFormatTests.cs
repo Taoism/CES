@@ -91,6 +91,29 @@ public sealed class AudioFormatTests : IDisposable
         Assert.Contains(r.Problems, p => p.Contains("truncated", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void Ec3AtmosConfig()
+    {
+        // data rate 768, one independent substream: 5.1 (acmod 7 + LFE), no dependents, then Atmos JOC complexity 16
+        var a = new Ces.Spot.Mp4.Mp4Analysis();
+        Ces.Spot.Mp4.Mp4Analyzer.ReadDec3([0x18, 0x00, 0x20, 0x0F, 0x00, 0x01, 0x10], a);
+        Assert.Equal("5.1", a.ChannelLayout);
+        Assert.Equal(6, a.Channels);
+        Assert.Equal(768000, a.AverageBitrate);
+        Assert.True(a.Atmos);
+        Assert.Equal(16, a.AtmosComplexity);
+    }
+
+    [Fact]
+    public void Ec3SevenOneWithoutAtmos()
+    {
+        // 5.1 core + a dependent substream carrying Lrs/Rrs (chan_loc bit 7) = 7.1; no extension bytes
+        var a = new Ces.Spot.Mp4.Mp4Analysis();
+        Ces.Spot.Mp4.Mp4Analyzer.ReadDec3([0x0C, 0x00, 0x20, 0x0F, 0x02, 0x80], a);
+        Assert.Equal("7.1", a.ChannelLayout);
+        Assert.False(a.Atmos);
+    }
+
     [Theory]
     [InlineData("Xiph.Org libVorbis I 20200704 (Reducing Environment)", "libVorbis 1.3.7")]
     [InlineData("AO; aoTuV b6.03 [20110424] (based on Xiph.Org's libVorbis)", "aoTuV b6.03")]
