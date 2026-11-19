@@ -108,6 +108,10 @@ internal static partial class Mp3Report
             Set(r, "GOGO or old LAME (untagged)", GuessConfidence.Low, "no tag; ancillary data neither zero nor LAME's 0x55 filler (GOGO-no-coda / LAME before 3.90)");
             return;
         }
+        if (Fingerprint(r, a))
+        {
+            return;
+        }
         if (r.Tags?.Fields.TryGetValue("Encoder", out var tagged) == true)
         {
             Set(r, tagged, GuessConfidence.Low, "encoder named in the tags (TSSE/APE), not in the stream");
@@ -125,6 +129,32 @@ internal static partial class Mp3Report
             }
         }
         Set(r, "Unknown", GuessConfidence.None, "no encoder signature found");
+    }
+
+    /// <summary>
+    /// Untagged files told apart by how the encoder uses Layer III (measured on real FastEnc, Blade, LAME, GOGO and
+    /// Helix encodes): Fraunhofer never uses scfsi but leans on preflag and fills ancillary data with zeros; Blade
+    /// hardly touches the bit reservoir and only writes simple stereo. LAME, GOGO and Helix use scfsi, not preflag.
+    /// </summary>
+    private static bool Fingerprint(AnalysisResult r, Mp3Analysis a)
+    {
+        var l3 = a.Layer3;
+        if (a.FirstHeader.Layer != 3 || a.Frames < 100 || l3.Granules == 0)
+            return false;
+        var scfsi = (double)l3.ScfsiFrames / a.Frames;
+        var preflag = (double)l3.Preflag / l3.Granules;
+        var joint = a.ModeCounts.ContainsKey(ChannelMode.JointStereo);
+        if (scfsi < 0.01 && l3.AverageReservoir < 32 && !joint)
+        {
+            Set(r, "Blade", GuessConfidence.Medium, string.Create(Inv, $"no scfsi, bit reservoir hardly used (avg {l3.AverageReservoir:0} bytes), simple stereo only"));
+            return true;
+        }
+        if (scfsi < 0.01 && preflag > 0.2 && l3.AverageReservoir >= 32 && l3.AncillaryZeroBytes * 2 >= l3.AncillaryBytes)
+        {
+            Set(r, "FhG (untagged)", GuessConfidence.Medium, string.Create(Inv, $"no scfsi, preflag in {preflag:P0} of granules, zero-filled ancillary data (Fraunhofer encoders)"));
+            return true;
+        }
+        return false;
     }
 
     private static void AddXingNote(AnalysisResult r, Mp3Analysis a)

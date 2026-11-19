@@ -224,8 +224,21 @@ public sealed class LameTag
             MusicCrc = BinaryPrimitives.ReadUInt16BigEndian(frame[(p + 32)..]),
             TagCrc = tagCrc,
             TagCrcOk = TagCrcMatches(frame, p + 34, tagCrc),
-            HasExtendedInfo = true,
+            // LAME wrote the extended fields (and their CRC) from 3.90 on; before that the bytes are leftovers
+            HasExtendedInfo = !BeforeExtendedTag(encoder),
         };
+    }
+
+    /// <summary>"LAME3.80", "LAME3.88 (beta)": a LAME version from before the 3.90 tag format.</summary>
+    internal static bool BeforeExtendedTag(string encoder)
+    {
+        // the minor number is read whole: LAME went 3.99 → 3.100
+        var e = encoder.StartsWith("LAME", StringComparison.Ordinal) ? encoder[4..] : encoder;
+        if (e.Length < 3 || !char.IsDigit(e[0]) || e[1] != '.')
+            return false;
+        var digits = new string(e[2..].TakeWhile(char.IsDigit).ToArray());
+        return digits.Length > 0 && int.TryParse(digits, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var minor)
+            && (e[0] - '0' < 3 || (e[0] == '3' && minor < 90));
     }
 
     /// <summary>
