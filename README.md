@@ -170,8 +170,8 @@ Pick a disc title with `path@00800.mpls` or `path@3`; offsets with `--offset 2=-
 ## Install on Debian / Ubuntu
 
 ```
-sudo apt install ./ces_0.3.1_debian13_amd64.deb        # Debian 13
-sudo apt install ./ces_0.3.1_ubuntu24.04_amd64.deb     # Ubuntu 24.04
+sudo apt install ./ces_0.3.2_debian13_amd64.deb        # Debian 13
+sudo apt install ./ces_0.3.2_ubuntu24.04_amd64.deb     # Ubuntu 24.04
 ```
 
 Installs to `/opt/ces` with the commands `ces` (command line) and `ces-gui`, plus a menu entry.
