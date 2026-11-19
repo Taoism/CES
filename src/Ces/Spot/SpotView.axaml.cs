@@ -288,7 +288,7 @@ public sealed partial class SpotView : UserControl
     /// <summary>Cache key: the file (path, size, mtime), the analyzer version and the options that change the result.</summary>
     private static string? CacheKey(string path, AnalyzeOptions options) =>
         ResultsCache.Shared.Enabled && ResultsCache.TryFileIdentity(path) is { } id
-            ? ResultsCache.Key(CacheKind, SpotJson.FormatVersion.ToString(Inv), typeof(AudioAnalyzer).Assembly.GetName().Version?.ToString() ?? "", options.DecodeFlac ? "decode" : "", id)
+            ? ResultsCache.Key(CacheKind, SpotJson.FormatVersion.ToString(Inv), ResultsCache.BuildOf(typeof(AudioAnalyzer)), options.DecodeFlac ? "decode" : "", id)
             : null;
 
     private void Flush()

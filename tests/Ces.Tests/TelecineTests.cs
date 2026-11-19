@@ -79,3 +79,25 @@ public sealed class DolbyVisionTests
         Assert.InRange(d.MaxNits, 950, 1050);
     }
 }
+
+public sealed class FrameRepeatTests
+{
+    // measured on a real public-domain NTSC DVD (film transferred by repeating one frame in five)
+    private static readonly double[] RealDvd =
+    [
+        0.0, 4.0, 2.8, 2.7, 0.5, 2.6, 2.5, 2.6, 2.5, 0.4, 2.8, 2.9, 3.9, 2.4, 0.2, 2.5, 2.8, 4.5, 3.9, 0.6, 2.9, 10.7, 4.4,
+        8.8, 0.3, 2.6, 2.3, 2.2, 2.8, 0.3, 3.3, 3.6, 3.0, 2.1, 0.4, 3.4, 2.6, 2.6, 3.8, 0.4, 2.2, 1.9, 1.4, 1.4, 0.3, 2.4,
+        3.4, 2.9, 2.2, 0.5, 2.5, 3.5, 1.7, 1.5, 0.2, 1.8, 2.1, 2.9, 2.7,
+    ];
+
+    [Fact]
+    public void RealDvdFrameRepeatsAreFound() => Assert.True(Ces.Analysis.SyncDetector.IsFrameRepeatPulldown(RealDvd));
+
+    [Fact]
+    public void SteadyMotionIsNotPulldown() =>
+        Assert.False(Ces.Analysis.SyncDetector.IsFrameRepeatPulldown(Enumerable.Range(0, 60).Select(i => 2.5 + (i % 3) * 0.4).ToList()));
+
+    [Fact]
+    public void StillPictureIsNotPulldown() =>
+        Assert.False(Ces.Analysis.SyncDetector.IsFrameRepeatPulldown(Enumerable.Repeat(0.0, 60).ToList()));
+}

@@ -35,7 +35,7 @@ public sealed partial class MainWindow
         // files and ISOs by size + mtime; disc folders by the title's total size
         var id = ResultsCache.TryFileIdentity(path)
             ?? (Directory.Exists(path) ? Path.GetFullPath(path) + "|" + it.Title.SizeBytes.ToString(CultureInfo.InvariantCulture) : null);
-        return id == null ? null : ResultsCache.Key("compare", "1", id, it.Title.Name, it.Title.Duration.ToString("R", CultureInfo.InvariantCulture));
+        return id == null ? null : ResultsCache.Key("compare", "1", ResultsCache.BuildOf(typeof(SyncDetector)), id, it.Title.Name, it.Title.Duration.ToString("R", CultureInfo.InvariantCulture));
     }
 
     private static string PairKey(string referenceId, string id) => ResultsCache.Key("pair", referenceId, id);

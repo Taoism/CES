@@ -152,8 +152,11 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
                 {
                     // short windows (8 s) so a video insert is not averaged with the film around it
                     var il = await new VideoAnalyzer(tools, tempDir).DetectInterlaceAsync(tel, tel.Duration * at, ct, 240).ConfigureAwait(false);
-                    if (il.Tff + il.Bff + il.Progressive + il.Undetermined > 50)
-                        verdicts.Add(il.IsTelecine);
+                    // film can also be put on 29.97 by repeating whole frames (one in five): no combing, no repeated fields
+                    var frames = await GrayFramesAsync(tel, tel.Duration * at, 61, ct).ConfigureAwait(false);
+                    var repeats = frames.Count > 20 && IsFrameRepeatPulldown(Enumerable.Range(1, frames.Count - 1).Select(i => Diff(frames[i - 1].Pixels, frames[i].Pixels)).ToList());
+                    if (il.Tff + il.Bff + il.Progressive + il.Undetermined > 50 || repeats)
+                        verdicts.Add(il.IsTelecine || repeats);
                 }
                 if (verdicts.Any(v => v))
                 {
@@ -303,11 +306,17 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
                     last = p.Offset;
             }
         }
+        // a weak probe (another mix, a lossy track against a restored one) still counts when a neighbour lands on the
+        // same offset: two noise peaks agreeing within 0.15 s by chance is very unlikely
+        var agreed = result.Probes.Select((p, i) => Matched(p) || (p.Confidence >= 8 && new[] { i - 1, i + 1 }
+            .Where(j => j >= 0 && j < result.Probes.Count)
+            .Any(j => result.Probes[j].Confidence >= 8 && Math.Abs(result.Probes[j].Offset - p.Offset) <= 0.15))).ToList();
         // runs: consecutive probes with the same offset; unmatched probes = missing
         var runs = new List<(double? Offset, List<SyncProbe> Probes)>();
-        foreach (var p in result.Probes)
+        for (var pi = 0; pi < result.Probes.Count; pi++)
         {
-            double? off = Matched(p) ? p.Offset : null;
+            var p = result.Probes[pi];
+            double? off = agreed[pi] ? p.Offset : null;
             if (runs.Count > 0 && Same(runs[^1].Offset, off))
                 runs[^1].Probes.Add(p);
             else
@@ -325,6 +334,8 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
             }
         }
         var matchedRuns = runs.Where(r => r.Offset != null).ToList();
+        // how well each run's audio matches: the cut search below expects about that much (weak mixes match weakly)
+        var expect = runs.Select(r => r.Offset == null ? 0.4 : Math.Clamp(r.Probes.Select(x => x.Ncc).Order().ElementAt(r.Probes.Count / 2) * 0.6, 0.06, 0.4)).ToList();
         result.Reliable = matchedRuns.Any(r => r.Probes.Count >= 2);
         if (matchedRuns.Count == 0)
             return result;
@@ -349,7 +360,7 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
                 {
                     var mid = (a0 + b0) / 2;
                     progress?.Report($"Locating the cut near {Format.Time(mid, false)}…");
-                    if (await MatchesAsync(reference, mid, speed, oa, full, ct).ConfigureAwait(false))
+                    if (await MatchesAsync(reference, mid, speed, oa, full, ct, expect[i - 1]).ConfigureAwait(false))
                         a0 = mid;
                     else
                         b0 = mid;
@@ -363,7 +374,7 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
                 {
                     var mid = (a0 + b0) / 2;
                     progress?.Report($"Locating the cut near {Format.Time(mid, false)}…");
-                    if (await MatchesAsync(reference, mid, speed, ob, full, ct).ConfigureAwait(false))
+                    if (await MatchesAsync(reference, mid, speed, ob, full, ct, expect[i]).ConfigureAwait(false))
                         b0 = mid;
                     else
                         a0 = mid;
@@ -388,7 +399,7 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
         var sectionProbes = sections.Select((sec, k) =>
         {
             var end = k + 1 < sections.Count ? sections[k + 1].Start : double.MaxValue;
-            return result.Probes.Where(p => p.RefTime >= sec.Start && p.RefTime + SnippetSeconds <= end && Matched(p)).Select(p => p.RefTime).ToList();
+            return result.Probes.Where((p, pi) => p.RefTime >= sec.Start && p.RefTime + SnippetSeconds <= end && agreed[pi]).Select(p => p.RefTime).ToList();
         }).ToList();
 
         if (sections.Count == 1)
@@ -445,14 +456,14 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
     private const double CutSnippet = 3;
 
     /// <summary>Whether a short reference snippet at <paramref name="t"/> is found at offset <paramref name="off"/>.</summary>
-    private async Task<bool> MatchesAsync(MediaTitle reference, double t, double speed, double off, Track full, CancellationToken ct)
+    private async Task<bool> MatchesAsync(MediaTitle reference, double t, double speed, double off, Track full, CancellationToken ct, double minNcc = 0.4)
     {
         var a = await DecodeAsync(reference, t, CutSnippet, speed, null, ct).ConfigureAwait(false);
         if (a.Length < 64)
             return false;
         var at = (int)((t * speed + off) * Rate);
         var m = await Task.Run(() => Correlator.Find(a, full.Samples, at - Rate / 10, at + Rate / 10, ct), ct).ConfigureAwait(false);
-        return m.Ncc >= 0.4;
+        return m.Ncc >= minNcc;
     }
 
     // ---------- video refinement ----------
@@ -542,6 +553,33 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
         if (votes.Count >= 2 && group.Count < 2)
             return (null, 0, 0);
         return (group.Select(g => g.Offset).Order().ElementAt(group.Count / 2), group.Count, group.Sum(g => g.Margin));
+    }
+
+    /// <summary>
+    /// 23.976 film carried at 29.97 by repeating one whole frame in five: almost exactly one near-zero difference in
+    /// every run of five consecutive frame differences, the rest showing motion.
+    /// </summary>
+    public static bool IsFrameRepeatPulldown(IReadOnlyList<double> diffs)
+    {
+        if (diffs.Count < 20)
+            return false;
+        var median = diffs.Order().ElementAt(diffs.Count / 2);
+        if (median <= 0)
+            return false; // a still picture repeats everywhere
+        var small = diffs.Select(d => d < median * 0.3).ToList();
+        var share = small.Count(s => s) / (double)diffs.Count;
+        if (share is < 0.14 or > 0.26)
+            return false;
+        // windows of five with exactly one repeat
+        var windows = 0;
+        var hits = 0;
+        for (var i = 0; i + 5 <= small.Count; i += 5)
+        {
+            windows++;
+            if (small.Skip(i).Take(5).Count(s => s) == 1)
+                hits++;
+        }
+        return windows > 0 && hits >= windows * 0.7;
     }
 
     // brightness-neutral: HDR vs SDR or a level shift should not decide the match

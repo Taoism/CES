@@ -52,6 +52,15 @@ public sealed class ResultsCache(string root, long maxBytes)
         }
     }
 
+    /// <summary>
+    /// The build of the code that made a result (version + commit): part of every key, so results from an older build
+    /// (before an analysis was improved) are not served after an update.
+    /// </summary>
+    public static string BuildOf(Type type) =>
+        type.Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion
+        ?? type.Assembly.GetName().Version?.ToString() ?? "";
+
     public static string Key(params string[] parts)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(string.Join("\n", parts).ToUpperInvariant()));

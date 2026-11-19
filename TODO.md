@@ -11,15 +11,19 @@ screenshots from synthetic sources (2026-11-16).
 
 Open:
 - [ ] slow.pics upload not tested live (publishes images) — try once with the user's OK
-- [ ] Dolby Vision metadata parsing untested on a real DV file (none available)
+- [x] Dolby Vision on real files (Jellyfin test clips, profiles 5 / 8.1 / 8.4, 2026-11-18): RPU read for every profile,
+      mastering-only RPU (ffprobe prints no level-1 blocks) not mistaken for per-shot metadata, tidy HDR line.
+  - [ ] Per-shot DV values need the L1 blocks: parse the raw RPU ("Dolby Vision RPU Data") ourselves.
 - [x] Chroma-origin check under lossy re-encodes (2026-11-18): "probably upsampled" hint between -8 and -4 dB, tested
-      to CRF 35 (coherence / local-energy alternatives tried: codec noise correlates with luma edges too). Needs a
-      real camera 4:4:4 sample before tightening the hard limit.
+      to CRF 35 (coherence / local-energy alternatives tried: codec noise correlates with luma edges too). Real camera
+      4:4:4 (Xiph SVT park_joy / old_town_cross): genuine reads -1…+7 dB (no false alarms), but upsampled real footage
+      only -0…-7 dB, so many upsampled+re-encoded real files are not caught.
 - [x] Sync rescue (2026-11-18): when the audio does not match (other mix, delayed-video remux) the picture alone finds
       the offset (candidates from the audio + a grid near zero, best agreed frame match; integration test).
-- [~] Inverse telecine (2026-11-18): checked at 3 places (mixed film/video flagged), hard telecine reported as film,
-      idet report parsing fixed (ffmpeg prints two reports in either order). Synthetic mixed material verified; real
-      pulldown still needs a matching film master of the same title.
+- [x] Inverse telecine on real material (2026-11-18): Night of the Living Dead, public-domain NTSC DVD (film by
+      repeated frames, 1 in 5) vs a 1080p 23.976 release: frame-repeat pulldown detected, a different and shorter cut
+      mapped in 16 sections (weak but agreeing audio probes count), screenshots land on the same frames.
+  - [ ] No frame-exact cuts on that pair yet (picture cut refinement needs work for very different transfers).
 - [x] Release cards with value (share of the best score at share of its size, VMAF per GB), timeline strip under the
       viewer, Shift+drag region zoom across sources (2026-11-18).
 - [ ] Calibrate the untagged-MP3 heuristics (Xing old/new, Blade, FhG, GOGO...) against the original
@@ -34,7 +38,8 @@ Open:
       Saved Spot results (.cess), Save details (text / JSON), Compare tab Copy / Save… as text, File › Save results
       (Ctrl+S, per mode) / Open saved results (Ctrl+L), always-visible job area + Stop at the bottom right.
 - [x] Column chooser (header right-click, Spot › Columns), saved widths/order/sort (2026-11-18).
-- [x] Extra formats (2026-11-18): WAV, Ogg Vorbis/Opus/FLAC (page CRCs), M4A AAC/ALAC.
+- [x] Extra formats (2026-11-18): WAV, Ogg Vorbis/Opus/FLAC (page CRCs), M4A AAC/ALAC, AC-3/E-AC-3 in MP4 incl.
+      Dolby Atmos (JOC) — checked on 156 real Apple Music Atmos tracks.
 - [x] BDInfo engine (UniqProject/BDInfo 0.7.6.2, LGPL 2.1) in external/BDInfo as its own BDInfo.dll (kept outside
       the single-file ces.exe, LICENSE-BDInfo.txt in the packages); reads BD folders, ISOs and ISOs inside RAR sets;
       `ces bdinfo` (2026-11-17).
