@@ -146,14 +146,19 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
             if (!tel.Ivtc && tel.Info?.Video is { } tv && film.Info?.Video is { } fv && InputBuilder.PulldownPair(tv.FrameRate, fv.FrameRate))
             {
                 progress?.Report("Checking for 3:2 pulldown…");
-                var il = await new VideoAnalyzer(tools, tempDir).DetectInterlaceAsync(tel, tel.Duration / 2, ct).ConfigureAwait(false);
-                var frames = il.Tff + il.Bff + il.Progressive + il.Undetermined;
-                // telecine: about 2 of 5 frames combed, or repeated fields
-                var combed = il.Tff + il.Bff;
-                if (frames > 50 && (il.RepeatedFields > frames * 0.15 || (combed > frames * 0.2 && combed < frames * 0.6)))
+                // three places: a mixed film/video title (film with native video inserts) may have video in the middle
+                var verdicts = new List<bool>();
+                foreach (var at in new[] { 0.2, 0.5, 0.8 })
+                {
+                    // short windows (8 s) so a video insert is not averaged with the film around it
+                    var il = await new VideoAnalyzer(tools, tempDir).DetectInterlaceAsync(tel, tel.Duration * at, ct, 240).ConfigureAwait(false);
+                    if (il.Tff + il.Bff + il.Progressive + il.Undetermined > 50)
+                        verdicts.Add(il.IsTelecine);
+                }
+                if (verdicts.Any(v => v))
                 {
                     tel.Ivtc = true;
-                    result.Ivtc = tel == other ? "this source" : "the reference";
+                    result.Ivtc = (tel == other ? "this source" : "the reference") + (verdicts.All(v => v) ? "" : ", mixed film/video");
                 }
             }
         }

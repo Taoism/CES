@@ -26,15 +26,32 @@ public sealed class InterlaceResult
     public long Undetermined { get; set; }
     public long RepeatedFields { get; set; }
 
+    /// <summary>
+    /// 3:2 pulldown: film at 29.97 shows about 2 combed frames in 5 (hard telecine) or repeated fields (soft telecine,
+    /// flags in the stream).
+    /// </summary>
+    public bool IsTelecine
+    {
+        get
+        {
+            var frames = Tff + Bff + Progressive + Undetermined;
+            var combed = Tff + Bff;
+            return frames > 0 && (RepeatedFields > frames * 0.15 || (combed > frames * 0.2 && combed < frames * 0.6 && Progressive > frames * 0.3));
+        }
+    }
+
     public string Verdict
     {
         get
         {
             var total = Tff + Bff + Progressive;
+            // repeated fields tell telecine even when every single frame is undetermined
             if (total == 0)
-                return "unknown";
+                return IsTelecine ? "telecined film (3:2 pulldown: repeated fields)" : "unknown";
             if (Progressive >= total * 0.8)
                 return RepeatedFields > (Tff + Bff + Progressive) * 0.15 ? "progressive (telecine pattern)" : "progressive";
+            if (IsTelecine)
+                return "telecined film (3:2 pulldown, about 2 in 5 frames combed)";
             return Tff >= Bff ? "interlaced (TFF)" : "interlaced (BFF)";
         }
     }
@@ -180,15 +197,17 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
         return rep;
     }
 
-    public async Task<InterlaceResult> DetectInterlaceAsync(MediaTitle title, double time, CancellationToken ct)
+    public async Task<InterlaceResult> DetectInterlaceAsync(MediaTitle title, double time, CancellationToken ct, int frames = 500)
     {
         var args = new List<string> { "-hide_banner", "-nostdin" };
         args.AddRange(InputBuilder.Input(title, Math.Max(0, time), 30, tempDir).Args);
-        args.AddRange(["-map", "0:v:0", "-an", "-sn", "-dn", "-vf", "idet", "-frames:v", "500", "-f", "null", "-"]);
+        args.AddRange(["-map", "0:v:0", "-an", "-sn", "-dn", "-vf", "idet", "-frames:v", frames.ToString(Inv), "-f", "null", "-"]);
         var res = await ProcessRunner.RunAsync(tools.FFmpeg, args, ct).ConfigureAwait(false);
         var r = new InterlaceResult();
-        // the filter graph can be created twice (probe + real run): the last report counts
-        var m = MultiRegex().Matches(res.StdErr).LastOrDefault();
+        // the filter graph can be created twice (a probe run and the real one) and the two reports come in either
+        // order: the one that counted frames is the real one
+        static long Sum(Match x) => Enumerable.Range(1, x.Groups.Count - 1).Sum(g => long.TryParse(x.Groups[g].Value, NumberStyles.Integer, Inv, out var v) ? v : 0);
+        var m = MultiRegex().Matches(res.StdErr).MaxBy(Sum);
         if (m != null)
         {
             r.Tff = long.Parse(m.Groups[1].Value, Inv);
@@ -196,7 +215,7 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
             r.Progressive = long.Parse(m.Groups[3].Value, Inv);
             r.Undetermined = long.Parse(m.Groups[4].Value, Inv);
         }
-        var rep = RepeatRegex().Matches(res.StdErr).LastOrDefault();
+        var rep = RepeatRegex().Matches(res.StdErr).MaxBy(Sum);
         if (rep != null)
             r.RepeatedFields = long.Parse(rep.Groups[1].Value, Inv) + long.Parse(rep.Groups[2].Value, Inv);
         return r;
