@@ -57,7 +57,23 @@ truncated last frames, junk after the audio, and files whose content does not ma
 **FLAC**: all metadata blocks and the vendor string, plus a full decode of every frame: CRC-8/CRC-16 checks,
 **MD5 verification**, subframe types, LPC orders and precision, Rice partitions and stereo decorrelation. From these it
 estimates the libFLAC compression level, and it recognises FFmpeg-encoded FLAC from the frame layout when a tagger
-(e.g. Mutagen) has replaced the vendor string. Spot mode needs no ffmpeg.
+(e.g. Mutagen) has replaced the vendor string. Spot mode needs no ffmpeg for audio.
+
+**Is the lossless file really lossless?** FLAC and WAV are decoded and their spectrum checked: a brick-wall lowpass
+well below Nyquist means a lossy source (MP3/AAC, with a hint at the likely bitrate), a cliff at 22.05/24 kHz in a
+88.2/96/192 kHz file means it was upsampled, and zero low bits in every sample mean 16-bit audio padded to 24 bits.
+The verdict is in the **Source** column, the evidence in the details window's **Spectrum** tab.
+
+**More formats**: **WAV** (PCM/float, LIST/INFO and BWF tags), **Ogg Vorbis / Opus / FLAC** (every page CRC
+checked, encoder from the vendor string — libVorbis version, aoTuV, libopus, FFmpeg), **M4A** AAC (profile incl.
+HE-AAC, declared bitrates) and ALAC, with iTunes / qaac / FAAC / FFmpeg encoder tags.
+
+**Video at a glance** (needs ffmpeg): MKV, MP4, M2TS, AVI, ISOs and Blu-ray / DVD folders (one row per disc, also
+inside RAR sets) show codec, resolution, frame rate, HDR, bitrate, the encoder library and its key x264/x265
+settings (CRF or 2-pass bitrate, ref, bframes, aq, psy-rd) and the audio / subtitle tracks; the details window has
+the full spec list. Spot › Include video files turns it off.
+
+Right-click a column header (or Spot › Columns) to choose columns; widths, order and the sort are remembered.
 
 The file list has an EncSpot-style quality column; double-click a file for its details: bitrate histogram and graph,
 reservoir use, block types, big values, stereo modes, FLAC predictor and LPC-order charts. **Save…** in the details
@@ -85,7 +101,8 @@ re-graded and reframed "remaster", and a 720p WEB encode.</sub>
   the time and every other source is aimed at its nearest matching frame, so MPEG-TS seek overshoot and frame-grid
   phase cannot shift a source by one frame. Viewer: single (1–9 to switch), wipe, side by side, **difference**
   (|A − B| × gain, with mean/changed share) and **flicker** (A ↔ B automatically); synced zoom/pan with
-  nearest-neighbour pixels; frame stepping; frame type and signal stats per shot. **Detailed shots** mode samples
+  nearest-neighbour pixels; **Shift+drag a region** to see it from every source side by side, zoomed to fill; a
+  timeline strip with the screenshot times and chapters; frame stepping; frame type and signal stats per shot. **Detailed shots** mode samples
   keyframes across source 1 and picks well-lit, detailed moments instead of evenly spaced times.
 - **Sync**: audio cross-correlation at several points, then refined on the picture to the exact frame. Search near the
   same time (±90 s) or the **whole title** (any offset). **Speed**: PAL speed-ups (23.976/24 → 25) are detected from the
@@ -133,6 +150,8 @@ is detected and inverse-telecined (field matching + decimation) so frames pair o
 - **Fast**: screenshot cache (reopened comparisons and retakes are instant), parallel grabs; optional hardware decoding.
 - **Rank releases**: point it at a folder of releases (File › Add folder of releases); every release is synced and
   measured against the reference in several windows across the title, then ranked (VMAF, 1 % low, PSNR, SSIM, bitrate).
+- **Release cards** in the Quality tab: size, bitrate and picture of each release with its VMAF against source 1,
+  and its value — "93 % of the best score at 40 % of its size" and VMAF points per GB.
 - **HTML report**: specs, findings, metrics charts and click/1–9 switchable screenshots.
 
 ## More screenshots
@@ -140,6 +159,7 @@ is detected and inverse-telecined (field matching + decimation) so frames pair o
 | | |
 |---|---|
 | ![Side by side](docs/screenshots/screenshots-side-by-side.png) | ![Difference](docs/screenshots/screenshots-difference.png) |
+| ![Region zoom across sources](docs/screenshots/screenshots-region.png) | |
 | ![Specs](docs/screenshots/specs.png) | ![Video analysis](docs/screenshots/video-analysis.png) |
 | ![Audio analysis](docs/screenshots/audio-analysis.png) | |
 

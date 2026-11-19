@@ -36,6 +36,8 @@ public sealed class CompareView : Control
     private Point _center = new(double.NaN, double.NaN); // image coordinates at the view centre
     private Point? _dragStart;
     private Point _dragCenter;
+    private Point? _regionStart;
+    private Point _regionEnd;
     private double _wipe = 0.5;
     private string? _message;
     private readonly DispatcherTimer _flicker = new() { Interval = TimeSpan.FromMilliseconds(500) };
@@ -281,6 +283,11 @@ public sealed class CompareView : Control
                 }
             }
         }
+        if (_regionStart is { } r0)
+        {
+            var box = new Rect(r0, _regionEnd).Normalize();
+            ctx.DrawRectangle(null, new Pen(Res("AccentBrush", Brushes.DodgerBlue), 1.5, new DashStyle([4, 3], 0)), box);
+        }
     }
 
     private void DrawImage(DrawingContext ctx, int i, Rect dest)
@@ -434,6 +441,15 @@ public sealed class CompareView : Control
             e.Handled = true;
             return;
         }
+        // Shift+drag: pick a region; every source then shows it side by side, zoomed to fill
+        if (p.Properties.IsLeftButtonPressed && e.KeyModifiers.HasFlag(KeyModifiers.Shift) && ReferenceSize.Width > 0)
+        {
+            _regionStart = _regionEnd = e.GetPosition(this);
+            e.Pointer.Capture(this);
+            Focus();
+            e.Handled = true;
+            return;
+        }
         if (p.Properties.IsLeftButtonPressed)
         {
             _dragStart = e.GetPosition(this);
@@ -447,6 +463,12 @@ public sealed class CompareView : Control
     {
         base.OnPointerMoved(e);
         var pos = e.GetPosition(this);
+        if (_regionStart != null)
+        {
+            _regionEnd = pos;
+            InvalidateVisual();
+            return;
+        }
         if (_dragStart is { } start && _zoom > 0)
         {
             var s = EffectiveScale;
@@ -466,8 +488,50 @@ public sealed class CompareView : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_regionStart is { } a)
+        {
+            _regionStart = null;
+            ZoomToRegion(a, e.GetPosition(this));
+        }
         _dragStart = null;
         e.Pointer.Capture(null);
+    }
+
+    /// <summary>The image area under the dragged box, shown from every source side by side, zoomed to fill a cell.</summary>
+    private void ZoomToRegion(Point a, Point b)
+    {
+        var view = new Rect(a, b).Normalize();
+        if (view.Width < 6 || view.Height < 6)
+        {
+            InvalidateVisual();
+            return;
+        }
+        // the box was drawn on the current layout: map it through the cell it started in
+        var cells = Cells(Bounds);
+        var cell = cells.FirstOrDefault(c => c.Contains(a), cells[0]);
+        var s = Scale(cell);
+        var tl = ToImage(view.TopLeft, cell, s);
+        var br = ToImage(view.BottomRight, cell, s);
+        ShowRegion(new Rect(tl, br));
+    }
+
+    /// <summary>Shows an area of the picture (image pixels) from every source side by side, zoomed to fill a cell.</summary>
+    public void ShowRegion(Rect imageArea)
+    {
+        var region = imageArea.Intersect(new Rect(ReferenceSize));
+        if (region.Width < 2 || region.Height < 2)
+        {
+            InvalidateVisual();
+            return;
+        }
+        if (_images.Length > 1)
+            Mode = CompareMode.SideBySide;
+        var target = Cells(Bounds)[0];
+        _zoom = Math.Clamp(Math.Min(target.Width / region.Width, target.Height / region.Height), 0.1, 32);
+        _center = region.Center;
+        ClampCenter();
+        InvalidateVisual();
+        ViewChanged?.Invoke(this, EventArgs.Empty);
     }
 
     protected override void OnSizeChanged(SizeChangedEventArgs e)

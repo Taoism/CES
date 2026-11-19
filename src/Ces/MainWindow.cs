@@ -520,6 +520,7 @@ public sealed partial class MainWindow : Window
           D / T            difference (|A − B| × gain) / flicker A ↔ B
           Shift+1 … 9      choose B (the right side / the other picture) in wipe, difference and flicker
           F or 0           fit;  Z  100 %;  mouse wheel  zoom;  drag  pan;  double-click  fit ↔ 100 %
+          Shift+drag       pick a region: every source side by side, zoomed to it
           , / .            step the shown frame back / forward one frame (all sources)
 
         Spot mode

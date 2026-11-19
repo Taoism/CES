@@ -30,6 +30,7 @@ public sealed partial class MainWindow
     private readonly List<(CompareItem Reference, CompareItem Distorted, MetricResult Result)> _metrics = [];
     private readonly NumericUpDown _qWindows = new() { Minimum = 1, Maximum = 30, Value = 5, FormatString = "0", Width = 100 };
     private readonly StackPanel _rankPanel = new() { Spacing = 6 };
+    private readonly WrapPanel _cardsPanel = new() { Orientation = Orientation.Horizontal, ItemSpacing = 8, LineSpacing = 8 };
     private List<RankRow> _ranking = [];
 
     private Control BuildQualityTab()
@@ -65,7 +66,7 @@ public sealed partial class MainWindow
         _qChart.XFormat = v => Format.Time(v, false);
         _qChart.XPicked += async (_, t) => await AddShotTimesAsync([(t, "picked on metrics chart")]);
         var note = Muted("Every other source is compared with the reference at its offset. Different sizes are scaled to the reference; black bars the encode cropped are cropped from the reference automatically.");
-        var content = new StackPanel { Spacing = 10, Children = { note, _rankPanel, _qResults, _qChart } };
+        var content = new StackPanel { Spacing = 10, Children = { note, _cardsPanel, _rankPanel, _qResults, _qChart } };
         var root = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
         DockPanel.SetDock(bar, Dock.Top);
         root.Children.Add(bar);
@@ -257,8 +258,55 @@ public sealed partial class MainWindow
         RefreshMetricResults();
     }
 
+    /// <summary>VMAF of a source against source 1: from the ranking (several windows) or the last measurement.</summary>
+    private double ScoreOf(CompareItem it)
+    {
+        var r = _ranking.FirstOrDefault(x => x.Item == it)?.Result ?? _metrics.FirstOrDefault(m => m.Distorted == it && _items.Count > 0 && m.Reference == _items[0]).Result;
+        return r != null && r.Series.TryGetValue(Metric.Vmaf, out var s) && s.Values.Count > 0 ? s.Mean : double.NaN;
+    }
+
+    /// <summary>
+    /// One card per release: size, bitrate, picture, VMAF against source 1 and its value — the share of the best
+    /// score it reaches for its share of that release's size, and VMAF points per GB.
+    /// </summary>
+    private void RefreshReleaseCards()
+    {
+        _cardsPanel.Children.Clear();
+        if (_items.Count < 2)
+            return;
+        var scores = _items.Select(ScoreOf).ToList();
+        var best = Enumerable.Range(1, _items.Count - 1).Where(i => !double.IsNaN(scores[i])).OrderByDescending(i => scores[i]).FirstOrDefault(-1);
+        long SizeOf(CompareItem it) => it.Title.Info?.SizeBytes is > 0 and var s ? s : it.Title.SizeBytes;
+        for (var i = 0; i < _items.Count; i++)
+        {
+            var it = _items[i];
+            var info = it.Title.Info;
+            var v = info?.Video;
+            var size = SizeOf(it);
+            var lines = new StackPanel { Spacing = 3 };
+            lines.Children.Add(ChipLabel(i, it.Name));
+            var score = i == 0 ? "reference" : double.IsNaN(scores[i]) ? "not measured" : $"VMAF {scores[i]:0.0}";
+            lines.Children.Add(new TextBlock { Text = score, FontSize = 18, FontWeight = FontWeight.SemiBold }.Themed(TextBlock.ForegroundProperty, i > 0 && i == best ? "AccentBrush" : "TextBrush"));
+            lines.Children.Add(Muted($"{Format.Size(size)} · {Format.BitRate(info?.OverallBitRate ?? 0)}", 12));
+            if (v != null)
+                lines.Children.Add(Muted($"{v.CodecDisplay} · {v.Width}×{v.Height}{(v.IsHdr ? " · " + v.HdrShort : "")}", 12));
+            if (i > 0 && best > 0 && !double.IsNaN(scores[i]) && size > 0)
+            {
+                var gb = size / 1073741824.0;
+                var bestSize = SizeOf(_items[best]);
+                var ratio = bestSize > 0 ? (double)size / bestSize : double.NaN;
+                var sizeText = ratio >= 2 ? $"{ratio:0.#}× its size" : $"{ratio:P0} of its size";
+                lines.Children.Add(Muted(i == best
+                    ? $"best score · {scores[i] / gb:0.#} VMAF per GB"
+                    : $"{scores[i] / scores[best]:P0} of the best score at {sizeText} · {scores[i] / gb:0.#} VMAF per GB", 12));
+            }
+            _cardsPanel.Children.Add(new Border { Classes = { "card" }, MinWidth = 220, MaxWidth = 340, Child = lines });
+        }
+    }
+
     private void RefreshRanking()
     {
+        RefreshReleaseCards();
         _rankPanel.Children.Clear();
         if (_ranking.Count == 0 || _ranking.Any(r => !_items.Contains(r.Item)))
         {

@@ -40,6 +40,11 @@ public sealed partial class MainWindow
         await SnapAsync(outDir, "screenshots-side-by-side", 0);
         SetViewMode(CompareMode.Difference);
         await SnapAsync(outDir, "screenshots-difference", 0);
+        // a region (what Shift+drag picks): every source side by side, zoomed to it
+        var rs = _view.ReferenceSize;
+        _view.ShowRegion(new Rect(rs.Width * 0.52, rs.Height * 0.30, rs.Width * 0.22, rs.Height * 0.22));
+        await SnapAsync(outDir, "screenshots-region", 0);
+        _view.SetZoom(0);
         SetViewMode(CompareMode.Wipe);
 
         await SnapAsync(outDir, "specs", 1);

@@ -12,30 +12,35 @@ screenshots from synthetic sources (2026-11-16).
 Open:
 - [ ] slow.pics upload not tested live (publishes images) — try once with the user's OK
 - [ ] Dolby Vision metadata parsing untested on a real DV file (none available)
-- [ ] Chroma-origin check is hidden by lossy re-encodes (works on clean masters only)
-- [ ] Sync: a remux whose video starts later than its audio (e.g. 0.25 s) can come out "not reliable" — the picture
-      refine should rescue it
-- [ ] Inverse telecine on real (not synthetic) pulldown material, incl. mixed film/video
-- [ ] Release cards / per-GB value view, timeline strip, region zoom across sources
+- [x] Chroma-origin check under lossy re-encodes (2026-11-18): "probably upsampled" hint between -8 and -4 dB, tested
+      to CRF 35 (coherence / local-energy alternatives tried: codec noise correlates with luma edges too). Needs a
+      real camera 4:4:4 sample before tightening the hard limit.
+- [x] Sync rescue (2026-11-18): when the audio does not match (other mix, delayed-video remux) the picture alone finds
+      the offset (candidates from the audio + a grid near zero, best agreed frame match; integration test).
+- [~] Inverse telecine (2026-11-18): checked at 3 places (mixed film/video flagged), hard telecine reported as film,
+      idet report parsing fixed (ffmpeg prints two reports in either order). Synthetic mixed material verified; real
+      pulldown still needs a matching film master of the same title.
+- [x] Release cards with value (share of the best score at share of its size, VMAF per GB), timeline strip under the
+      viewer, Shift+drag region zoom across sources (2026-11-18).
 - [ ] Calibrate the untagged-MP3 heuristics (Xing old/new, Blade, FhG, GOGO...) against the original
       EncSpot 2.2 on the same files (reference/orig has the old installers) and against mp3guessenc output.
 - [ ] More real-world encoder samples: FhG (ACM, fastenc, mp3enc), Xing, Blade, Helix, iTunes, GOGO, old LAME.
-- [ ] Spot: lossy-source / upsampling check for FLAC: reuse Compare's spectrum cutoff + spectrogram
-      (Ces.Core AudioAnalyzer); fake 24-bit via wasted bits; as a column + details tab.
+- [x] Spot: lossless-source check for FLAC and WAV (2026-11-18): lossy-source brick wall, upsampling cliff at
+      22.05/24 kHz, padded bits; Source column, Spectrum tab, CSV.
 - [ ] Packaging like TaoExif: Inno installer + win zip (bundled ffmpeg full + MediaInfo, updater), .deb, linux
       tarball (done: Debian 13 + Ubuntu 24.04 .deb), macOS .app.
 - [x] Results cache (path + size + mtime), 2026-11-18: Spot file results and Compare results (video/audio analysis,
       sync, remaster checks, metrics, BDInfo full scans) come back when a file is seen again; LRU size limit in Settings.
       Saved Spot results (.cess), Save details (text / JSON), Compare tab Copy / Save… as text, File › Save results
       (Ctrl+S, per mode) / Open saved results (Ctrl+L), always-visible job area + Stop at the bottom right.
-- [ ] Column chooser / saved column layout; remember sort.
-- [ ] Possible extra formats: Ogg Vorbis/Opus, M4A (AAC/ALAC), WAV.
+- [x] Column chooser (header right-click, Spot › Columns), saved widths/order/sort (2026-11-18).
+- [x] Extra formats (2026-11-18): WAV, Ogg Vorbis/Opus/FLAC (page CRCs), M4A AAC/ALAC.
 - [x] BDInfo engine (UniqProject/BDInfo 0.7.6.2, LGPL 2.1) in external/BDInfo as its own BDInfo.dll (kept outside
       the single-file ces.exe, LICENSE-BDInfo.txt in the packages); reads BD folders, ISOs and ISOs inside RAR sets;
       `ces bdinfo` (2026-11-17).
   - [x] Compare: BDInfo tab, the in-depth option: quick read on add, Full scan of each compared title, quick
         summaries side by side with differences highlighted, full reports (copy / save), in the HTML report.
-  - [ ] Spot: video formats too, at a quick glance: MKV/MP4/M2TS/BD/DVD in the list with codec, profile, resolution,
+  - [x] Spot: video formats too (2026-11-18, via ffprobe/MediaInfo; ISOs, disc folders, video in RAR sets), at a quick glance: MKV/MP4/M2TS/BD/DVD in the list with codec, profile, resolution,
         HDR, bitrate, encoder library + settings (x264/x265 info string), audio + subtitle tracks; details window.
         BD folders/ISOs via BDInfo's quick read; MKV/MP4 need ffprobe or MediaInfo (Spot needs no ffmpeg today).
   - [ ] A built-in Blu-ray test fixture (tiny BD authored with tsMuxeR); real-disc test runs with CES_BD_SAMPLE.

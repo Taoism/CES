@@ -27,6 +27,7 @@ public sealed partial class MainWindow
     }
 
     private readonly List<GuiShotRow> _rows = [];
+    private readonly Controls.TimelineStrip _timeline = new();
     private readonly ListBox _rowList = new() { MinWidth = 150 };
     private readonly CompareView _view = new() { Focusable = true };
     private readonly ComboBox _shotMode = new() { ItemsSource = new[] { "Evenly spaced", "Random", "Chapters", "Custom times", "Detailed shots" }, SelectedIndex = 0, Width = 140 };
@@ -140,7 +141,7 @@ public sealed partial class MainWindow
             new StackPanel { Orientation = Orientation.Horizontal, Spacing = 0, Children = { _modeSingle, _modeWipe, _modeSbs, _modeDiff, _modeFlick } },
             _diffGain, _flickSpeed,
             new Border { Width = 10 }, fit, z1, z2, z4, _zoomLabel, new Border { Width = 10 }, back, fwd,
-            Muted("1–9 source · Shift+1–9 compare-with · Space toggles · ↑↓ rows · wheel zoom · drag pan"),
+            Muted("1–9 source · Shift+1–9 compare-with · Space toggles · ↑↓ rows · wheel zoom · drag pan · Shift+drag a region: all sources zoomed to it"),
         ]);
         foreach (var c in bar2.Children.OfType<Control>())
             c.VerticalAlignment = VerticalAlignment.Center;
@@ -148,7 +149,14 @@ public sealed partial class MainWindow
         _view.ViewChanged += (_, _) =>
         {
             _zoomLabel.Text = _view.Zoom <= 0 ? $"fit ({_view.EffectiveScale:P0})" : $"{_view.Zoom:P0}";
+            // the view can switch mode itself (Shift+drag a region → side by side)
+            UpdateModeButtons(_view.Mode);
             UpdateStatsHighlight();
+        };
+        _timeline.MarkClicked += i =>
+        {
+            if (i < _rowList.ItemCount)
+                _rowList.SelectedIndex = i;
         };
         _rowList.SelectionChanged += (_, _) => RefreshShotView();
         _rowList.KeyDown += (_, e) =>
@@ -172,6 +180,9 @@ public sealed partial class MainWindow
         var statsBorder = new Border { Classes = { "panel" }, Padding = new Thickness(8, 5), Margin = new Thickness(0, 6, 0, 0), Child = _shotStats };
         DockPanel.SetDock(statsBorder, Dock.Bottom);
         viewer.Children.Add(statsBorder);
+        DockPanel.SetDock(_timeline, Dock.Bottom);
+        _timeline.Margin = new Thickness(0, 6, 0, 0);
+        viewer.Children.Add(_timeline);
         viewer.Children.Add(new Border { Classes = { "panel" }, Margin = new Thickness(0, 6, 0, 0), ClipToBounds = true, Child = _view });
 
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("170,6,*"), Margin = new Thickness(0, 8, 0, 0) };
@@ -530,6 +541,11 @@ public sealed partial class MainWindow
     private void SetViewMode(CompareMode mode)
     {
         _view.Mode = mode;
+        UpdateModeButtons(mode);
+    }
+
+    private void UpdateModeButtons(CompareMode mode)
+    {
         _modeSingle.IsChecked = mode == CompareMode.Single;
         _modeWipe.IsChecked = mode == CompareMode.Wipe;
         _modeSbs.IsChecked = mode == CompareMode.SideBySide;
@@ -539,8 +555,16 @@ public sealed partial class MainWindow
         _flickSpeed.IsVisible = mode == CompareMode.Flicker;
     }
 
+    /// <summary>Screenshot times and chapters of the reference on the timeline strip.</summary>
+    private void UpdateTimeline()
+    {
+        var title = _items.Count > 0 ? _items[0].Title : null;
+        _timeline.Set(title?.Duration ?? 0, _rows.Select(r => r.Row.Time).ToList(), title?.Chapters.Select(c => c.Start).ToList() ?? [], _rowList.SelectedIndex);
+    }
+
     private void RefreshShotView()
     {
+        UpdateTimeline();
         if (_rowList.SelectedItem is not GuiShotRow row)
         {
             _view.SetImages([], [], [], _items.Count == 0 ? "Add sources (drop them here), then take screenshots." : "Press “Take screenshots”.");
