@@ -17,6 +17,8 @@ public sealed class SessionFile
 
     public static readonly JsonSerializerOptions Json = new()
     {
+        // set explicitly: the results cache asks these options for type info before any (de)serialization has run
+        TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver(),
         WriteIndented = false,
         NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals,
         PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,

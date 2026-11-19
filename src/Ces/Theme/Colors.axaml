@@ -104,6 +104,9 @@
       <SolidColorBrush x:Key="ExpanderChevronBorderBrush" Color="Transparent" />
       <SolidColorBrush x:Key="ProgressBarBackground" Color="#FF2C2E33" />
       <SolidColorBrush x:Key="ProgressBarBorderBrush" Color="#FF2C2E33" />
+      <SolidColorBrush x:Key="TreeViewItemForegroundDisabled" Color="#FF7A7D84" />
+      <SolidColorBrush x:Key="TreeViewItemForegroundSelectedDisabled" Color="#FF8A8D94" />
+      <SolidColorBrush x:Key="TreeViewItemBackgroundSelectedDisabled" Color="#FF2C2E33" />
       <SolidColorBrush x:Key="TabItemHeaderForegroundUnselected" Color="#FF9A9CA1" />
       <SolidColorBrush x:Key="TabItemHeaderForegroundSelected" Color="#FFE8E8EA" />
     </ResourceDictionary>
@@ -200,6 +203,9 @@
       <SolidColorBrush x:Key="ExpanderChevronBorderBrush" Color="Transparent" />
       <SolidColorBrush x:Key="ProgressBarBackground" Color="#FFE3E5E8" />
       <SolidColorBrush x:Key="ProgressBarBorderBrush" Color="#FFE3E5E8" />
+      <SolidColorBrush x:Key="TreeViewItemForegroundDisabled" Color="#FF9A9CA1" />
+      <SolidColorBrush x:Key="TreeViewItemForegroundSelectedDisabled" Color="#FF8A8D94" />
+      <SolidColorBrush x:Key="TreeViewItemBackgroundSelectedDisabled" Color="#FFE6E8EB" />
 
       <SolidColorBrush x:Key="DataGridGridLinesBrush" Color="#FFE3E5E8" />
       <SolidColorBrush x:Key="DataGridColumnHeaderBackgroundBrush" Color="#FFF3F4F6" />

@@ -98,3 +98,15 @@ public sealed class ResultsCacheTests : IDisposable
         Assert.Equal("  Note: fine", lines[4]);
     }
 }
+
+public sealed class CompareCacheTypesTests
+{
+    /// <summary>Regression (0.3.2): the Compare cache asked SessionFile.Json for type info before any serialization ran.</summary>
+    [Fact]
+    public void SessionOptionsGiveTypeInfoUpFront()
+    {
+        Assert.NotNull(SessionFile.Json.GetTypeInfo(typeof(SessionSource)));
+        Assert.NotNull(SessionFile.Json.GetTypeInfo(typeof(MainWindow.CachedPair)));
+        Assert.NotNull(SessionFile.Json.GetTypeInfo(typeof(string)));
+    }
+}
