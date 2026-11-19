@@ -101,3 +101,60 @@ public sealed class FrameRepeatTests
     public void StillPictureIsNotPulldown() =>
         Assert.False(Ces.Analysis.SyncDetector.IsFrameRepeatPulldown(Enumerable.Repeat(0.0, 60).ToList()));
 }
+
+public sealed class DoviRpuTests
+{
+    private static byte[] Rpu(string name) => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", name));
+
+    [Theory]
+    [InlineData("rpu-p5.bin", 2457, 1419)]
+    [InlineData("rpu-p81.bin", 2458, 1710)]
+    [InlineData("rpu-p84.bin", 2458, 1710)]
+    public void LevelOneFromRealRpus(string file, int maxPq, int avgPq)
+    {
+        var rpu = Ces.Analysis.DoviRpu.Parse(Rpu(file));
+        Assert.NotNull(rpu);
+        // the parts FFmpeg prints too: proof that the bit position is right when the extension blocks start
+        Assert.Equal(7, rpu.SourceMinPq);
+        Assert.Equal(3079, rpu.SourceMaxPq);
+        Assert.Equal(42, rpu.SourceDiagonal);
+        Assert.Equal((0, maxPq, avgPq), rpu.Level1);
+        Assert.Equal([2081, 2851, 3079], rpu.TrimTargetsPq);
+        // level 6 repeats the clip's static HDR10 values (MaxCLL 244, MaxFALL 145)
+        Assert.Equal((1000, 1, 244, 145), rpu.Level6);
+    }
+
+    [Fact]
+    public void RpuValuesBecomePerShotNits()
+    {
+        var d = new Ces.Analysis.DynamicHdr { Kind = "Dolby Vision", MasteringOnly = true };
+        Ces.Analysis.HdrMetadata.Apply(d, Ces.Analysis.DoviRpu.Parse(Rpu("rpu-p81.bin"))!);
+        Assert.False(d.MasteringOnly);
+        Assert.True(d.RpuRead);
+        Assert.InRange(d.MaxNits, 230, 250);
+        Assert.Equal([100.0, 600, 1000], d.TrimTargetsNits);
+    }
+
+    [Fact]
+    public void DamagedRpuIsRejected()
+    {
+        var b = Rpu("rpu-p84.bin");
+        Assert.Null(Ces.Analysis.DoviRpu.Parse(b.AsSpan(0, 60)));
+        b[2] = 0x18; // not the RPU prefix
+        Assert.Null(Ces.Analysis.DoviRpu.Parse(b));
+    }
+
+    [Fact]
+    public void FindsRpusInAnAnnexBStream()
+    {
+        var rpu = Rpu("rpu-p81.bin");
+        byte[] stream = [0, 0, 0, 1, 0x40, 0x01, 0x0C, 0x01, 0, 0, 1, .. rpu, 0, 0, 0, 1, 0x26, 0x01, 0xAF];
+        var found = Ces.Analysis.DoviRpu.RpuNals(stream);
+        Assert.Single(found);
+        Assert.Equal(rpu, found[0]);
+    }
+
+    [Fact]
+    public void PicksTheFrameAtTheSeekPoint() =>
+        Assert.Equal(3, Ces.Analysis.HdrMetadata.PickFrame([-0.4, -0.43, -0.45, 0, -0.03, 0.06], 6));
+}

@@ -13,7 +13,11 @@ Open:
 - [ ] slow.pics upload not tested live (publishes images) — try once with the user's OK
 - [x] Dolby Vision on real files (Jellyfin test clips, profiles 5 / 8.1 / 8.4, 2026-11-18): RPU read for every profile,
       mastering-only RPU (ffprobe prints no level-1 blocks) not mistaken for per-shot metadata, tidy HDR line.
-  - [ ] Per-shot DV values need the L1 blocks: parse the raw RPU ("Dolby Vision RPU Data") ourselves.
+  - [x] Per-shot DV values (2026-11-18): own RPU parser (Analysis/DoviRpu.cs: mapping, NLQ, DM data, extension
+        blocks L1 / L2 / L6), RPU copied (not decoded) from the keyframe, frame picked by FFmpeg's -debug_ts packet
+        times; trusted only when its source max equals FFmpeg's. The Jellyfin clips do carry L1 (the "mastering only"
+        verdict was ffprobe not printing it): 8.1 / 8.4 follow the picture, P5's L1 is constant. Trims (L2) listed.
+        Not covered: AV1 (profile 10) RPUs, use_prev_vdr_rpu, the CM v4.0 second block set (L3/L8–L11).
 - [x] Chroma-origin check under lossy re-encodes (2026-11-18): "probably upsampled" hint between -8 and -4 dB, tested
       to CRF 35 (coherence / local-energy alternatives tried: codec noise correlates with luma edges too). Real camera
       4:4:4 (Xiph SVT park_joy / old_town_cross): genuine reads -1…+7 dB (no false alarms), but upsampled real footage

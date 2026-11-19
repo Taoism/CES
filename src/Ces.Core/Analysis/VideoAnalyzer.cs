@@ -358,7 +358,9 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
                 Area = "Dolby Vision",
                 Level = over ? 1 : 0,
                 Text = $"RPU metadata in every sampled frame{(v.DvProfile > 0 ? $" (profile {v.DvProfile})" : "")}: mastering display up to {top:0} nits" +
-                       (over ? $", but the picture reaches ≈{picturePeak:0} nits." : ". Per-shot (level 1) values are not available from ffprobe, so they are not checked."),
+                       (over ? $", but the picture reaches ≈{picturePeak:0} nits." : all.Any(x => x.DynamicHdr!.RpuRead)
+                           ? ". The RPU carries no per-shot (level 1) values: nothing per shot to check."
+                           : ". Per-shot (level 1) values could not be read from the RPU, so they are not checked."),
             });
             return;
         }
@@ -373,7 +375,8 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
         {
             var kind = dyn[0].DynamicHdr!.Kind;
             var maxes = dyn.Select(x => x.DynamicHdr!.MaxNits).ToList();
-            if (dyn.Count >= 3 && maxes.Max() - maxes.Min() < 1)
+            var flat = dyn.Count >= 3 && maxes.Max() - maxes.Min() < 1;
+            if (flat)
                 f.Add(new Finding { Area = kind, Level = 1, Text = $"Dynamic metadata is the same in every sampled shot (max {maxes[0]:0} nits): not analysed per shot — generated or converted metadata." });
             // luma peak is below maxRGB, so only a picture clearly brighter than its metadata is a contradiction
             var brighter = dyn.Count(x => !double.IsNaN(x.PeakNits) && x.PeakNits > x.DynamicHdr!.MaxNits * 1.25 + 20);
@@ -382,8 +385,11 @@ public sealed partial class VideoAnalyzer(FfTools tools, string tempDir)
                 f.Add(new Finding { Area = kind, Level = 2, Text = $"In {brighter}/{dyn.Count} sampled shots the picture is brighter than the metadata says: metadata from another master or a bad conversion (displays will clip highlights)." });
             else if (dimmer * 2 >= dyn.Count && dimmer > 0)
                 f.Add(new Finding { Area = kind, Level = 1, Text = $"In {dimmer}/{dyn.Count} sampled shots the metadata claims far brighter highlights than the picture has (over-dimmed tone mapping on displays)." });
-            else
+            else if (!flat)
                 f.Add(new Finding { Area = kind, Level = 0, Text = $"Dynamic metadata follows the picture: max {maxes.Min():0}–{maxes.Max():0} nits across {dyn.Count} sampled shots." });
+            var trims = dyn.SelectMany(x => x.DynamicHdr!.TrimTargetsNits).Distinct().Order().ToList();
+            if (trims.Count > 0)
+                f.Add(new Finding { Area = kind, Level = 0, Text = $"Colourist trims (level 2) for {string.Join(" / ", trims.Select(x => x.ToString("0", Inv)))}-nit displays." });
         }
         // static HDR10: MaxCLL should not be below what the picture really reaches
         var m = MaxCllRegex().Match(v.ContentLight);
