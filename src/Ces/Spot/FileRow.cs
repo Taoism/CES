@@ -25,7 +25,8 @@ public sealed class FileRow(string path, long size) : INotifyPropertyChanged
     /// <summary>File name; for a file inside a RAR set "set.rar › track.flac".</summary>
     public string Name { get; } = Vfs.Vfs.IsVirtual(path) ? Vfs.Vfs.Display(path) : System.IO.Path.GetFileName(path);
     public string Folder { get; } = System.IO.Path.GetDirectoryName(Vfs.Vfs.RealFile(path)) ?? "";
-    public long Size { get; } = size;
+    /// <summary>File size; for a disc folder the compared title's size once it is read.</summary>
+    public long Size => size > 0 ? size : _result?.FileSize ?? 0;
     public string SizeText => Size.ToString("N0", Inv);
 
     public AnalysisResult? Result
@@ -50,6 +51,9 @@ public sealed class FileRow(string path, long size) : INotifyPropertyChanged
     }
 
     public bool IsDone => _result is not null;
+
+    /// <summary>A quality rating to show (video and unknown formats have none).</summary>
+    public bool HasQuality => _result is not null && (_result.Error is not null || _result.Quality != QualityRating.Unknown);
     public string Format => _result?.Format ?? "";
     public string Encoder => _result is null ? (_busy ? "analyzing…" : "") : _result.Error is not null ? "error: " + _result.Error : _result.Encoder;
     public string Settings => _result?.EncoderSettings ?? "";
@@ -60,7 +64,9 @@ public sealed class FileRow(string path, long size) : INotifyPropertyChanged
     public int SampleRate => _result?.SampleRate ?? 0;
     public string SampleRateText => SampleRate == 0 ? "" : SampleRate.ToString(Inv);
     public string ModeText => _result is null ? "" : _result.BitsPerSample > 0 ? string.Create(Inv, $"{_result.BitsPerSample}-bit {_result.ModeName}") : _result.ModeName;
-    public string VbrText => _result is null || _result.Error is not null || _result.Format == "FLAC" ? "" : _result.IsVbr ? "yes" : "no";
+    /// <summary>Lossy audio only (MP3, Vorbis, Opus, AAC): blank for lossless files and video.</summary>
+    public string VbrText => _result is null || _result.Error is not null || (_result.Mp3 is null && _result.Ogg is null && _result.Mp4 is null)
+        || _result.Quality == QualityRating.Lossless ? "" : _result.IsVbr ? "yes" : "no";
     public long Frames => _result?.FrameCount ?? 0;
     public string FramesText => Frames == 0 ? "" : Frames.ToString(Inv);
     public string Confidence => _result is null || _result.Error is not null ? "" : _result.Confidence.ToString();

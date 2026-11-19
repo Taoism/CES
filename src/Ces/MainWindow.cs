@@ -35,6 +35,7 @@ public sealed partial class MainWindow : Window
     private readonly List<CompareItem> _items = [];
     private readonly string _temp = Path.Combine(Path.GetTempPath(), "CES", Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
     private FfTools? _tools;
+    private readonly TaskCompletionSource<FfTools?> _toolsReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private CancellationTokenSource? _cts;
 
     private readonly StackPanel _sourcePanel = new() { Spacing = 8 };
@@ -72,6 +73,7 @@ public sealed partial class MainWindow : Window
         _spot = new SpotView(settings) { SkipLastFolder = args.Any(a => File.Exists(a) || Directory.Exists(a)) };
         _spot.CompareRequested += async paths => await CompareFromSpotAsync(paths);
         _spot.SessionUsed += RememberRecent;
+        _spot.Tools = () => _toolsReady.Task;
         Icon = AppIcon;
         Width = settings.WindowWidth;
         Height = settings.WindowHeight;
@@ -415,6 +417,11 @@ public sealed partial class MainWindow : Window
                 Toggle("Include _subfolders", _settings.SpotSubfolders, on => _spot.SetSubfolders(on)),
                 Toggle("Only files with _problems", _settings.SpotProblemsOnly, on => _spot.SetProblemsOnly(on)),
                 Toggle("_Decode FLAC (CRC + MD5 check)", _settings.SpotDecodeFlac, on => _settings.SpotDecodeFlac = on),
+                Toggle("Include _video files and discs (needs ffmpeg)", _settings.SpotVideo, on =>
+                {
+                    _settings.SpotVideo = on;
+                    _spot.Rescan();
+                }),
                 SpotColumnsMenu(),
                 new Separator(),
                 InSpot("Open saved spot _results…", () => _spot.OpenResultsAsync()),
@@ -557,6 +564,7 @@ public sealed partial class MainWindow : Window
         SetStatus("Looking for ffmpeg…");
         var (tools, error) = await FfTools.LocateAsync(_settings.FFmpegFolder, _settings.MediaInfoPath);
         _tools = tools;
+        _toolsReady.TrySetResult(tools);
         if (tools == null)
         {
             SetStatus(error ?? "ffmpeg not found");

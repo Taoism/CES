@@ -59,6 +59,9 @@ public sealed class AppSettings
     public bool SpotDecodeFlac { get; set; } = true;
     public bool SpotProblemsOnly { get; set; }
 
+    /// <summary>Spot also lists video files, ISOs and Blu-ray / DVD folders (read with ffprobe / MediaInfo).</summary>
+    public bool SpotVideo { get; set; } = true;
+
     /// <summary>Spot list columns in display order (header, shown, width); empty = the default layout.</summary>
     public List<SpotColumn> SpotColumns { get; set; } = [];
     public string SpotSortColumn { get; set; } = "";

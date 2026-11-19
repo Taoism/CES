@@ -28,7 +28,7 @@ public sealed record InfoItem(string Group, string Name, string Value);
 public sealed class AnalysisResult
 {
     public required string Path { get; init; }
-    public long FileSize { get; init; }
+    public long FileSize { get; internal set; }
     public DateTime LastWriteUtc { get; init; }
 
     /// <summary>"MP3", "MP2", "MP1", "FLAC", or "Unknown".</summary>

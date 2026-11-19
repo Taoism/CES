@@ -63,6 +63,9 @@ public sealed partial class SpotView : UserControl
 
     public int Count => _rows.Count;
 
+    /// <summary>ffprobe / MediaInfo for video rows; completes when the window has looked for them.</summary>
+    public Func<Task<Tools.FfTools?>> Tools { get; set; } = () => Task.FromResult<Tools.FfTools?>(null);
+
     /// <summary>Set when paths come from the command line: do not load the last folder first.</summary>
     public bool SkipLastFolder { get; set; }
 
@@ -147,6 +150,7 @@ public sealed partial class SpotView : UserControl
             PathBox.Text = inputs[0];
         }
         bool recursive = _settings.SpotSubfolders;
+        bool video = _settings.SpotVideo;
         _cts ??= new CancellationTokenSource();
         var ct = _cts.Token;
         var existing = new HashSet<string>(_rows.Select(r => r.Path), StringComparer.OrdinalIgnoreCase);
@@ -164,9 +168,13 @@ public sealed partial class SpotView : UserControl
                 {
                     files.Add(Vfs.Vfs.IsVirtual(input) ? input : Path.GetFullPath(input));
                 }
+                else if (video && VideoGlance.IsDiscFolder(input))
+                {
+                    files.Add(Path.GetFullPath(input));
+                }
                 else if (Directory.Exists(input))
                 {
-                    files.AddRange(Enumerate(input, recursive, ct));
+                    files.AddRange(Enumerate(input, recursive, video, ct));
                 }
             }
             return files.Where(existing.Add).ToList();
@@ -186,19 +194,23 @@ public sealed partial class SpotView : UserControl
         }, CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.FromCurrentSynchronizationContext());
     }
 
-    private static IEnumerable<string> Enumerate(string folder, bool recursive, CancellationToken ct)
+    private static IEnumerable<string> Enumerate(string folder, bool recursive, bool video, CancellationToken ct)
     {
         var opts = new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = recursive, AttributesToSkip = FileAttributes.System };
+        bool Wanted(string f) => AudioAnalyzer.IsSupported(f) || (video && VideoGlance.IsVideo(f));
         List<string> found;
         try
         {
             var all = Directory.EnumerateFiles(folder, "*", opts).ToList();
-            found = all.Where(AudioAnalyzer.IsSupported).ToList();
-            // MP3 / FLAC packed in RAR sets (read in place)
+            // a Blu-ray / DVD folder is one row, not hundreds of .m2ts / .vob files
+            var discs = video ? DiscRoots(folder, recursive) : [];
+            found = all.Where(f => Wanted(f) && !discs.Any(d => f.StartsWith(d + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))).ToList();
+            found.AddRange(discs);
+            // audio (and video) packed in RAR sets, read in place
             foreach (var rar in all.Where(Vfs.Vfs.IsRarSet))
             {
                 ct.ThrowIfCancellationRequested();
-                found.AddRange(Vfs.Vfs.FilesInside(rar, AudioAnalyzer.IsSupported));
+                found.AddRange(Vfs.Vfs.FilesInside(rar, Wanted));
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -208,6 +220,21 @@ public sealed partial class SpotView : UserControl
         ct.ThrowIfCancellationRequested();
         return found.Order(StringComparer.OrdinalIgnoreCase);
     }
+
+    /// <summary>Folders under <paramref name="folder"/> (itself included) that hold BDMV or VIDEO_TS.</summary>
+    private static List<string> DiscRoots(string folder, bool recursive)
+    {
+        // the folder itself and its subfolders: a disc folder is one item even without "Include subfolders"
+        var dirs = new List<string> { folder };
+        dirs.AddRange(Directory.EnumerateDirectories(folder, "*", new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = recursive }));
+        return dirs.Where(d => Directory.Exists(Path.Combine(d, "BDMV")) || Directory.Exists(Path.Combine(d, "VIDEO_TS")))
+            .Select(Path.GetFullPath).ToList();
+    }
+
+    private AnalysisResult AnalyzeOne(string path, AnalyzeOptions options, CancellationToken ct) =>
+        VideoGlance.IsVideo(path) || Directory.Exists(path)
+            ? VideoGlance.AnalyzeAsync(path, Tools, ct).GetAwaiter().GetResult()
+            : AudioAnalyzer.Analyze(path, options, ct);
 
     private void Analyze(List<FileRow> rows, CancellationToken ct, bool fresh = false)
     {
@@ -239,7 +266,7 @@ public sealed partial class SpotView : UserControl
                     }
                     else
                     {
-                        result = AudioAnalyzer.Analyze(row.Path, options, ct);
+                        result = AnalyzeOne(row.Path, options, ct);
                         // unreadable files are not kept: the next visit tries again
                         if (key is not null && result.Error is null)
                         {
@@ -315,7 +342,7 @@ public sealed partial class SpotView : UserControl
         double kbits = done.Sum(r => r.Bitrate * r.Seconds);
         int problems = _rows.Count(r => r.HasProblems);
         var sb = new StringBuilder();
-        sb.Append(string.Create(Inv, $"{_rows.Count} files, {bytes / 1048576.0:0.0} MB"));
+        sb.Append(string.Create(Inv, $"{_rows.Count} files, {(bytes >= 10L << 30 ? $"{bytes / 1073741824.0:0.0} GB" : $"{bytes / 1048576.0:0.0} MB")}"));
         if (seconds > 0)
         {
             sb.Append(string.Create(Inv, $", {Fmt.Duration(seconds)}, {kbits / seconds:0.0} kbps average"));

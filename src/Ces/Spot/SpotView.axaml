@@ -81,7 +81,7 @@
           <DataGridTemplateColumn Header="Quality" Width="88" SortMemberPath="QualitySort">
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate x:DataType="m:FileRow">
-                <Border Classes="q" IsVisible="{Binding IsDone}" Classes.good="{Binding IsGood}" Classes.fair="{Binding IsFair}"
+                <Border Classes="q" IsVisible="{Binding HasQuality}" Classes.good="{Binding IsGood}" Classes.fair="{Binding IsFair}"
                         Classes.poor="{Binding IsPoor}" Classes.lossless="{Binding IsLossless}">
                   <TextBlock Text="{Binding QualityText}" FontSize="11.5" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
                 </Border>
