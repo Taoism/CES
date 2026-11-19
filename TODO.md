@@ -38,7 +38,7 @@ Open:
       named from ID3v2.2 TEN + iTunSMPB delay/padding; untagged: no scfsi and no preflag at all), Xing 1.5 (installed into testmedia-ext; its x3enc CLI: CBR = "Xing (old)" by no short blocks, VBR by its Xing
       header, whose frame count includes the header frame itself — no longer reported), FhG MP3 Surround 1.5 (licence accepted
       with the user's OK): CBR confirmed by the same Fraunhofer fingerprint (VBR modes fail silently). Still missing:
-      FhG mp3enc 3.1 (blocks without output on Windows 11), DOS-only l3enc / LAME 3.97d, a fingerprint for MP2
+      FhG mp3enc 3.1 (skipped for now: paid encoder that waits for a licence key; the RareWares copy is a warez rip), DOS-only l3enc / LAME 3.97d, a fingerprint for MP2
       (tooLAME / TwoLAME).
 - [x] Spot: lossless-source check for FLAC and WAV (2026-11-18): lossy-source brick wall, upsampling cliff at
       22.05/24 kHz, padded bits; Source column, Spectrum tab, CSV.
