@@ -8,7 +8,14 @@ A dark, cross-platform (Avalonia / .NET 10) tool with two modes and one command 
   metrics, remasters and subtitles.
 
 Both modes share one window, menu and status bar; switch with the Spot / Compare buttons or Ctrl+1 / Ctrl+2. In Spot,
-select two or more files and choose **Compare selected** to open them in Compare.
+select two or more files and choose **Compare selected** to open them in Compare. The bottom right of the status bar
+always shows what is running (job, count, elapsed time, progress) with a **Stop** button.
+
+**Results cache**: analysis results are kept for files seen before (same path, size and modification time), so
+revisiting a folder in Spot, or adding the same release again in Compare, brings back its results instantly: Spot file
+analyses; Compare video/audio analysis, sync, remaster checks, quality metrics and BDInfo full scans. Size limit and
+*Clear cache* in File › Settings (0 turns it off). **Save results** (Ctrl+S) saves the current mode's results:
+Spot results as `.cess`, comparisons as `.cesc`; **Open saved results** (Ctrl+L) opens either.
 
 Both modes navigate the same way: a directory tree on the left (opening where you last were), buttons above it
 (Spot: *Open folder*, *Add files*; Compare: *Add files*, *Add disc folder*, **Compare**), and the results on the right.
@@ -53,7 +60,9 @@ estimates the libFLAC compression level, and it recognises FFmpeg-encoded FLAC f
 (e.g. Mutagen) has replaced the vendor string. Spot mode needs no ffmpeg.
 
 The file list has an EncSpot-style quality column; double-click a file for its details: bitrate histogram and graph,
-reservoir use, block types, big values, stereo modes, FLAC predictor and LPC-order charts.
+reservoir use, block types, big values, stereo modes, FLAC predictor and LPC-order charts. **Save…** in the details
+window (or *Save details…* on selected files) writes the details as text or as JSON with everything that was measured;
+saved Spot results (`.cess`) reopen the whole list without reading the files again.
 
 ```
 ces spot [-r] [-d] [-j] [-q] [-p] [-t N] <file or folder>…
@@ -87,6 +96,8 @@ is detected and inverse-telecined (field matching + decimation) so frames pair o
 - **Comparisons are saved** as `.cesc` files (sources, titles, time maps, screenshot times, analysis, metrics, ranking,
   grade and frame checks);
   screenshots are re-grabbed on open. Recent comparisons in the File menu.
+- **Copy / Save…** at the right of the tabs: what the open tab shows as text (specs, video/audio findings and channel
+  stats, metrics and worst frames, remaster checks, subtitles, disc titles, BDInfo, screenshot stats); Ctrl+Shift+T.
 - **BDInfo**: the Blu-ray report from the BDInfo engine for each disc source (folder, ISO, or ISO inside a RAR set):
   quick summaries side by side with differences highlighted, and the full BDInfo report (forum paste, streams,
   chapters, stream diagnostics). **Full scan** reads the compared titles completely for exact sizes and bitrates.

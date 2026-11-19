@@ -23,6 +23,7 @@ public sealed class SettingsDialog : DialogWindow
     private readonly NumericUpDown _seed;
     private readonly CheckBox _hw;
     private readonly NumericUpDown _cache;
+    private readonly NumericUpDown _results;
 
     public SettingsDialog(AppSettings s) : base("Settings", 560)
     {
@@ -40,6 +41,14 @@ public sealed class SettingsDialog : DialogWindow
         {
             Tools.ShotCache.Clear();
             size.Text = $"{Model.Format.Size(Tools.ShotCache.SizeBytes())} in use";
+        };
+        _results = new NumericUpDown { Minimum = 0, Maximum = 100000, Increment = 128, Value = s.ResultsCacheMb, FormatString = "0", Width = 120 };
+        var clearResults = new Button { Content = "Clear cache" };
+        var resultsSize = Label($"{Model.Format.Size(Cache.ResultsCache.Shared.SizeBytes())} in use", muted: true);
+        clearResults.Click += (_, _) =>
+        {
+            Cache.ResultsCache.Shared.Clear();
+            resultsSize.Text = $"{Model.Format.Size(Cache.ResultsCache.Shared.SizeBytes())} in use";
         };
         SetBody(Column(10,
             Label("ffmpeg folder (with ffmpeg and ffprobe)"),
@@ -63,7 +72,9 @@ public sealed class SettingsDialog : DialogWindow
             Rule(),
             _hw,
             Label("Only frames copied back from the GPU can be analysed: on fast CPUs software decoding is quicker (measured: 4K HEVC 3.5 s vs 4.0 s per 10 s).", muted: true),
-            Row(10, Label("Screenshot cache (GB, 0 = off)"), _cache, clear, size)));
+            Row(10, Label("Screenshot cache (GB, 0 = off)"), _cache, clear, size),
+            Row(10, Label("Results cache (MB, 0 = off)"), _results, clearResults, resultsSize),
+            Label("Analysis results of files seen before (Spot files; Compare analyses, metrics and scans) come back instantly while the file is unchanged.", muted: true)));
     }
 
     protected override Task<bool> ValidateAsync()
@@ -80,6 +91,7 @@ public sealed class SettingsDialog : DialogWindow
         _s.RandomSeed = (int)(_seed.Value ?? 2024);
         _s.HardwareDecode = _hw.IsChecked == true;
         _s.ShotCacheGb = (int)(_cache.Value ?? 2);
+        _s.ResultsCacheMb = (int)(_results.Value ?? 512);
         return Task.FromResult(true);
     }
 }

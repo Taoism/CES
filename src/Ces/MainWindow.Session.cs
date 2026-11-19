@@ -41,31 +41,7 @@ public sealed partial class MainWindow
         }
         var s = new SessionFile();
         foreach (var it in _items)
-        {
-            var src = new SessionSource
-            {
-                Path = it.Source.Path,
-                Title = it.Title.Name,
-                Label = it.Label,
-                Offset = it.Sections.Count > 0 ? it.Sections.First(x => x.Offset != null).Offset!.Value : it.Offset,
-                Speed = it.Speed,
-                Synced = it.Synced,
-                Sections = it.Sections.Select(x => new SyncSection { Start = x.Start, Offset = x.Offset }).ToList(),
-                Video = it.Video,
-                Audio = it.Audio,
-                GradeFrames = it.Grade?.Frames ?? [],
-                GradeFindings = it.Grade?.Findings ?? [],
-                TemporalFindings = it.Temporal?.Findings ?? [],
-                FrameEvents = it.Temporal?.Events ?? [],
-                Ivtc = it.Ivtc,
-            };
-            foreach (var a in it.Audio)
-            {
-                if (a.SpectrogramPng != null && File.Exists(a.SpectrogramPng))
-                    src.Spectrograms[a.TrackIndex] = Convert.ToBase64String(await File.ReadAllBytesAsync(a.SpectrogramPng, CancellationToken.None));
-            }
-            s.Sources.Add(src);
-        }
+            s.Sources.Add(await ToSessionSourceAsync(it));
         s.Rows = _rows.Select(r => new SessionRow { Time = r.Row.Time, Caption = r.Row.Caption }).ToList();
         s.Metrics = _metrics.Select(m => new SessionMetric { Reference = _items.IndexOf(m.Reference), Distorted = _items.IndexOf(m.Distorted), Result = m.Result }).ToList();
         s.Ranking = _ranking.Select(r => new SessionRank { Item = _items.IndexOf(r.Item), Rank = r.Rank, Error = r.Error }).ToList();
@@ -82,6 +58,39 @@ public sealed partial class MainWindow
         RememberRecent(path);
         UpdateTitle();
         SetStatus("Saved " + path);
+    }
+
+    private static bool IsSavedResults(string p) =>
+        p.EndsWith(SessionExtension, StringComparison.OrdinalIgnoreCase) || p.EndsWith(SpotUi.SpotSession.Extension, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>File › Open saved results: Spot results (.cess) or a comparison (.cesc), in the matching mode.</summary>
+    private async Task OpenSavedAsync()
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open saved results",
+            FileTypeFilter = [new FilePickerFileType("CES results (spot results, comparisons)") { Patterns = ["*" + SpotUi.SpotSession.Extension, "*" + SessionExtension] }, SpotUi.SpotSession.FileType, SessionType],
+            SuggestedStartLocation = await StartFolderAsync(),
+        });
+        if ((files.Count > 0 ? files[0].TryGetLocalPath() : null) is { } p)
+            await OpenSavedAsync(p);
+    }
+
+    private async Task OpenSavedAsync(string path)
+    {
+        if (path.EndsWith(SpotUi.SpotSession.Extension, StringComparison.OrdinalIgnoreCase))
+        {
+            SetMode(true);
+            await _spot.LoadResultsAsync(path);
+            return;
+        }
+        SetMode(false);
+        if (_tools == null)
+        {
+            await MessageBox.ShowAsync(this, "Opening a comparison needs ffmpeg: set its folder in File › Settings.", MessageKind.Warning);
+            return;
+        }
+        await LoadSessionAsync(path);
     }
 
     private async Task OpenSessionAsync()
@@ -134,39 +143,11 @@ public sealed partial class MainWindow
                     if (title.Name != ss.Title)
                         problems.Add($"{ss.Path}: title {ss.Title} not found, using {title.Name}");
                     await new MediaProber(_tools).ProbeAsync(src, title, ct);
-                    var item = new CompareItem { Source = src, Title = title, Label = ss.Label, Speed = ss.Speed };
-                    item.Offset = ss.Offset;
-                    item.Sections.AddRange(ss.Sections);
-                    item.Synced = ss.Synced;
+                    var item = new CompareItem { Source = src, Title = title, Label = ss.Label };
+                    ApplyTimeMap(ss, item);
+                    ApplyPairResults(ss, item);
                     item.Video = ss.Video;
-                    item.Ivtc = ss.Ivtc;
-                    if (ss.GradeFrames.Count > 0 || ss.GradeFindings.Count > 0)
-                    {
-                        item.Grade = new GradeReport { Item = item };
-                        item.Grade.Frames.AddRange(ss.GradeFrames);
-                        item.Grade.Findings.AddRange(ss.GradeFindings);
-                    }
-                    if (ss.TemporalFindings.Count > 0)
-                    {
-                        item.Temporal = new TemporalReport { Item = item };
-                        item.Temporal.Findings.AddRange(ss.TemporalFindings);
-                        item.Temporal.Events.AddRange(ss.FrameEvents);
-                    }
-                    foreach (var a in ss.Audio)
-                    {
-                        if (ss.Spectrograms.TryGetValue(a.TrackIndex, out var b64))
-                        {
-                            var png = Path.Combine(_temp, $"spectrogram-{Guid.NewGuid():N}.png");
-                            Directory.CreateDirectory(_temp);
-                            await File.WriteAllBytesAsync(png, Convert.FromBase64String(b64), ct);
-                            a.SpectrogramPng = png;
-                        }
-                        else
-                        {
-                            a.SpectrogramPng = null;
-                        }
-                        item.Audio.Add(a);
-                    }
+                    await RestoreAudioAsync(ss, item, ct);
                     _items.Add(item);
                     map[i] = item;
                 }
@@ -196,6 +177,82 @@ public sealed partial class MainWindow
             await MessageBox.ShowAsync(this, "Opened with problems:\n\n" + string.Join("\n", problems), MessageKind.Warning);
     }
 
+    /// <summary>A source as saved: time map, analysis results and spectrograms (also the results cache's format).</summary>
+    private static async Task<SessionSource> ToSessionSourceAsync(CompareItem it)
+    {
+        var src = new SessionSource
+        {
+            Path = it.Source.Path,
+            Title = it.Title.Name,
+            Label = it.Label,
+            Offset = it.Sections.FirstOrDefault(x => x.Offset != null)?.Offset ?? it.Offset,
+            Speed = it.Speed,
+            Synced = it.Synced,
+            Sections = it.Sections.Select(x => new SyncSection { Start = x.Start, Offset = x.Offset }).ToList(),
+            Video = it.Video,
+            Audio = it.Audio,
+            GradeFrames = it.Grade?.Frames ?? [],
+            GradeFindings = it.Grade?.Findings ?? [],
+            TemporalFindings = it.Temporal?.Findings ?? [],
+            FrameEvents = it.Temporal?.Events ?? [],
+            Ivtc = it.Ivtc,
+        };
+        foreach (var a in it.Audio)
+        {
+            if (a.SpectrogramPng != null && File.Exists(a.SpectrogramPng))
+                src.Spectrograms[a.TrackIndex] = Convert.ToBase64String(await File.ReadAllBytesAsync(a.SpectrogramPng, CancellationToken.None));
+        }
+        return src;
+    }
+
+    /// <summary>Offset, speed, edit sections and inverse telecine.</summary>
+    private static void ApplyTimeMap(SessionSource ss, CompareItem item)
+    {
+        item.Speed = ss.Speed;
+        item.Sections.Clear();
+        item.Offset = ss.Offset;
+        item.Sections.AddRange(ss.Sections);
+        item.Synced = ss.Synced;
+        item.Ivtc = ss.Ivtc;
+    }
+
+    /// <summary>Grade &amp; framing and frame checks against source 1.</summary>
+    private static void ApplyPairResults(SessionSource ss, CompareItem item)
+    {
+        if (ss.GradeFrames.Count > 0 || ss.GradeFindings.Count > 0)
+        {
+            item.Grade = new GradeReport { Item = item };
+            item.Grade.Frames.AddRange(ss.GradeFrames);
+            item.Grade.Findings.AddRange(ss.GradeFindings);
+        }
+        if (ss.TemporalFindings.Count > 0)
+        {
+            item.Temporal = new TemporalReport { Item = item };
+            item.Temporal.Findings.AddRange(ss.TemporalFindings);
+            item.Temporal.Events.AddRange(ss.FrameEvents);
+        }
+    }
+
+    /// <summary>Audio reports, with their spectrograms written back to the temp folder.</summary>
+    private async Task RestoreAudioAsync(SessionSource ss, CompareItem item, CancellationToken ct)
+    {
+        foreach (var a in ss.Audio)
+        {
+            if (ss.Spectrograms.TryGetValue(a.TrackIndex, out var b64))
+            {
+                var png = Path.Combine(_temp, $"spectrogram-{Guid.NewGuid():N}.png");
+                Directory.CreateDirectory(_temp);
+                await File.WriteAllBytesAsync(png, Convert.FromBase64String(b64), ct);
+                a.SpectrogramPng = png;
+            }
+            else
+            {
+                a.SpectrogramPng = null;
+            }
+            item.Audio.Add(a);
+        }
+    }
+
     private void UpdateTitle() =>
         Title = _sessionPath != null ? $"{Path.GetFileNameWithoutExtension(_sessionPath)} — CES" : "CES — Compare Enc Spot";
 
@@ -216,12 +273,12 @@ public sealed partial class MainWindow
         _recentMenu.Items.Clear();
         foreach (var p in _settings.RecentSessions)
         {
-            var mi = new MenuItem { Header = p };
+            var mi = new MenuItem { Header = (p.EndsWith(SessionExtension, StringComparison.OrdinalIgnoreCase) ? "Compare · " : "Spot · ") + p.Replace("_", "__", StringComparison.Ordinal) };
             var path = p;
             mi.Click += async (_, _) =>
             {
                 if (File.Exists(path))
-                    await LoadSessionAsync(path);
+                    await OpenSavedAsync(path);
                 else
                     await MessageBox.ShowAsync(this, "Not found:\n" + path, MessageKind.Warning);
             };

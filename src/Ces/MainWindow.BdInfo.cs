@@ -114,7 +114,11 @@ public sealed partial class MainWindow
             if (!_bdDiscs.TryGetValue(it.Source, out var disc))
                 continue;
             var pl = PlaylistFor(it, disc);
-            list.Add((it, _items.IndexOf(it), disc, pl, pl == null ? disc.Report([]) : disc.Report([pl])));
+            // a full scan from an earlier visit stands in until this disc is scanned again
+            var report = pl == null ? disc.Report([])
+                : !disc.IsScanned([pl]) && CachedBdReport(it, pl.Name) is { } cached ? cached
+                : disc.Report([pl]);
+            list.Add((it, _items.IndexOf(it), disc, pl, report));
         }
         return list;
     }
@@ -125,6 +129,9 @@ public sealed partial class MainWindow
     /// <summary>The BDInfo reports for the HTML report (Blu-ray sources only).</summary>
     private List<BdInfoSection> BdInfoSections() =>
         _bdScanning ? [] : BdReports().Select(r => new BdInfoSection(r.Index, r.Item.Name, r.Report, r.Playlist != null && r.Disc.IsScanned([r.Playlist]))).ToList();
+
+    private bool IsBdScanned(CompareItem it, BdInfoDisc disc, TSPlaylistFile? pl) =>
+        pl != null && (disc.IsScanned([pl]) || CachedBdReport(it, pl.Name) != null);
 
     private void RenderBdInfo()
     {
@@ -143,7 +150,7 @@ public sealed partial class MainWindow
         }
         var reports = BdReports();
         var pending = items.Count(i => !_bdDiscs.ContainsKey(i.Source) && !_bdErrors.ContainsKey(i.Source));
-        var unscanned = reports.Count(r => r.Playlist == null || !r.Disc.IsScanned([r.Playlist]));
+        var unscanned = reports.Count(r => !IsBdScanned(r.Item, r.Disc, r.Playlist));
         _bdHint.Text = pending > 0 ? "Reading discs…"
             : unscanned > 0 ? "Quick read: sizes and bitrates are 0 until a full scan. Highlighted rows differ."
             : "Full scan done. Highlighted rows differ.";
@@ -199,9 +206,10 @@ public sealed partial class MainWindow
             card.Children.Add(Muted(_bdErrors.TryGetValue(it.Source, out var err) ? "BDInfo could not read this disc: " + err : "Reading the disc…"));
             return new Border { Classes = { "card" }, Child = card };
         }
-        var scanned = r.Playlist != null && r.Disc.IsScanned([r.Playlist]);
+        var scanned = IsBdScanned(it, r.Disc, r.Playlist);
+        var fromCache = scanned && r.Playlist != null && !r.Disc.IsScanned([r.Playlist]);
         var state = r.Playlist == null ? "no playlist BDInfo lists"
-            : $"{r.Playlist.Name}{(r.Playlist.Name.Equals(it.Title.Name, StringComparison.OrdinalIgnoreCase) ? "" : " (BDInfo leaves out " + it.Title.Name + ")")}  ·  {(scanned ? "full scan" : "quick read")}";
+            : $"{r.Playlist.Name}{(r.Playlist.Name.Equals(it.Title.Name, StringComparison.OrdinalIgnoreCase) ? "" : " (BDInfo leaves out " + it.Title.Name + ")")}  ·  {(fromCache ? "full scan (from the results cache)" : scanned ? "full scan" : "quick read")}";
         card.Children.Add(ChipLabel(idx, $"{it.Name}  ·  {state}"));
         foreach (var p in r.Disc.Problems)
             card.Children.Add(new TextBlock { Text = "Could not read " + p, TextWrapping = TextWrapping.Wrap }.Themed(TextBlock.ForegroundProperty, "ProblemBrush"));
@@ -255,6 +263,7 @@ public sealed partial class MainWindow
                     var start = done;
                     await disc.ScanAsync([pl], new Progress<double>(p => SetProgress((start + p * size) / total)), ct);
                     done += size;
+                    StoreBdReport(item, pl.Name, disc.Report([pl]));
                     AppendLog($"BDInfo {item.Name} {pl.Name}: {pl.TotalBitRate / 1e6:0.00} Mbps total");
                 }
             });

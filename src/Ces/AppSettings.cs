@@ -41,6 +41,9 @@ public sealed class AppSettings
 
     public int ShotCacheGb { get; set; } = 2;
 
+    /// <summary>Analysis results kept for files seen before (Spot and Compare), in MB; 0 = off.</summary>
+    public int ResultsCacheMb { get; set; } = 512;
+
     public double WindowWidth { get; set; } = 1500;
     public double WindowHeight { get; set; } = 920;
     public bool Maximized { get; set; }

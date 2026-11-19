@@ -64,6 +64,7 @@
             <MenuItem Header="Open containing folder" Click="OnOpenContaining" />
             <MenuItem Header="Copy path" Click="OnCopyPath" />
             <MenuItem Header="Copy info" Click="OnCopyInfo" />
+            <MenuItem Header="Save details…" Click="OnSaveDetails" />
             <MenuItem Header="Analyze again" Click="OnReanalyze" />
             <Separator />
             <MenuItem Header="Remove from list" Click="OnRemove" />

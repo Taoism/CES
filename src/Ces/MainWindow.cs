@@ -40,8 +40,7 @@ public sealed partial class MainWindow : Window
     private readonly StackPanel _sourcePanel = new() { Spacing = 8 };
     private readonly TabControl _tabs = new();
     private readonly TextBlock _status = new() { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-    private readonly ProgressBar _progress = new() { Width = 220, Minimum = 0, Maximum = 1, IsVisible = false, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Button _cancel = new() { Content = "Cancel", IsVisible = false, Classes = { "small" } };
+    private readonly Controls.JobArea _job = new();
     private readonly TextBox _log = new() { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.NoWrap, Classes = { "mono" } };
     private readonly List<Control> _busyDisabled = [];
     private readonly List<Control> _cardControls = []; // rebuilt with the source cards / disc tab
@@ -56,8 +55,7 @@ public sealed partial class MainWindow : Window
     private readonly MenuItem _viewSpot = new() { Header = "_Spot", ToggleType = MenuItemToggleType.Radio, GroupName = "mode", InputGesture = new KeyGesture(Key.D1, KeyModifiers.Control) };
     private readonly MenuItem _viewCompare = new() { Header = "_Compare", ToggleType = MenuItemToggleType.Radio, GroupName = "mode", InputGesture = new KeyGesture(Key.D2, KeyModifiers.Control) };
     private readonly TextBlock _spotStatus = new() { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-    private readonly ProgressBar _spotProgress = new() { Width = 220, Minimum = 0, Maximum = 1, IsVisible = false, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Button _spotStop = new() { Content = "Stop", IsVisible = false, Classes = { "small" } };
+    private readonly Controls.JobArea _spotJob = new();
     private Control _compareStatusRow = null!;
     private Control _spotStatusRow = null!;
     private Grid _compareBody = null!;
@@ -73,6 +71,7 @@ public sealed partial class MainWindow : Window
         Title = "CES — Compare Enc Spot";
         _spot = new SpotView(settings) { SkipLastFolder = args.Any(a => File.Exists(a) || Directory.Exists(a)) };
         _spot.CompareRequested += async paths => await CompareFromSpotAsync(paths);
+        _spot.SessionUsed += RememberRecent;
         Icon = AppIcon;
         Width = settings.WindowWidth;
         Height = settings.WindowHeight;
@@ -102,7 +101,9 @@ public sealed partial class MainWindow : Window
             if (files == null)
                 return;
             var paths = files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
-            if (_spotMode)
+            if (paths.FirstOrDefault(IsSavedResults) is { } saved)
+                await OpenSavedAsync(saved);
+            else if (_spotMode)
                 _spot.Open(paths, append: !(paths.Count == 1 && Directory.Exists(paths[0])));
             else
                 await AddPathsAsync(paths);
@@ -137,6 +138,12 @@ public sealed partial class MainWindow : Window
                     Items =
                     {
                         MenuItemFor("_Open…", () => _spotMode ? _spot.OpenFolderAsync() : AddFilesAsync(), new KeyGesture(Key.O, KeyModifiers.Control)),
+                        MenuItemFor("Open saved _results…", OpenSavedAsync, new KeyGesture(Key.L, KeyModifiers.Control)),
+                        (_recentMenu = new MenuItem { Header = "_Recent" }),
+                        new Separator(),
+                        MenuItemFor("_Save results", () => _spotMode ? _spot.SaveResultsAsync(false) : SaveSessionAsync(false), new KeyGesture(Key.S, KeyModifiers.Control)),
+                        MenuItemFor("Save results _as…", () => _spotMode ? _spot.SaveResultsAsync(true) : SaveSessionAsync(true), new KeyGesture(Key.S, KeyModifiers.Control | KeyModifiers.Shift)),
+                        MenuItemFor("Save _tab as text…", SaveTabTextAsync, new KeyGesture(Key.T, KeyModifiers.Control | KeyModifiers.Shift)),
                         MenuItemFor("_Export…", () => _spotMode ? _spot.ExportAsync() : ExportReportAsync(), new KeyGesture(Key.E, KeyModifiers.Control)),
                         new Separator(),
                         MenuItemFor("_Settings…", ShowSettingsAsync),
@@ -158,10 +165,10 @@ public sealed partial class MainWindow : Window
                         InCompare("Add disc _folder (BDMV / VIDEO_TS)…", AddFolderAsync, new KeyGesture(Key.O, KeyModifiers.Control | KeyModifiers.Shift)),
                         InCompare("Add folder of _releases…", AddReleaseFolderAsync),
                         new Separator(),
-                        InCompare("_Open comparison…", OpenSessionAsync, new KeyGesture(Key.L, KeyModifiers.Control)),
-                        (_recentMenu = new MenuItem { Header = "Recent comparisons" }),
-                        InCompare("_Save comparison", () => SaveSessionAsync(false), new KeyGesture(Key.S, KeyModifiers.Control)),
+                        InCompare("_Open comparison…", OpenSessionAsync),
+                        InCompare("_Save comparison", () => SaveSessionAsync(false)),
                         InCompare("Save comparison _as…", () => SaveSessionAsync(true)),
+                        InCompare("Save this _tab as text…", SaveTabTextAsync),
                         new Separator(),
                         InCompare("Export HTML _report…", ExportReportAsync),
                         InCompare("Save _screenshots…", ExportShotsAsync),
@@ -196,28 +203,31 @@ public sealed partial class MainWindow : Window
         _viewCompare.Click += (_, _) => SetMode(false);
 
         // status bar
-        _cancel.Click += (_, _) => _cts?.Cancel();
-        var statusGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 10 };
+        // status bar: message on the left, job state + Stop always on the right
+        _job.StopRequested += () => _cts?.Cancel();
+        var statusGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 10 };
         statusGrid.Children.Add(_status);
-        Grid.SetColumn(_progress, 1);
-        statusGrid.Children.Add(_progress);
-        Grid.SetColumn(_cancel, 2);
-        statusGrid.Children.Add(_cancel);
+        Grid.SetColumn(_job, 1);
+        statusGrid.Children.Add(_job);
         _compareStatusRow = statusGrid;
-        _spotStop.Click += (_, _) => _spot.Stop();
-        var spotGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 10 };
+        _spotJob.StopRequested += () => _spot.Stop();
+        var spotGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 10 };
         spotGrid.Children.Add(_spotStatus);
-        Grid.SetColumn(_spotProgress, 1);
-        spotGrid.Children.Add(_spotProgress);
-        Grid.SetColumn(_spotStop, 2);
-        spotGrid.Children.Add(_spotStop);
+        Grid.SetColumn(_spotJob, 1);
+        spotGrid.Children.Add(_spotJob);
         _spotStatusRow = spotGrid;
-        _spot.StatusChanged += (text, done, total) =>
+        _spot.StatusChanged += (text, job, done, total) =>
         {
             _spotStatus.Text = text;
-            _spotProgress.IsVisible = total > 0;
-            _spotStop.IsVisible = total > 0;
-            _spotProgress.Value = total > 0 ? (double)done / total : 0;
+            if (job == null)
+            {
+                _spotJob.Finish();
+                return;
+            }
+            if (_spotJob.JobName != job)
+                _spotJob.Start(job);
+            if (total > 0)
+                _spotJob.Count(done, total);
         };
         var statusBar = new Border { Classes = { "footer" }, Padding = new Thickness(10, 5), Child = new Panel { Children = { statusGrid, spotGrid } }, BorderThickness = new Thickness(0, 1, 0, 0) }.Themed(Border.BorderBrushProperty, "EdgeBrush");
         DockPanel.SetDock(statusBar, Dock.Bottom);
@@ -301,8 +311,10 @@ public sealed partial class MainWindow : Window
         var splitter = new GridSplitter { ResizeDirection = GridResizeDirection.Columns };
         Grid.SetColumn(splitter, 1);
         body.Children.Add(splitter);
-        Grid.SetColumn(_tabs, 2);
-        body.Children.Add(_tabs);
+        // Copy / Save… for whatever tab is open, at the right end of the tab strip
+        var tabHost = new Panel { Children = { _tabs, BuildTabActions() } };
+        Grid.SetColumn(tabHost, 2);
+        body.Children.Add(tabHost);
 
         _compareView = body;
 
@@ -404,6 +416,9 @@ public sealed partial class MainWindow : Window
                 Toggle("Only files with _problems", _settings.SpotProblemsOnly, on => _spot.SetProblemsOnly(on)),
                 Toggle("_Decode FLAC (CRC + MD5 check)", _settings.SpotDecodeFlac, on => _settings.SpotDecodeFlac = on),
                 new Separator(),
+                InSpot("Open saved spot _results…", () => _spot.OpenResultsAsync()),
+                InSpot("Sa_ve spot results…", () => _spot.SaveResultsAsync(true)),
+                InSpot("Save _details of selected files…", () => _spot.SaveSelectedDetailsAsync()),
                 InSpot("_Export spot report…", () => _spot.ExportAsync()),
                 InSpot("_Copy list as text", () => _spot.CopyListAsync()),
             },
@@ -441,6 +456,8 @@ public sealed partial class MainWindow : Window
     /// <summary>MP3 / FLAC files and plain folders go to Spot mode; media files, discs and sessions to Compare.</summary>
     private static bool IsSpotInput(string p)
     {
+        if (p.EndsWith(SpotUi.SpotSession.Extension, StringComparison.OrdinalIgnoreCase))
+            return true;
         if (File.Exists(p) && Ces.Vfs.Vfs.IsRarSet(p))
             return RarIsAudioOnly(p);
         if (File.Exists(p))
@@ -497,6 +514,9 @@ public sealed partial class MainWindow : Window
         Anywhere
           Ctrl+1 / Ctrl+2  Spot / Compare mode
           Ctrl+O           open (Spot: folder · Compare: add files)
+          Ctrl+L           open saved results (.cess spot results / .cesc comparison)
+          Ctrl+S           save results (Spot: .cess · Compare: .cesc);  Ctrl+Shift+S  save as
+          Ctrl+Shift+T     save the current Compare tab as text
           Ctrl+E           export (Spot: CSV / text report · Compare: HTML report)
           Ctrl+Shift+O     add disc folder    Ctrl+L  open comparison    Ctrl+S  save comparison
         """;
@@ -506,6 +526,8 @@ public sealed partial class MainWindow : Window
         Tools.InputBuilder.HardwareDecode = _settings.HardwareDecode ? (OperatingSystem.IsWindows() ? "d3d11va" : "auto") : null;
         Tools.ShotCache.Dir = _settings.ShotCacheGb > 0 ? Tools.ShotCache.DefaultDir : null;
         Tools.ShotCache.MaxBytes = Math.Max(1, _settings.ShotCacheGb) * 1024L * 1024 * 1024;
+        Cache.ResultsCache.Shared.MaxBytes = Math.Max(0, _settings.ResultsCacheMb) * 1024L * 1024;
+        _ = Task.Run(Cache.ResultsCache.Shared.Trim, CancellationToken.None);
     }
 
     private async Task StartupAsync(string[] args)
@@ -650,6 +672,8 @@ public sealed partial class MainWindow : Window
                     _items.Add(item);
                     _settings.LastFolder = Path.GetDirectoryName(src.Path.TrimEnd('\\', '/')) ?? _settings.LastFolder;
                     AppendLog($"Opened {src.DisplayName}: {item.Title}");
+                    if (await RestoreFromCacheAsync(item, ct) is { Count: > 0 } back)
+                        AppendLog($"From the results cache for {item.Name}: {string.Join(", ", back)}");
                 }
                 catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
                 {
@@ -951,9 +975,7 @@ public sealed partial class MainWindow : Window
         _cts = new CancellationTokenSource();
         foreach (var c in BusyControls)
             c.IsEnabled = false;
-        _cancel.IsVisible = true;
-        _progress.IsVisible = true;
-        _progress.IsIndeterminate = true;
+        _job.Start(name);
         SetStatus(name + "…");
         AppendLog($"== {name}");
         var ok = false;
@@ -962,6 +984,7 @@ public sealed partial class MainWindow : Window
             await job(_cts.Token);
             ok = true;
             SetStatus(name + " — done.");
+            await StoreInCacheAsync();
         }
         catch (OperationCanceledException)
         {
@@ -979,8 +1002,7 @@ public sealed partial class MainWindow : Window
             _cts = null;
             foreach (var c in BusyControls)
                 c.IsEnabled = true;
-            _cancel.IsVisible = false;
-            _progress.IsVisible = false;
+            _job.Finish();
         }
         return ok;
     }
@@ -989,8 +1011,7 @@ public sealed partial class MainWindow : Window
     {
         Dispatcher.UIThread.Post(() =>
         {
-            _progress.IsIndeterminate = false;
-            _progress.Value = Math.Clamp(fraction, 0, 1);
+            _job.Report(fraction);
         });
     }
 

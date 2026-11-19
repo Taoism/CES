@@ -78,5 +78,7 @@ public sealed partial class MainWindow
         using var bmp = new RenderTargetBitmap(size, new Vector(96 * scale, 96 * scale));
         bmp.Render(this);
         bmp.Save(Path.Combine(outDir, name + ".png"), PngBitmapEncoderOptions.Default);
+        // the tab as text too (what Copy / Save… on the tab strip produce)
+        await File.WriteAllTextAsync(Path.Combine(outDir, name + ".txt"), TabText(), CancellationToken.None);
     }
 }

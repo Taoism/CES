@@ -6,11 +6,18 @@ using Ces.Spot;
 namespace Ces.SpotUi;
 
 /// <summary>One file in the list; filled in when its analysis finishes.</summary>
-public sealed class FileRow(string path) : INotifyPropertyChanged
+public sealed class FileRow(string path, long size) : INotifyPropertyChanged
 {
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
     private AnalysisResult? _result;
     private bool _busy;
+
+    public FileRow(string path) : this(path, SafeLength(path))
+    {
+    }
+
+    /// <summary>A row for a saved result (no file access: the file may be gone).</summary>
+    public FileRow(AnalysisResult result) : this(result.Path, result.FileSize) => _result = result;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -18,7 +25,7 @@ public sealed class FileRow(string path) : INotifyPropertyChanged
     /// <summary>File name; for a file inside a RAR set "set.rar › track.flac".</summary>
     public string Name { get; } = Vfs.Vfs.IsVirtual(path) ? Vfs.Vfs.Display(path) : System.IO.Path.GetFileName(path);
     public string Folder { get; } = System.IO.Path.GetDirectoryName(Vfs.Vfs.RealFile(path)) ?? "";
-    public long Size { get; } = SafeLength(path);
+    public long Size { get; } = size;
     public string SizeText => Size.ToString("N0", Inv);
 
     public AnalysisResult? Result

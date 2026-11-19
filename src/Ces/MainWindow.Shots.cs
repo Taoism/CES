@@ -153,6 +153,9 @@ public sealed partial class MainWindow
         _rowList.SelectionChanged += (_, _) => RefreshShotView();
         _rowList.KeyDown += (_, e) =>
         {
+            // Ctrl / Alt combinations are menu shortcuts (Ctrl+S save, ...)
+            if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) != 0)
+                return;
             if (e.Key is >= Key.D1 and <= Key.D9 || e.Key is Key.Space or Key.Left or Key.Right or Key.W or Key.S or Key.A or Key.D or Key.T or Key.F or Key.Z or Key.D0 or Key.OemComma or Key.OemPeriod)
                 e.Handled = HandleShotKey(e);
         };

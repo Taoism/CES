@@ -24,7 +24,10 @@ Open:
       (Ces.Core AudioAnalyzer); fake 24-bit via wasted bits; as a column + details tab.
 - [ ] Packaging like TaoExif: Inno installer + win zip (bundled ffmpeg full + MediaInfo, updater), .deb, linux
       tarball (done: Debian 13 + Ubuntu 24.04 .deb), macOS .app.
-- [ ] Results cache (path + size + mtime) so re-opening big folders is instant.
+- [x] Results cache (path + size + mtime), 2026-11-18: Spot file results and Compare results (video/audio analysis,
+      sync, remaster checks, metrics, BDInfo full scans) come back when a file is seen again; LRU size limit in Settings.
+      Saved Spot results (.cess), Save details (text / JSON), Compare tab Copy / Save… as text, File › Save results
+      (Ctrl+S, per mode) / Open saved results (Ctrl+L), always-visible job area + Stop at the bottom right.
 - [ ] Column chooser / saved column layout; remember sort.
 - [ ] Possible extra formats: Ogg Vorbis/Opus, M4A (AAC/ALAC), WAV.
 - [x] BDInfo engine (UniqProject/BDInfo 0.7.6.2, LGPL 2.1) in external/BDInfo as its own BDInfo.dll (kept outside

@@ -48,6 +48,13 @@ public sealed class DetailsWindow : Window
         buttons.Children.Add(MakeButton("Go to folder", () => SpotView.ShowInFileManager(_row.Path)));
         buttons.Children.Add(MakeButton("Refresh", () => _reanalyze(_row)));
         buttons.Children.Add(MakeButton("Copy info", CopyInfo));
+        buttons.Children.Add(MakeButton("Save…", async () =>
+        {
+            if (_row.Result is { } r)
+            {
+                await SpotDetailsFile.SaveAsync(this, [r]);
+            }
+        }));
         var close = MakeButton("Close", Close);
         close.IsCancel = true;
         close.Classes.Add("accent");
@@ -85,6 +92,13 @@ public sealed class DetailsWindow : Window
     {
         var b = new Button { Content = text, MinWidth = 96, HorizontalContentAlignment = HorizontalAlignment.Center };
         b.Click += (_, _) => click();
+        return b;
+    }
+
+    private static Button MakeButton(string text, Func<Task> click)
+    {
+        var b = new Button { Content = text, MinWidth = 96, HorizontalContentAlignment = HorizontalAlignment.Center };
+        b.Click += async (_, _) => await click();
         return b;
     }
 

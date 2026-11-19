@@ -10,6 +10,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Ces.Cache;
 using Ces.Spot;
 
 namespace Ces.SpotUi;
@@ -26,12 +27,16 @@ public sealed partial class SpotView : UserControl
     private CancellationTokenSource? _cts;
     private int _pending;
     private int _total;
+    private int _fromCache;
     private bool _treeLoaded;
     private string[] _currentInputs = [];
     private string? _openWhenDone;
 
-    /// <summary>Status line text, files done, files to do (0 = nothing running) for the window's status bar.</summary>
-    public event Action<string, int, int>? StatusChanged;
+    /// <summary>Status line text, the running job (null = idle), files done and files to do, for the window's status bar.</summary>
+    public event Action<string, string?, int, int>? StatusChanged;
+
+    /// <summary>Spot results were saved to or opened from this file (for the recent list).</summary>
+    public event Action<string>? SessionUsed;
 
     /// <summary>The user asked to compare these files (switch to Compare mode).</summary>
     public event Action<IReadOnlyList<string>>? CompareRequested;
@@ -99,6 +104,11 @@ public sealed partial class SpotView : UserControl
     /// <summary>Opens files/folders; a single file also opens its details window when analyzed.</summary>
     public void Open(IReadOnlyList<string> paths, bool append)
     {
+        if (paths.FirstOrDefault(p => p.EndsWith(SpotSession.Extension, StringComparison.OrdinalIgnoreCase)) is { } saved)
+        {
+            _ = LoadResultsAsync(saved);
+            return;
+        }
         if (paths.Count == 1 && File.Exists(paths[0]) && !Vfs.Vfs.IsRarSet(paths[0]))
         {
             _openWhenDone = Path.GetFullPath(paths[0]);
@@ -135,7 +145,7 @@ public sealed partial class SpotView : UserControl
         _cts ??= new CancellationTokenSource();
         var ct = _cts.Token;
         var existing = new HashSet<string>(_rows.Select(r => r.Path), StringComparer.OrdinalIgnoreCase);
-        StatusChanged?.Invoke("Finding files…", 0, 1);
+        StatusChanged?.Invoke("Finding files…", "Finding files", 0, 0);
         Task.Run(() =>
         {
             var files = new List<string>();
@@ -159,6 +169,7 @@ public sealed partial class SpotView : UserControl
         {
             if (t.IsCanceled || t.IsFaulted || ct.IsCancellationRequested)
             {
+                UpdateStatus();
                 return;
             }
             var rows = t.Result.Select(f => new FileRow(f)).ToList();
@@ -193,12 +204,16 @@ public sealed partial class SpotView : UserControl
         return found.Order(StringComparer.OrdinalIgnoreCase);
     }
 
-    private void Analyze(List<FileRow> rows, CancellationToken ct)
+    private void Analyze(List<FileRow> rows, CancellationToken ct, bool fresh = false)
     {
         if (rows.Count == 0)
         {
             UpdateStatus();
             return;
+        }
+        if (_pending == 0)
+        {
+            _fromCache = 0;
         }
         _total += rows.Count;
         _pending += rows.Count;
@@ -211,7 +226,21 @@ public sealed partial class SpotView : UserControl
             {
                 Parallel.ForEach(rows, new ParallelOptions { MaxDegreeOfParallelism = threads, CancellationToken = ct }, row =>
                 {
-                    var result = AudioAnalyzer.Analyze(row.Path, options, ct);
+                    var key = CacheKey(row.Path, options);
+                    var result = fresh || key is null ? null : ResultsCache.Shared.Get(CacheKind, key, SpotJson.Result);
+                    if (result is not null)
+                    {
+                        Interlocked.Increment(ref _fromCache);
+                    }
+                    else
+                    {
+                        result = AudioAnalyzer.Analyze(row.Path, options, ct);
+                        // unreadable files are not kept: the next visit tries again
+                        if (key is not null && result.Error is null)
+                        {
+                            ResultsCache.Shared.Put(CacheKind, key, result, SpotJson.Result);
+                        }
+                    }
                     _done.Enqueue((row, result));
                 });
             }
@@ -221,6 +250,14 @@ public sealed partial class SpotView : UserControl
             }
         }, ct);
     }
+
+    private const string CacheKind = "spot";
+
+    /// <summary>Cache key: the file (path, size, mtime), the analyzer version and the options that change the result.</summary>
+    private static string? CacheKey(string path, AnalyzeOptions options) =>
+        ResultsCache.Shared.Enabled && ResultsCache.TryFileIdentity(path) is { } id
+            ? ResultsCache.Key(CacheKind, SpotJson.FormatVersion.ToString(Inv), typeof(AudioAnalyzer).Assembly.GetName().Version?.ToString() ?? "", options.DecodeFlac ? "decode" : "", id)
+            : null;
 
     private void Flush()
     {
@@ -278,14 +315,18 @@ public sealed partial class SpotView : UserControl
         {
             sb.Append(string.Create(Inv, $", {problems} with problems"));
         }
+        if (_fromCache > 0)
+        {
+            sb.Append(string.Create(Inv, $" · {_fromCache} from cache"));
+        }
         if (_total > 0 && _pending > 0)
         {
             sb.Append(string.Create(Inv, $" · analyzing {_total - _pending} / {_total}"));
-            StatusChanged?.Invoke(sb.ToString(), _total - _pending, _total);
+            StatusChanged?.Invoke(sb.ToString(), "Analyzing", _total - _pending, _total);
         }
         else
         {
-            StatusChanged?.Invoke(sb.ToString(), 0, 0);
+            StatusChanged?.Invoke(sb.ToString(), null, 0, 0);
         }
     }
 
@@ -406,6 +447,108 @@ public sealed partial class SpotView : UserControl
         await File.WriteAllTextAsync(path, content, new UTF8Encoding(true), CancellationToken.None);
     }
 
+    // ---------------------------------------------------------------- saved results (.cess)
+
+    private string? _sessionPath;
+
+    /// <summary>Saves every analysed file in the list (all columns and details) to a .cess file.</summary>
+    public async Task SaveResultsAsync(bool saveAs)
+    {
+        var top = TopLevel.GetTopLevel(this);
+        var done = _rows.Where(r => r.IsDone).Select(r => r.Result!).ToList();
+        if (top is null || done.Count == 0)
+        {
+            StatusChanged?.Invoke("Nothing to save yet: open a folder or files first.", null, 0, 0);
+            return;
+        }
+        var path = _sessionPath;
+        if (saveAs || path is null)
+        {
+            var name = _currentInputs.Length == 1 ? Path.GetFileName(_currentInputs[0].TrimEnd(Path.DirectorySeparatorChar, '/')) : "ces-spot";
+            var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save spot results",
+                DefaultExtension = SpotSession.Extension,
+                SuggestedFileName = (name.Length > 0 ? name : "ces-spot") + SpotSession.Extension,
+                FileTypeChoices = [SpotSession.FileType],
+            });
+            path = file?.TryGetLocalPath();
+            if (path is null)
+            {
+                return;
+            }
+        }
+        var session = new SpotSession { Inputs = [.. _currentInputs], Results = done };
+        try
+        {
+            await session.SaveAsync(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusChanged?.Invoke("Could not save: " + ex.Message, null, 0, 0);
+            return;
+        }
+        _sessionPath = path;
+        SessionUsed?.Invoke(path);
+        UpdateStatus();
+        StatusChanged?.Invoke(string.Create(Inv, $"Saved {done.Count} files to {path}"), null, 0, 0);
+    }
+
+    public async Task OpenResultsAsync()
+    {
+        var sp = TopLevel.GetTopLevel(this)?.StorageProvider;
+        if (sp is null)
+        {
+            return;
+        }
+        var files = await sp.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Open spot results", FileTypeFilter = [SpotSession.FileType] });
+        if ((files.Count > 0 ? files[0].TryGetLocalPath() : null) is { } p)
+        {
+            await LoadResultsAsync(p);
+        }
+    }
+
+    /// <summary>Shows saved results without reading the files again (Rescan analyses them anew).</summary>
+    public async Task LoadResultsAsync(string path)
+    {
+        SpotSession s;
+        try
+        {
+            s = await SpotSession.LoadAsync(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidDataException or NotSupportedException)
+        {
+            StatusChanged?.Invoke($"Could not read {Path.GetFileName(path)}: {ex.Message}", null, 0, 0);
+            return;
+        }
+        Cancel();
+        _rows.Clear();
+        _done.Clear();
+        _currentInputs = [.. s.Inputs];
+        PathBox.Text = path;
+        foreach (var r in s.Results)
+        {
+            _rows.Add(new FileRow(r));
+        }
+        _view.Refresh();
+        _sessionPath = path;
+        SessionUsed?.Invoke(path);
+        UpdateStatus();
+    }
+
+    public async Task SaveSelectedDetailsAsync()
+    {
+        var results = SelectedRows.Where(r => r.IsDone).Select(r => r.Result!).ToList();
+        if (results.Count == 0)
+        {
+            results = _view.OfType<FileRow>().Where(r => r.IsDone).Select(r => r.Result!).ToList();
+        }
+        if (await SpotDetailsFile.SaveAsync(TopLevel.GetTopLevel(this), results) is { } saved)
+        {
+            StatusChanged?.Invoke("Saved " + saved, null, 0, 0);
+        }
+    }
+
     public async Task CopyListAsync()
     {
         if (TopLevel.GetTopLevel(this)?.Clipboard is { } cb)
@@ -488,10 +631,12 @@ public sealed partial class SpotView : UserControl
         }
     }
 
+    /// <summary>Analyzes the file again, ignoring (and replacing) its cached result.</summary>
     private void Reanalyze(FileRow row)
     {
         _cts ??= new CancellationTokenSource();
-        Analyze([row], _cts.Token);
+        row.IsBusy = true;
+        Analyze([row], _cts.Token, fresh: true);
     }
 
     private void OnReanalyze(object? sender, RoutedEventArgs e)
@@ -518,6 +663,8 @@ public sealed partial class SpotView : UserControl
             await cb.SetTextAsync(text);
         }
     }
+
+    private async void OnSaveDetails(object? sender, RoutedEventArgs e) => await SaveSelectedDetailsAsync();
 
     private async void OnCopyInfo(object? sender, RoutedEventArgs e)
     {
