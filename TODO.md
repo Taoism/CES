@@ -28,7 +28,10 @@ Open:
       viewer, Shift+drag region zoom across sources (2026-11-18).
 - [ ] Calibrate the untagged-MP3 heuristics (Xing old/new, Blade, FhG, GOGO...) against the original
       EncSpot 2.2 on the same files (reference/orig has the old installers) and against mp3guessenc output.
-- [ ] More real-world encoder samples: FhG (ACM, fastenc, mp3enc), Xing, Blade, Helix, iTunes, GOGO, old LAME.
+- [~] Real encoder samples (2026-11-18, RareWares + Doom9 builds in testmedia-ext/encoders): GOGO 3.13 (VBR by "GOGO"
+      in the Xing quality field; CBR untagged → low "GOGO or old LAME"), Helix hmp3 5.2.4 (LAME-style tag "H5.24"),
+      LAME 3.95.1 and 3.99.5o, fpMP3 (LAME 3.98r; writes a truncated last frame), tooLAME / TwoLAME MP2 (still
+      Unknown). Still missing: FhG (ACM, FastEnc, mp3enc), Xing, Blade, iTunes, LAME 3.8x / 3.90–3.97.
 - [x] Spot: lossless-source check for FLAC and WAV (2026-11-18): lossy-source brick wall, upsampling cliff at
       22.05/24 kHz, padded bits; Source column, Spectrum tab, CSV.
 - [ ] Packaging like TaoExif: Inno installer + win zip (bundled ffmpeg full + MediaInfo, updater), .deb, linux

@@ -76,6 +76,13 @@ internal static partial class Mp3Report
             Set(r, "GOGO", GuessConfidence.High, "\"GOGO\" in ancillary data");
             return;
         }
+        // GOGO-no-coda writes "GOGO" into the Xing header's quality field
+        if (a.Xing?.Quality == 0x474F474F)
+        {
+            Set(r, "GOGO", GuessConfidence.High, "\"GOGO\" in the Xing header's quality field");
+            r.EncoderSettings = "VBR";
+            return;
+        }
         if (a.Xing is not null)
         {
             if (a.Xing.Id == "Xing")
@@ -93,6 +100,12 @@ internal static partial class Mp3Report
         if (a.FirstHeader.Layer == 3 && l3.AncillaryBytes > 64 && l3.AncillaryUBytes * 2 > l3.AncillaryBytes)
         {
             Set(r, "LAME (untagged)", GuessConfidence.Medium, "ancillary data filled with LAME's 0x55 pattern");
+            return;
+        }
+        // GOGO-no-coda (built on LAME 3.88) leaves leftover bytes, neither LAME's 0x55 nor zero; old LAME can look alike
+        if (a.FirstHeader.Layer == 3 && l3.AncillaryBytes > 64 && l3.AncillaryZeroBytes * 20 < l3.AncillaryBytes && l3.AncillaryUBytes * 20 < l3.AncillaryBytes)
+        {
+            Set(r, "GOGO or old LAME (untagged)", GuessConfidence.Low, "no tag; ancillary data neither zero nor LAME's 0x55 filler (GOGO-no-coda / LAME before 3.90)");
             return;
         }
         if (r.Tags?.Fields.TryGetValue("Encoder", out var tagged) == true)
@@ -125,6 +138,14 @@ internal static partial class Mp3Report
     private static void GuessFromLameTag(AnalysisResult r, Mp3Analysis a, LameTag t)
     {
         string enc = t.Encoder;
+        // Helix hmp3 writes a LAME-style tag with its own version ("H5.24" = hmp3 5.2.4); the LAME-only fields are unset
+        if (HelixRegex().Match(enc.StartsWith("LAME", StringComparison.Ordinal) ? enc[4..] : enc) is { Success: true } hx)
+        {
+            var ver = string.Join(".", hx.Groups[1].Value.Replace(".", "", StringComparison.Ordinal).Select(ch => ch.ToString()));
+            Set(r, "Helix hmp3 " + ver, GuessConfidence.High, $"LAME-style tag \"{enc}\" written by the Helix encoder");
+            r.EncoderSettings = string.Create(Inv, $"{(a.IsVbr ? "VBR" : "CBR")}{(t.LowpassHz > 0 ? $", lowpass {t.LowpassHz / 1000.0:0.0} kHz" : "")}");
+            return;
+        }
         if (enc.StartsWith("Lavc", StringComparison.Ordinal) || enc.StartsWith("Lavf", StringComparison.Ordinal))
         {
             Set(r, $"FFmpeg ({enc})", GuessConfidence.High, "LAME tag written by FFmpeg (usually libmp3lame)");
@@ -142,6 +163,9 @@ internal static partial class Mp3Report
         else
         {
             string ver = enc.StartsWith("LAME", StringComparison.Ordinal) ? enc[4..] : enc.StartsWith("L3.", StringComparison.Ordinal) ? enc[1..] : enc;
+            // some builds drop the dots to fit the 9 characters ("LAME3995o" = 3.99.5, build "o")
+            if (UndottedRegex().Match(ver.Trim()) is { Success: true } u)
+                ver = $"{u.Groups[1].Value}.{u.Groups[2].Value}.{u.Groups[3].Value}{(u.Groups[4].Value.Length > 0 ? " (" + u.Groups[4].Value + ")" : "")}";
             Set(r, "LAME " + ver.Trim(), GuessConfidence.High, $"LAME tag \"{enc}\"");
         }
         if (!t.HasExtendedInfo)
@@ -210,7 +234,8 @@ internal static partial class Mp3Report
         {
             r.Problems.Add(string.Create(Inv, $"{a.Layer3.BigValuesViolations} granule(s) with big_values > 288"));
         }
-        if (a.TrailingBytes > 0)
+        // a truncated last frame is already reported: its bytes are not separate junk
+        if (a.TrailingBytes > 0 && !a.BadLastFrame)
         {
             r.Problems.Add(string.Create(Inv, $"{a.TrailingBytes} bytes of junk after the last frame"));
         }
@@ -409,6 +434,12 @@ internal static partial class Mp3Report
         total == 0 ? "0" : string.Create(Inv, $"{n} ({100.0 * n / total:0.0}%)");
 
     private static string PctG(Layer3Stats l3, long n) => string.Create(Inv, $"{n} ({l3.Percent(n):0.0}%)");
+
+    [GeneratedRegex(@"^(\d)(\d\d)(\d)([a-z]?)$")]
+    private static partial Regex UndottedRegex();
+
+    [GeneratedRegex(@"^H(\d\.\d+)$")]
+    private static partial Regex HelixRegex();
 
     [GeneratedRegex(@"LAME\s?(\d\.\d+[a-z0-9 ().]*|[A-Za-z][A-Za-z0-9.]{1,15})")]
     private static partial Regex LameText();
