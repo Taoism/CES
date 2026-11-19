@@ -415,6 +415,7 @@ public sealed partial class MainWindow : Window
                 Toggle("Include _subfolders", _settings.SpotSubfolders, on => _spot.SetSubfolders(on)),
                 Toggle("Only files with _problems", _settings.SpotProblemsOnly, on => _spot.SetProblemsOnly(on)),
                 Toggle("_Decode FLAC (CRC + MD5 check)", _settings.SpotDecodeFlac, on => _settings.SpotDecodeFlac = on),
+                SpotColumnsMenu(),
                 new Separator(),
                 InSpot("Open saved spot _results…", () => _spot.OpenResultsAsync()),
                 InSpot("Sa_ve spot results…", () => _spot.SaveResultsAsync(true)),
@@ -423,6 +424,14 @@ public sealed partial class MainWindow : Window
                 InSpot("_Copy list as text", () => _spot.CopyListAsync()),
             },
         };
+    }
+
+    /// <summary>Spot › Columns: the column toggles, rebuilt each time it opens (the header's right-click menu too).</summary>
+    private MenuItem SpotColumnsMenu()
+    {
+        var mi = new MenuItem { Header = "C_olumns", ItemsSource = new[] { new MenuItem { Header = "…" } } };
+        mi.SubmenuOpened += (_, _) => mi.ItemsSource = _spot.ColumnMenuItems();
+        return mi;
     }
 
     /// <summary>A Spot menu item: switches to Spot mode first.</summary>

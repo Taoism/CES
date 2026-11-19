@@ -58,6 +58,11 @@ public sealed class AppSettings
     public bool SpotSubfolders { get; set; }
     public bool SpotDecodeFlac { get; set; } = true;
     public bool SpotProblemsOnly { get; set; }
+
+    /// <summary>Spot list columns in display order (header, shown, width); empty = the default layout.</summary>
+    public List<SpotColumn> SpotColumns { get; set; } = [];
+    public string SpotSortColumn { get; set; } = "";
+    public bool SpotSortDescending { get; set; }
     /// <summary>Left pane width, shared by Spot and Compare.</summary>
     public double SidebarWidth { get; set; } = 340;
     public int? DetailsX { get; set; }
@@ -98,5 +103,12 @@ public sealed class AppSettings
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true)]
+public sealed class SpotColumn
+{
+    public string Header { get; set; } = "";
+    public bool Visible { get; set; } = true;
+    public double Width { get; set; }
+}
+
 [JsonSerializable(typeof(AppSettings))]
 internal sealed partial class SettingsJson : JsonSerializerContext;

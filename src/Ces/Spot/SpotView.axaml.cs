@@ -55,6 +55,10 @@ public sealed partial class SpotView : UserControl
         FolderTree.NodeSelected += OnTreeSelection;
         MainGrid.ColumnDefinitions[0].Width = new GridLength(Math.Clamp(_settings.SidebarWidth, 200, 800));
         _flush = new DispatcherTimer(TimeSpan.FromMilliseconds(150), DispatcherPriority.Background, (_, _) => Flush());
+        _defaultColumns = Grid.Columns.Select(c => (c, c.Width)).ToList();
+        ApplyColumnLayout();
+        Grid.Sorting += (_, e) => Dispatcher.UIThread.Post(() => RememberSort(e.Column));
+        Grid.AddHandler(PointerReleasedEvent, OnHeaderPointerReleased, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
     }
 
     public int Count => _rows.Count;
@@ -81,6 +85,7 @@ public sealed partial class SpotView : UserControl
     /// <summary>Saves layout state and stops work (window closing).</summary>
     public void Shutdown()
     {
+        SaveColumnLayout();
         Cancel();
     }
 
@@ -284,6 +289,10 @@ public sealed partial class SpotView : UserControl
             _pending = 0;
             _total = 0;
             _flush.Stop();
+            if (_view.SortDescriptions.Count > 0)
+            {
+                _view.Refresh(); // rows were sorted before their results came in
+            }
             UpdateStatus();
         }
     }
