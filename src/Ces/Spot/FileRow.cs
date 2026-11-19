@@ -80,6 +80,8 @@ public sealed class FileRow(string path, long size) : INotifyPropertyChanged
     public bool IsLossless => Quality == QualityRating.Lossless;
     public bool HasProblems => _result is not null && (_result.Problems.Count > 0 || _result.Error is not null);
     public string Problems => _result is null ? "" : _result.Error ?? string.Join("; ", _result.Problems);
+    /// <summary>Lossless files: what the decoded audio says about the source ("ok", "lossy source? (16.0 kHz)", ...).</summary>
+    public string SourceCheck => _result?.SourceCheck ?? "";
     public string Artist => _result?.Artist ?? "";
     public string Title => _result?.Title ?? "";
     public string Album => _result?.Album ?? "";

@@ -30,7 +30,20 @@ public static class FlacAnalyzer
         }
         if (decode)
         {
-            new FrameWalker(s, a, framesStart, end, pcmOutput).Run(ct);
+            var stats = a.BitsPerSample is >= 4 and <= 32 && a.Channels > 0 && a.SampleRate > 0
+                ? new PcmStats(a.SampleRate, a.Channels, a.BitsPerSample, a.TotalSamples)
+                : null;
+            new FrameWalker(s, a, framesStart, end, pcmOutput, stats).Run(ct);
+            if (stats is not null)
+            {
+                a.UsedBits = stats.UsedBits;
+                a.PeakDb = stats.PeakDb;
+                a.Spectrum = stats.Spectrum;
+                if (a.Spectrum.Length > 0)
+                {
+                    (a.CutoffHz, a.CutoffSteepnessDb) = Dsp.Spectrum.FindCutoff(a.Spectrum, a.SampleRate);
+                }
+            }
         }
         return a;
     }
@@ -339,7 +352,7 @@ public static class FlacAnalyzer
     }
 
     /// <summary>Decodes frames sequentially, sliding a window over the file.</summary>
-    private sealed class FrameWalker(Stream s, FlacAnalysis a, long start, long end, Stream? pcmOutput)
+    private sealed class FrameWalker(Stream s, FlacAnalysis a, long start, long end, Stream? pcmOutput, PcmStats? stats)
     {
         private readonly byte[] _buf = new byte[WindowSize];
         private readonly FlacBits _bits = new();
@@ -483,7 +496,7 @@ public static class FlacAnalyzer
                     a.FrameCrcErrors++;
                 }
                 Decorrelate(fh.ChannelCode, bs);
-                if (hash || pcmOutput is not null)
+                if (hash || pcmOutput is not null || stats is not null)
                 {
                     Hash(nch, bs, fh.BitsPerSample, hash);
                 }
@@ -783,6 +796,7 @@ public static class FlacAnalyzer
                 _md5.AppendData(_pcm, 0, need);
             }
             pcmOutput?.Write(_pcm, 0, need);
+            stats?.Add(_pcm.AsSpan(0, need));
         }
     }
 }

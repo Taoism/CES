@@ -74,6 +74,19 @@ public sealed class FlacAnalysis
     public int DecodeErrors { get; internal set; }
     public long TrailingBytes { get; internal set; }
 
+    /// <summary>Bits in use in the decoded samples (lower than BitsPerSample for padded audio; 0 = silence or not decoded).</summary>
+    public int UsedBits { get; internal set; }
+
+    /// <summary>Highest sample level in dBFS (NaN when not decoded).</summary>
+    public double PeakDb { get; internal set; } = double.NaN;
+
+    /// <summary>Average spectrum in dB from windows across the file, up to Nyquist (empty when not decoded).</summary>
+    public double[] Spectrum { get; internal set; } = [];
+
+    /// <summary>Top of the content and how sharp that edge is (dB within ~1 kHz); NaN when not decoded.</summary>
+    public double CutoffHz { get; internal set; } = double.NaN;
+    public double CutoffSteepnessDb { get; internal set; } = double.NaN;
+
     /// <summary>Set when the samples were decoded and hashed.</summary>
     public byte[]? ComputedMd5 { get; internal set; }
 

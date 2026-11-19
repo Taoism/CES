@@ -48,6 +48,9 @@ public sealed class AnalysisResult
     public string GuessReason { get; internal set; } = "";
     public QualityRating Quality { get; internal set; }
 
+    /// <summary>What the decoded audio says about the source of a lossless file ("lossy source?", "upsampled", ...).</summary>
+    public string SourceCheck { get; internal set; } = "";
+
     public double DurationSeconds { get; internal set; }
     public double BitrateKbps { get; internal set; }
     public bool IsVbr { get; internal set; }

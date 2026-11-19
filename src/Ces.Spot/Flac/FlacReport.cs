@@ -31,8 +31,11 @@ internal static partial class FlacReport
         };
         Guess(r, a);
         Problems(r, a);
-        r.Quality = r.Problems.Count == 0 ? QualityRating.Lossless : QualityRating.Poor;
+        var streamProblems = r.Problems.Count;
         Details(r, a);
+        LosslessSource.Check(r, a.SampleRate, a.BitsPerSample, a.UsedBits, a.Spectrum, a.CutoffHz, a.CutoffSteepnessDb);
+        // a damaged stream is poor; a lossless file made from a lossy or lower-rate source is only fair
+        r.Quality = streamProblems > 0 ? QualityRating.Poor : r.Problems.Count > 0 ? QualityRating.Fair : QualityRating.Lossless;
     }
 
     private static void Guess(AnalysisResult r, FlacAnalysis a)

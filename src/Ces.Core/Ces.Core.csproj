@@ -10,6 +10,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ces.Vfs\Ces.Vfs.csproj" />
+    <ProjectReference Include="..\Ces.Spot\Ces.Spot.csproj" />
     <ProjectReference Include="..\..\external\BDInfo\BDInfo.csproj" />
   </ItemGroup>
 </Project>

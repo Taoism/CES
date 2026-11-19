@@ -95,6 +95,7 @@
               </DataTemplate>
             </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
+          <DataGridTextColumn Header="Source" Binding="{Binding SourceCheck}" Width="150" SortMemberPath="SourceCheck" />
           <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="94" SortMemberPath="Format" />
           <DataGridTextColumn Header="Hz" Binding="{Binding SampleRateText}" Width="80" SortMemberPath="SampleRate" />
           <DataGridTextColumn Header="Mode" Binding="{Binding ModeText}" Width="110" SortMemberPath="ModeText" />

@@ -17,7 +17,7 @@ namespace Ces.SpotUi;
 public static class SpotJson
 {
     /// <summary>Bumped whenever the analysis output changes, so cached results from older versions are ignored.</summary>
-    public const int FormatVersion = 1;
+    public const int FormatVersion = 2;
 
     public static readonly JsonSerializerOptions Options = new()
     {

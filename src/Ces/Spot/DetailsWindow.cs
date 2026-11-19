@@ -152,6 +152,27 @@ public sealed class DetailsWindow : Window
         _body.Content = dock;
     }
 
+    /// <summary>Average spectrum of the decoded audio, the evidence for the lossy-source / upsampling verdict.</summary>
+    internal static void AddSpectrumTab(TabControl tabs, double[] spectrum, int rate, double cutoffHz, string verdict)
+    {
+        if (spectrum.Length < 2 || rate <= 0)
+        {
+            return;
+        }
+        var n = spectrum.Length;
+        var hz = Enumerable.Range(0, n).Select(k => k * (rate / 2.0) / (n - 1)).ToArray();
+        var cut = double.IsNaN(cutoffHz) || cutoffHz >= rate / 2.0 * 0.97 ? "content up to Nyquist" : string.Create(Inv, $"content up to {cutoffHz / 1000:0.0} kHz");
+        var chart = new Ces.Controls.LineChart
+        {
+            Title = $"Average spectrum (dB) · {cut}{(verdict.Length > 0 && verdict != "ok" ? " · " + verdict : "")}",
+            XFormat = v => string.Create(Inv, $"{v / 1000:0.#} kHz"),
+            YFormat = v => string.Create(Inv, $"{v:0} dB"),
+            Margin = new Thickness(8),
+        };
+        chart.SetSeries([new Ces.Controls.ChartSeries("spectrum", MainWindow.Palette[0], hz, spectrum)]);
+        tabs.Items.Add(Tab("Spectrum", chart));
+    }
+
     private static TabItem Tab(string header, Control content) => new() { Header = header, Content = content };
 
     private static Control Overview(AnalysisResult r)
@@ -283,6 +304,7 @@ public sealed class DetailsWindow : Window
 
     private static void AddFlacTabs(TabControl tabs, FlacAnalysis f, AnalysisResult r)
     {
+        AddSpectrumTab(tabs, f.Spectrum, f.SampleRate, f.CutoffHz, r.SourceCheck);
         tabs.Items.Add(Tab("Bitrate graph", new LineChart
         {
             Title = "Bitrate per frame",

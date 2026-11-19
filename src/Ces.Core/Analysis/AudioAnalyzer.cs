@@ -176,47 +176,7 @@ public sealed partial class AudioAnalyzer(FfTools tools, string tempDir)
         (rep.CutoffHz, rep.CutoffSteepnessDb) = FindCutoff(rep.Spectrum, rate);
     }
 
-    /// <summary>
-    /// Highest frequency with real content: where the smoothed spectrum finally falls to the noise floor at the top.
-    /// Returns the steepness of that edge (dB lost within ~1 kHz) so a brick-wall lowpass can be told from a natural roll-off.
-    /// </summary>
-    internal static (double Hz, double Steepness) FindCutoff(double[] db, int rate)
-    {
-        var n = db.Length;
-        if (n < 64)
-            return (double.NaN, double.NaN);
-        var binHz = rate / 2.0 / (n - 1);
-        var smoothBins = Math.Max(1, (int)(150 / binHz));
-        var sm = new double[n];
-        for (var i = 0; i < n; i++)
-        {
-            double s = 0;
-            var c = 0;
-            for (var j = Math.Max(0, i - smoothBins); j <= Math.Min(n - 1, i + smoothBins); j++)
-            {
-                s += db[j];
-                c++;
-            }
-            sm[i] = s / c;
-        }
-        // noise floor: the quietest 1 kHz band above 5 kHz
-        var from = (int)(5000 / binHz);
-        var band = Math.Max(4, (int)(1000 / binHz));
-        var floor = double.MaxValue;
-        for (var i = from; i + band < n; i += band / 2)
-            floor = Math.Min(floor, sm.Skip(i).Take(band).Average());
-        var reference = sm.Skip((int)(1000 / binHz)).Take((int)(3000 / binHz)).Average();
-        if (floor >= double.MaxValue || reference - floor < 20)
-            return (rate / 2.0, double.NaN); // content all the way up (or flat noise)
-        var threshold = floor + Math.Min(10, (reference - floor) / 4);
-        var cut = n - 1;
-        while (cut > from && sm[cut] < threshold)
-            cut--;
-        var hz = cut * binHz;
-        var k = Math.Max(1, (int)(1000 / binHz));
-        var steep = sm[Math.Max(0, cut - k)] - sm[Math.Min(n - 1, cut + k)];
-        return (cut >= n - 1 - smoothBins ? rate / 2.0 : hz, steep);
-    }
+    internal static (double Hz, double Steepness) FindCutoff(double[] db, int rate) => Spectrum.FindCutoff(db, rate);
 
     public async Task<string?> SpectrogramAsync(MediaTitle title, int audioIndex, double start, double length, AudioAnalysisOptions opt, CancellationToken ct)
     {

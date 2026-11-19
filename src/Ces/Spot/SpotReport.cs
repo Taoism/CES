@@ -57,7 +57,7 @@ public static class SpotReport
     public static string Csv(IEnumerable<FileRow> rows)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Path,Format,Encoder,Confidence,Settings,Bitrate kbps,VBR,Length,Seconds,Sample rate,Mode,Frames,Size,Quality,Problems,Artist,Title,Album");
+        sb.AppendLine("Path,Format,Encoder,Confidence,Settings,Bitrate kbps,VBR,Length,Seconds,Sample rate,Mode,Frames,Size,Quality,Source,Problems,Artist,Title,Album");
         foreach (var r in rows)
         {
             var x = r.Result!;
@@ -65,7 +65,7 @@ public static class SpotReport
                 Q(r.Path), Q(x.Format), Q(r.Encoder), Q(r.Confidence), Q(r.Settings),
                 x.BitrateKbps.ToString("0.0", Inv), Q(r.VbrText), Q(r.LengthText), x.DurationSeconds.ToString("0.000", Inv),
                 x.SampleRate.ToString(Inv), Q(r.ModeText), x.FrameCount.ToString(Inv), r.Size.ToString(Inv),
-                Q(r.QualityText), Q(r.Problems), Q(r.Artist), Q(r.Title), Q(r.Album));
+                Q(r.QualityText), Q(r.SourceCheck), Q(r.Problems), Q(r.Artist), Q(r.Title), Q(r.Album));
             sb.AppendLine();
         }
         return sb.ToString();
