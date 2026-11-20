@@ -101,6 +101,18 @@ public sealed class MotionSignatureTests
     }
 
     [Fact]
+    public void AFewFramesShorterIsNotAnEdit()
+    {
+        // a UHD disc 14 frames shorter than the Blu-ray (black at the end)
+        var film = Film(9000, 14);
+        var r = Signature(film, Range(0, 8000), 1, 0.05, 15);
+        var o = Signature(film, Range(0, 7986), 1.2, 0.2, 16);
+        var map = MotionSignature.Map(r, o, MotionSignature.AlignWindows(r, o, Win, Step), Win);
+        Assert.NotNull(map);
+        Assert.Single(map);
+    }
+
+    [Fact]
     public void UnrelatedFilmsGiveNoMap()
     {
         var r = Signature(Film(6000, 7), Range(0, 6000), 1, 0.05, 8);

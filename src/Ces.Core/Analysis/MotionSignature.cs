@@ -248,10 +248,12 @@ public sealed partial class MotionSignature(float[] values, double fps, double f
         var on = Normalized(other);
         var sections = new List<SignatureSection>();
         // before the other starts: reference frames with no counterpart
+        // a head or tail under a second (a few black frames more or less at the end of a disc) is not an edit
+        var minEdge = Math.Max(1, win / 10);
         var lead = -shifts[0];
-        if (lead > 0)
+        if (lead >= minEdge)
             sections.Add(new SignatureSection(0, null, false));
-        sections.Add(new SignatureSection(Math.Max(0, lead), shifts[0], false));
+        sections.Add(new SignatureSection(lead >= minEdge ? lead : 0, shifts[0], false));
         for (var i = 1; i < runs.Count; i++)
         {
             int a = shifts[i - 1], b = shifts[i];
@@ -271,7 +273,7 @@ public sealed partial class MotionSignature(float[] values, double fps, double f
         }
         // after the other ends
         var tail = other.Length - shifts[^1];
-        if (tail < reference.Length - 1 && tail > sections[^1].RefFrame)
+        if (reference.Length - tail >= minEdge && tail > sections[^1].RefFrame)
             sections.Add(new SignatureSection(tail + 1, null, false));
         return sections;
 
