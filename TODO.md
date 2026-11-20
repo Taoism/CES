@@ -64,11 +64,14 @@ Open:
       (tooLAME / TwoLAME).
 - [x] Spot: lossless-source check for FLAC and WAV (2026-11-18): lossy-source brick wall, upsampling cliff at
       22.05/24 kHz, padded bits; Source column, Spectrum tab, CSV.
-- [ ] Pure Audio Blu-ray in Spot (user is fetching sample discs, 2026-11-19): open BD folder / ISO / RAR, music
-      playlists + chapters as tracks, lossless-source check (upsampled 44.1/48 → 96/192, padded bits) on LPCM /
-      TrueHD / DTS-HD MA; Compare already falls back to audio sync (still picture, no motion). Some have Atmos:
-      flag TrueHD + Atmos (own stream check, not only ffprobe's profile), check the decoded bed; objects not graded.
-      Samples: 8 rips + 4 complete discs (location to come).
+- [x] Music Blu-rays in Spot (2026-11-19): Ces.Core/Music/MusicAnalyzer.cs + `ces music`. A music title = lossless
+      audio (LPCM / TrueHD / DTS-HD MA / FLAC) with songs as chapters, by release name (MBluRay, PURE, Pure Audio, BDA)
+      or album shape. One row per mix (rip MKV, or each music playlist of a disc / ISO / RAR set as its .mpls path);
+      the stream is decoded once and every song checked: bits used, upsampling, lossy source, mono content (side
+      level L−R vs L+R below −30 dB; L = R → dual mono), peak, content range; TrueHD Atmos flagged, its 7.1 bed checked.
+      Hendrix set (4 discs + 8 rips): discs = rips; Electric Ladyland 2018 disc: 5.1
+      track 1 upsampled from 44.1 kHz, 48 kHz bonus playlist 16-bit padded to 24. Fixed: opening a playlist inside an
+      ISO (folder walk left the image). Not yet: GUI check of the rows on screen, Compare of two mixes of one album.
 - [ ] Packaging like TaoExif: Inno installer + win zip (bundled ffmpeg full + MediaInfo, updater), .deb, linux
       tarball (done: Debian 13 + Ubuntu 24.04 .deb), macOS .app.
 - [x] Results cache (path + size + mtime), 2026-11-18: Spot file results and Compare results (video/audio analysis,

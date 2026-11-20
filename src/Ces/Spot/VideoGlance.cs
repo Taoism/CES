@@ -20,7 +20,30 @@ public static class VideoGlance
     public static readonly string[] Extensions =
         [".mkv", ".mp4", ".m4v", ".mov", ".m2ts", ".mts", ".ts", ".avi", ".webm", ".wmv", ".mpg", ".mpeg", ".vob", ".iso"];
 
-    public static bool IsVideo(string path) => Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase);
+    public static bool IsVideo(string path) => Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase)
+        || Path.GetExtension(path).Equals(".mpls", StringComparison.OrdinalIgnoreCase); // one mix of a music Blu-ray
+
+    private static readonly string TempDir = Path.Combine(Path.GetTempPath(), "ces", "spot-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
+
+    /// <summary>
+    /// A music Blu-ray (by its release name) as one row per mix: its music playlists as .mpls paths. Anything else,
+    /// or a disc whose playlists are not music, stays the one path.
+    /// </summary>
+    public static async Task<List<string>> ExpandMusicAsync(string path, Func<Task<FfTools?>> tools, CancellationToken ct)
+    {
+        var disc = Directory.Exists(path) || Path.GetExtension(path).Equals(".iso", StringComparison.OrdinalIgnoreCase);
+        if (!disc || !Ces.Music.MusicAnalyzer.NameSaysMusic(path) || await tools().ConfigureAwait(false) is not { } ff)
+            return [path];
+        try
+        {
+            var found = await Ces.Music.MusicAnalyzer.FindAsync(ff, path, ct).ConfigureAwait(false);
+            return found.Count > 0 ? found.Select(f => f.Path).ToList() : [path];
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            return [path];
+        }
+    }
 
     /// <summary>A Blu-ray or DVD folder (the folder holding BDMV / VIDEO_TS, or that folder itself).</summary>
     public static bool IsDiscFolder(string dir)
@@ -54,7 +77,11 @@ public static class VideoGlance
             src = await SourceOpener.OpenAsync(path, false, ct).ConfigureAwait(false);
             var title = src.MainTitle ?? throw new InvalidDataException("no playable title");
             var info = await new MediaProber(ff).ProbeAsync(src, title, ct).ConfigureAwait(false);
-            Fill(r, src, title, info);
+            // a music release (songs as chapters, lossless audio): every song checked like a lossless file
+            if (Path.GetExtension(path).Equals(".mpls", StringComparison.OrdinalIgnoreCase) || Ces.Music.MusicAnalyzer.IsMusic(path, title, info))
+                await Ces.Music.MusicAnalyzer.AnalyzeAsync(ff, src, title, info, r, TempDir, ct).ConfigureAwait(false);
+            else
+                Fill(r, src, title, info);
         }
         catch (OperationCanceledException)
         {

@@ -84,6 +84,25 @@ Console.CancelKeyPress += (_, e) =>
 };
 var progress = new Progress<string>(s => Console.Error.WriteLine("  " + s));
 
+if (args[0] == "music")
+{
+    // music Blu-rays and their rips: every mix, every song checked like a lossless file
+    var any = false;
+    foreach (var path in cli.Positional)
+    {
+        foreach (var (open, title, _) in await Ces.Music.MusicAnalyzer.FindAsync(tools, path, cts.Token))
+        {
+            any = true;
+            await Console.Error.WriteLineAsync($"  Checking {title.Name}…");
+            var r = await Ces.Music.MusicAnalyzer.AnalyzePathAsync(tools, open, temp, cts.Token);
+            SpotCommand.WriteText(r, true);
+        }
+    }
+    if (!any)
+        await Console.Error.WriteLineAsync("ces: no music title found (lossless audio with songs as chapters)");
+    return any ? 0 : 1;
+}
+
 try
 {
     var items = new List<CompareItem>();

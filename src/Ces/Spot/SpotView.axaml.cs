@@ -177,6 +177,9 @@ public sealed partial class SpotView : UserControl
                     files.AddRange(Enumerate(input, recursive, video, ct));
                 }
             }
+            // music Blu-rays: one row per mix
+            if (video)
+                files = files.SelectMany(f => VideoGlance.ExpandMusicAsync(f, Tools, ct).GetAwaiter().GetResult()).ToList();
             return files.Where(existing.Add).ToList();
         }, ct).ContinueWith(t =>
         {

@@ -136,7 +136,7 @@ internal static class SpotCommand
         return results.Any(r => r.Problems.Count > 0 || r.Error is not null) ? 1 : 0;
     }
 
-    private static void WriteText(AnalysisResult r, bool details)
+    internal static void WriteText(AnalysisResult r, bool details)
     {
         var inv = CultureInfo.InvariantCulture;
         Console.WriteLine(r.Path);
@@ -151,6 +151,10 @@ internal static class SpotCommand
         if (r.EncoderSettings.Length > 0)
         {
             Console.WriteLine($"  settings: {r.EncoderSettings}");
+        }
+        if (r.SourceCheck.Length > 0)
+        {
+            Console.WriteLine($"  source: {r.SourceCheck}");
         }
         foreach (var p in r.Problems)
         {

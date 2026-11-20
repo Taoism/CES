@@ -41,7 +41,8 @@ public static class SourceOpener
             return await OpenRarAsync(path, includeShortPlaylists, ct).ConfigureAwait(false);
         if (V.FileExists(path) && Path.GetExtension(path).Equals(".iso", StringComparison.OrdinalIgnoreCase))
             return await OpenIsoAsync(path, includeShortPlaylists, ct).ConfigureAwait(false);
-        if (V.IsVirtual(path) && V.FileExists(path))
+        // a file inside an archive or image; a disc structure file (an .mpls picked inside an ISO) opens the disc
+        if (V.IsVirtual(path) && V.FileExists(path) && !(IsStructureFile(path) && FindDiscRoot(path) != null))
             return OpenFile(path);
 
         // a disc folder, or a file inside one (index.bdmv, an .mpls, VIDEO_TS.IFO …)
@@ -248,7 +249,7 @@ public static class SourceOpener
     private static (string Root, SourceKind Kind)? FindDiscRoot(string path)
     {
         // the root of a disc image ("x.iso::") is a directory too
-        var dir = path.EndsWith(V.Separator, StringComparison.Ordinal) || V.DirectoryExists(path) ? path : Path.GetDirectoryName(path);
+        var dir = path.EndsWith(V.Separator, StringComparison.Ordinal) || V.DirectoryExists(path) ? path : V.Parent(path);
         // walk up a few levels: STREAM/x.m2ts → BDMV → root
         for (var i = 0; i < 4 && dir != null; i++)
         {
@@ -262,7 +263,7 @@ public static class SourceOpener
                 return null;
             if (V.IsVirtual(dir) && dir.EndsWith(V.Separator, StringComparison.Ordinal))
                 return null; // do not walk out of the image
-            dir = Path.GetDirectoryName(dir);
+            dir = V.Parent(dir);
         }
         return null;
     }

@@ -38,6 +38,10 @@ public sealed class MediaSource
 public sealed class MediaTitle
 {
     public required string Name { get; init; }
+
+    /// <summary>The structure file the title came from (a Blu-ray's .mpls), so it can be opened on its own again; null for a plain file.</summary>
+    public string? StructureFile { get; init; }
+
     public string Description { get; set; } = "";
     public double Duration { get; set; }
     public bool IsMain { get; set; }

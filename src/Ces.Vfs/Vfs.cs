@@ -28,6 +28,22 @@ public static class Vfs
 
     public static string Combine(string container, string inner) => container + Separator + inner.Replace('\\', '/');
 
+    /// <summary>
+    /// The folder that holds <paramref name="path"/>, staying inside a container ("x.iso::BDMV/PLAYLIST" →
+    /// "x.iso::BDMV" → "x.iso::"); null above a container's root. Plain paths as Path.GetDirectoryName.
+    /// </summary>
+    public static string? Parent(string path)
+    {
+        var at = path.LastIndexOf(Separator, StringComparison.Ordinal);
+        if (at < 0)
+            return Path.GetDirectoryName(path);
+        var inner = path[(at + Separator.Length)..].Replace('\\', '/').Trim('/');
+        if (inner.Length == 0)
+            return null;
+        var slash = inner.LastIndexOf('/');
+        return path[..(at + Separator.Length)] + (slash < 0 ? "" : inner[..slash]);
+    }
+
     /// <summary>The real file the path starts in (the first RAR volume or the ISO on disk).</summary>
     public static string RealFile(string path)
     {

@@ -8,6 +8,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Ces.Tests" />
     <InternalsVisibleTo Include="ces-gui" />
+    <InternalsVisibleTo Include="Ces.Core" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Ces.Vfs\Ces.Vfs.csproj" />

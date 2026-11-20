@@ -42,7 +42,7 @@ public static class BluRayReader
             if (!seen.Add(key))
                 continue;
 
-            var title = new MediaTitle { Name = Path.GetFileName(file) };
+            var title = new MediaTitle { Name = Path.GetFileName(file), StructureFile = InnerSlashes(file) };
             double t = 0;
             var itemStarts = new List<double>();
             var missing = false;
@@ -122,6 +122,13 @@ public static class BluRayReader
         if (main != null)
             main.IsMain = true;
         return titles;
+    }
+
+    /// <summary>Inside an image the path after "::" uses forward slashes (Path.Combine adds backslashes).</summary>
+    private static string InnerSlashes(string path)
+    {
+        var at = path.LastIndexOf(V.Separator, StringComparison.Ordinal);
+        return at < 0 ? path : path[..(at + V.Separator.Length)] + path[(at + V.Separator.Length)..].Replace('\\', '/').TrimStart('/');
     }
 
     /// <summary>
