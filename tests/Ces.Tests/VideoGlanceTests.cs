@@ -13,6 +13,24 @@ public sealed class VideoGlanceTests
     }
 
     [Fact]
+    public void MediaInfoThatCouldNotOpenTheFileIsSkipped()
+    {
+        var info = new Ces.Model.MediaInfoSummary();
+        Ces.Probe.MediaProber.ApplyMediaInfo("{\"creatingLibrary\":{\"name\":\"MediaInfoLib\"},\"media\":null}", info, Ces.Model.SourceKind.File);
+        Assert.Empty(info.Streams);
+    }
+
+    [Fact]
+    public void LongPathsGetThePrefixForMediaInfo()
+    {
+        var longPath = @"C:\" + new string('a', 300) + @"\x.mkv";
+        Assert.Equal(OperatingSystem.IsWindows() ? @"\\?\" + longPath : longPath, Ces.Probe.MediaProber.LongPath(longPath));
+        Assert.Equal(@"C:\short\x.mkv", Ces.Probe.MediaProber.LongPath(@"C:\short\x.mkv"));
+        var inRar = @"K:\" + new string('a', 300) + @".rar::x.mkv";
+        Assert.Equal(inRar, Ces.Probe.MediaProber.LongPath(inRar));
+    }
+
+    [Fact]
     public void X265Keys() =>
         Assert.Equal("crf 20.0, ref 4, bframes 4, aq 2, psy-rd 2.00", VideoGlance.SettingsSummary("ref=4 bframes=4 crf=20.0 aq-mode=2 psy-rd=2.00 rc=crf"));
 

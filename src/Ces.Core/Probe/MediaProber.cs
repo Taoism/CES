@@ -261,7 +261,7 @@ public sealed partial class MediaProber(FfTools tools)
         ProcessResult res;
         try
         {
-            res = await ProcessRunner.RunAsync(tools.MediaInfo!, ["--Output=JSON", target], ct).ConfigureAwait(false);
+            res = await ProcessRunner.RunAsync(tools.MediaInfo!, ["--Output=JSON", LongPath(target)], ct).ConfigureAwait(false);
         }
         catch (System.ComponentModel.Win32Exception)
         {
@@ -279,10 +279,22 @@ public sealed partial class MediaProber(FfTools tools)
         }
     }
 
+    /// <summary>
+    /// MediaInfo on Windows cannot open a path of 260 characters or more (it answers "media": null) unless the path
+    /// has the \\?\ prefix.
+    /// </summary>
+    internal static string LongPath(string path) =>
+        OperatingSystem.IsWindows() && path.Length >= 260 && Path.IsPathFullyQualified(path) && !path.StartsWith(@"\\", StringComparison.Ordinal)
+            && !Vfs.Vfs.IsVirtual(path) // served over HTTP instead
+            ?@"\\?\" + path
+            : path;
+
     internal static void ApplyMediaInfo(string json, MediaInfoSummary info, SourceKind kind)
     {
         using var doc = JsonDocument.Parse(json);
-        if (!doc.RootElement.TryGetProperty("media", out var media) || !media.TryGetProperty("track", out var tracks))
+        // "media": null when MediaInfo could not open the file
+        if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("media", out var media)
+            || media.ValueKind != JsonValueKind.Object || !media.TryGetProperty("track", out var tracks) || tracks.ValueKind != JsonValueKind.Array)
             return;
         var byKind = new Dictionary<StreamKind, List<JsonElement>>();
         foreach (var t in tracks.EnumerateArray())
