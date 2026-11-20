@@ -1,6 +1,6 @@
 # CES TODO
 
-CES = Compare + Spot modes, v0.3.4 (2026-11-18).
+CES = Compare + Spot modes, v0.3.5 (2026-11-20).
 
 Done: whole-title sync, PAL speed, edits, sessions, ranking, difference/flicker, detailed shots (2026-11-15);
 artefacts (grain/banding/halos/chroma), audio remaster/upmix checks, HDR10+/DV metadata, subtitles (burn-in, timing),
