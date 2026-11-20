@@ -41,8 +41,10 @@ Open:
         0.000 s (7 min); 2160p remux vs a 2160p encode → -0.001 s (21 min, both 4K decodes share NVDEC).
         Found on the way: Blu-ray main title picked a 6 h decoy loop playlist (now: most distinct data, then longest);
         media-server connection stalled in a long run (not reproduced in a fresh process; ffmpeg now gets
-        -rw_timeout + reconnect, CES_SERVER_TRACE logs slow reads/writes). Still to try: 3D vs 2D, a real
-        different-cut pair. Earlier finding: a whole-film motion-signature alignment of this pair (10 s windows, FFT NCC)
+        -rw_timeout + reconnect, CES_SERVER_TRACE logs slow reads/writes). 3D vs 2D done (2026-11-19): 3D BD (MVC) vs
+        the Blu-ray → 0.000 s, identical audio, frames match; a 3D 1080p encode → 0.000 s, its video really
+        ends 101 frames (4.2 s, black + a faint fade) early, so "not in this source" for the tail is correct.
+        Still to try: a real different-cut pair (none on K: — needs material from the user). Earlier finding: a whole-film motion-signature alignment of this pair (10 s windows, FFT NCC)
         shows the real edit — the DVD has everything; the transfers differ by ~70 small splices (offset creeping
         -4.9 → -39.1 s in steps of a few frames) plus a few longer cuts. The audio map (different restorations, ncc
         ≈ 0.1) invents "not in this source" sections there. Use signatures to build or verify the edit map.
