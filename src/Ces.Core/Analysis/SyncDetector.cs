@@ -62,20 +62,29 @@ public sealed class SyncResult
     /// <summary>How many cut points were placed on the exact frame by the picture.</summary>
     public int FrameExactCuts { get; set; }
 
+    /// <summary>The edit map came from the whole-title motion signatures (the pictures), not the audio.</summary>
+    public bool PictureMapped { get; set; }
+
+    /// <summary>With <see cref="PictureMapped"/>: signature windows that matched clearly, of all compared.</summary>
+    public int PictureWindows { get; set; }
+    public int PictureWindowsTotal { get; set; }
+
     public string Summary
     {
         get
         {
-            if (Probes.Count == 0)
+            if (Probes.Count == 0 && !PictureMapped)
                 return "No audio match found.";
             if (!Reliable)
                 return $"No reliable match (best {Offset:+0.000;-0.000;0.000} s, confidence {Confidence:0.0}) — set the offset by hand or search the whole title";
             if (PictureOnly)
                 return $"Offset {Offset:+0.000;-0.000;0.000} s, matched by the picture alone (the audio did not line up: another mix or language?)";
-            var s = $"Offset {Offset:+0.000;-0.000;0.000} s (confidence {Confidence:0.0})";
+            var s = PictureMapped
+                ? $"Offset {Offset:+0.000;-0.000;0.000} s, edit map from the picture ({PictureWindows} of {PictureWindowsTotal} ten-second windows matched)"
+                : $"Offset {Offset:+0.000;-0.000;0.000} s (confidence {Confidence:0.0})";
             if (Math.Abs(Speed - 1) > 1e-6)
                 s += $", speed ×{Speed:0.#####} ({SpeedName(Speed)})";
-            if (VideoCorrection is { } vc)
+            if (VideoCorrection is { } vc && !PictureMapped)
                 s += Math.Abs(vc) > 0.001 ? $", picture-matched (audio alone said {AudioOffset:+0.000;-0.000;0.000} s)" : ", picture-matched";
             if (Ivtc != null)
                 s += $", 3:2 pulldown removed on {Ivtc} (inverse telecine)";
@@ -131,14 +140,6 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
     {
         var result = new SyncResult();
         var whole = opt.WholeTitle || opt.DetectEdits;
-        Track? full = null;
-        if (whole)
-        {
-            progress?.Report("Decoding the other source's audio…");
-            full = new Track(await DecodeAsync(other, 0, null, 1, progress, ct).ConfigureAwait(false), 0);
-            if (full.Samples.Length < Rate * 10)
-                return result;
-        }
 
         // 29.97 with 3:2 pulldown against 23.976 film: remove the pulldown so frames pair one to one
         foreach (var (tel, film) in new[] { (other, reference), (reference, other) })
@@ -172,6 +173,20 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
         var fo = InputBuilder.FrameRate(other);
         if (fr > 0 && fo > 0 && Math.Abs(fr - fo) > 0.01 && Math.Abs(fr / fo - 1) < 0.06)
             speeds.Add(fr / fo);
+
+        // edits with one possible speed: the picture map needs no audio at all, so try it before decoding any
+        var pictureTried = opt.DetectEdits && speeds.Count == 1 && opt.RefineWithVideo;
+        if (pictureTried && await PictureEditMapAsync(reference, other, 1, result, progress, ct).ConfigureAwait(false))
+            return result;
+
+        Track? full = null;
+        if (whole)
+        {
+            progress?.Report("Decoding the other source's audio…");
+            full = new Track(await DecodeAsync(other, 0, null, 1, progress, ct).ConfigureAwait(false), 0);
+            if (full.Samples.Length < Rate * 10)
+                return result;
+        }
         var speed = 1.0;
         if (speeds.Count > 1)
         {
@@ -196,7 +211,7 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
         result.Speed = speed;
 
         if (opt.DetectEdits)
-            return await DetectEditsAsync(reference, other, speed, full!, opt, result, progress, ct).ConfigureAwait(false);
+            return await DetectEditsAsync(reference, other, speed, full!, opt, result, pictureTried, progress, ct).ConfigureAwait(false);
 
         var count = whole ? Math.Max(opt.Probes, 5) : opt.Probes;
         // near search: the probes must fall where both sources have material
@@ -290,8 +305,11 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
         new(t, track.Start + m.Lag / (double)Rate - t * speed, confidence, m.Ncc);
 
     /// <summary>Probes along the whole title and turns runs of equal offsets into sections (cuts found to ±2 s).</summary>
-    private async Task<SyncResult> DetectEditsAsync(MediaTitle reference, MediaTitle other, double speed, Track full, SyncOptions opt, SyncResult result, IProgress<string>? progress, CancellationToken ct)
+    private async Task<SyncResult> DetectEditsAsync(MediaTitle reference, MediaTitle other, double speed, Track full, SyncOptions opt, SyncResult result, bool pictureTried, IProgress<string>? progress, CancellationToken ct)
     {
+        // the picture first (unless already tried before the audio): motion signatures line up across restorations whose audio does not
+        if (opt.RefineWithVideo && !pictureTried && await PictureEditMapAsync(reference, other, speed, result, progress, ct).ConfigureAwait(false))
+            return result;
         var dur = reference.Duration;
         var step = Math.Clamp(dur / 60, 20, 120);
         double? last = null;
@@ -447,6 +465,91 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
             }
         }
         return result;
+    }
+
+    /// <summary>
+    /// Builds the edit map from both titles' whole motion signatures (see <see cref="MotionSignature"/>): ten-second
+    /// windows of the reference located anywhere in the other, runs of equal frame shifts as sections, the steps
+    /// placed by the signatures and then on the exact frame by the pixels. False (nothing changed) when the frames do
+    /// not pair one to one or too few windows match clearly; the audio map is used then.
+    /// </summary>
+    private async Task<bool> PictureEditMapAsync(MediaTitle reference, MediaTitle other, double speed, SyncResult result, IProgress<string>? progress, CancellationToken ct)
+    {
+        var fr = InputBuilder.FrameRate(reference);
+        var fo = InputBuilder.FrameRate(other);
+        if (reference.Info?.Video == null || other.Info?.Video == null || fr <= 0 || fo <= 0 || Math.Abs(fr - fo * speed) > 0.01)
+            return false;
+        // both at once: each decode is one ffmpeg, and most machines have the cores for two
+        var tr = MotionSignature.ComputeAsync(tools, reference, tempDir, progress, "the reference", ct);
+        var to = MotionSignature.ComputeAsync(tools, other, tempDir, progress, "this source", ct);
+        var sr = await tr.ConfigureAwait(false);
+        var so = await to.ConfigureAwait(false);
+        if (sr == null || so == null)
+            return false;
+        progress?.Report("Lining up the pictures…");
+        int win = (int)Math.Round(10 * fr), step = (int)Math.Round(5 * fr);
+        var windows = await Task.Run(() => MotionSignature.AlignWindows(sr.Values, so.Values, win, step, ct), ct).ConfigureAwait(false);
+        var map = MotionSignature.Map(sr.Values, so.Values, windows, win);
+        if (map == null)
+            return false;
+        // other time = reference time · speed + offset; frame k of either sits at FirstTime + k / fps
+        var origin = so.FirstTime - sr.FirstTime * speed;
+        double Off(int shift) => origin + shift / fo;
+        double Start(int frame) => frame <= 0 ? 0 : sr.FirstTime + (frame - 0.5) / fr;
+        var sections = map.Select(m => new SyncSection { Start = Start(m.RefFrame), Offset = m.Shift is { } k ? Off(k) : null }).ToList();
+        result.PictureMapped = true;
+        result.PictureWindows = windows.Count(w => w.Good);
+        result.PictureWindowsTotal = windows.Count;
+        result.Reliable = true;
+        result.Confidence = windows.Where(w => w.Good).Select(w => w.Ncc).DefaultIfEmpty(0).Average() * 100;
+
+        // the absolute offset to the sub-frame from the real timestamps, on the longest matched section
+        var longest = Enumerable.Range(0, sections.Count).Where(i => sections[i].Offset != null)
+            .MaxBy(i => (i + 1 < sections.Count ? sections[i + 1].Start : reference.Duration) - sections[i].Start);
+        var lEnd = longest + 1 < sections.Count ? sections[longest + 1].Start : reference.Duration;
+        var mid = (sections[longest].Start + lEnd) / 2;
+        progress?.Report("Matching frames…");
+        if (await RefineWithVideoAsync(reference, other, sections[longest].Offset!.Value, speed, [mid, Math.Max(sections[longest].Start, mid - 30)], ct).ConfigureAwait(false) is { } r
+            && Math.Abs(r - sections[longest].Offset!.Value) <= 1.5 / fo)
+        {
+            var delta = r - sections[longest].Offset!.Value;
+            foreach (var sec in sections.Where(x => x.Offset != null))
+                sec.Offset += delta;
+        }
+
+        if (sections.Count == 1)
+        {
+            result.Offset = sections[0].Offset!.Value;
+        }
+        else
+        {
+            result.Sections.AddRange(sections);
+            // every step onto its frame by the pixels, a few at a time; each works on its own copy of the sections
+            // around it, and a placement that runs into a neighbouring step (the pixel window saw the wrong one)
+            // keeps the signature's frame
+            var signatureStarts = result.Sections.Select(x => x.Start).ToList();
+            var placedAt = new double?[result.Sections.Count];
+            var done = 0;
+            await Parallel.ForEachAsync(Enumerable.Range(1, result.Sections.Count - 1), new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = ct }, async (i, token) =>
+            {
+                var local = result.Sections.Select(x => new SyncSection { Start = x.Start, Offset = x.Offset }).ToList();
+                if (await RefineCutAsync(reference, other, speed, local, i, token).ConfigureAwait(false))
+                    placedAt[i] = local[i].Start;
+                progress?.Report($"Placing the cuts on the exact frame: {Interlocked.Increment(ref done)} of {result.Sections.Count - 1}…");
+            }).ConfigureAwait(false);
+            for (var i = 1; i < result.Sections.Count; i++)
+            {
+                var next = i + 1 < signatureStarts.Count ? signatureStarts[i + 1] : double.MaxValue;
+                var ok = placedAt[i] is { } at && at > result.Sections[i - 1].Start && at < next && Math.Abs(at - signatureStarts[i]) <= 1;
+                if (ok)
+                    result.Sections[i].Start = placedAt[i]!.Value;
+                if (ok || map[i].ExactCut)
+                    result.FrameExactCuts++;
+            }
+            result.Offset = result.Sections.First(x => x.Offset != null).Offset!.Value;
+        }
+        result.AudioOffset = result.Offset;
+        return true;
     }
 
     private static bool Matched(SyncProbe p) => p.Ncc >= 0.3 && p.Confidence >= 8;

@@ -45,8 +45,25 @@ public static class InputBuilder
     /// Start of every video filter chain: back to software frames after hwaccel, then inverse telecine for titles
     /// marked <see cref="MediaTitle.Ivtc"/> (field matching + dropping the duplicate of each 5).
     /// </summary>
-    public static string VideoPrefix(MediaTitle title) =>
-        SoftwareFormat(title) + (title.Ivtc ? "fieldmatch=order=auto:combmatch=full,yadif=deint=interlaced,decimate," : "");
+    public static string VideoPrefix(MediaTitle title) => SoftwareFormat(title) + IvtcPrefix(title);
+
+    /// <summary>The inverse telecine filters alone (empty unless <see cref="MediaTitle.Ivtc"/>).</summary>
+    public static string IvtcPrefix(MediaTitle title) =>
+        title.Ivtc ? "fieldmatch=order=auto:combmatch=full,yadif=deint=interlaced,decimate," : "";
+
+    /// <summary>The input arguments without the configured hardware decoder (for a caller that picks its own).</summary>
+    public static List<string> WithoutHwaccel(IReadOnlyList<string> args)
+    {
+        var list = new List<string>(args.Count);
+        for (var i = 0; i < args.Count; i++)
+        {
+            if (args[i] == "-hwaccel" && i + 1 < args.Count)
+                i++;
+            else
+                list.Add(args[i]);
+        }
+        return list;
+    }
 
     /// <summary>Frame rate of the video as the filters deliver it (4/5 of the stream's rate after inverse telecine).</summary>
     public static double FrameRate(MediaTitle title)

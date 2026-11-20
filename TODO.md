@@ -31,7 +31,18 @@ Open:
         framing / grain): neighbour shifts are left out of the clarity check, and when pixels are unclear the motion
         signature (frame-to-frame change) finds the shift and pixels pick the exact frame — 6 of the pair's sections
         now get a picture-matched offset (was 0); cuts split by summed costs instead of a fixed threshold (1 placed).
-  - [ ] Picture-based edit mapping: a whole-film motion-signature alignment of this pair (10 s windows, FFT NCC)
+  - [x] Picture-based edit mapping (2026-11-19): Analysis/MotionSignature.cs reads each title's whole motion
+        signature once (32×24 grey, streamed; CUDA decode with CPU fallback; kept in the results cache), locates
+        every 10 s reference window anywhere in the other (FFT NCC on log-compressed signatures), runs of equal frame
+        shifts become sections, steps placed by the signatures (gap = shift drop) then on the frame by the pixels (4 at
+        a time). Edit detection tries it first, before any audio is decoded; the audio map is the fallback.
+        NOTLD HD vs DVD: 62 sections, offset creeping -5.2 → -39.0 s in small splices, a few 3–8 s gaps, no more
+        invented long "not in this source" parts (11 min). Age of Ultron: Blu-ray vs a 1080p encode → one offset,
+        0.000 s (7 min); 2160p remux vs a 2160p encode → -0.001 s (21 min, both 4K decodes share NVDEC).
+        Found on the way: Blu-ray main title picked a 6 h decoy loop playlist (now: most distinct data, then longest);
+        media-server connection stalled in a long run (not reproduced in a fresh process; ffmpeg now gets
+        -rw_timeout + reconnect, CES_SERVER_TRACE logs slow reads/writes). Still to try: 3D vs 2D, a real
+        different-cut pair. Earlier finding: a whole-film motion-signature alignment of this pair (10 s windows, FFT NCC)
         shows the real edit — the DVD has everything; the transfers differ by ~70 small splices (offset creeping
         -4.9 → -39.1 s in steps of a few frames) plus a few longer cuts. The audio map (different restorations, ncc
         ≈ 0.1) invents "not in this source" sections there. Use signatures to build or verify the edit map.
@@ -53,6 +64,11 @@ Open:
       (tooLAME / TwoLAME).
 - [x] Spot: lossless-source check for FLAC and WAV (2026-11-18): lossy-source brick wall, upsampling cliff at
       22.05/24 kHz, padded bits; Source column, Spectrum tab, CSV.
+- [ ] Pure Audio Blu-ray in Spot (user is fetching sample discs, 2026-11-19): open BD folder / ISO / RAR, music
+      playlists + chapters as tracks, lossless-source check (upsampled 44.1/48 → 96/192, padded bits) on LPCM /
+      TrueHD / DTS-HD MA; Compare already falls back to audio sync (still picture, no motion). Some have Atmos:
+      flag TrueHD + Atmos (own stream check, not only ffprobe's profile), check the decoded bed; objects not graded.
+      Samples: 8 rips + 4 complete discs (location to come).
 - [ ] Packaging like TaoExif: Inno installer + win zip (bundled ffmpeg full + MediaInfo, updater), .deb, linux
       tarball (done: Debian 13 + Ubuntu 24.04 .deb), macOS .app.
 - [x] Results cache (path + size + mtime), 2026-11-18: Spot file results and Compare results (video/audio analysis,
