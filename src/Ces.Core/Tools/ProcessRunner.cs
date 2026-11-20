@@ -29,6 +29,10 @@ public static class ProcessRunner
         {
             var x = Ces.Vfs.Vfs.Externalize(a);
             bool nestedHttp = !ReferenceEquals(x, a) && x != a && (x.StartsWith("concat:", StringComparison.Ordinal) || x.StartsWith("subfile,", StringComparison.Ordinal));
+            // a plain input from the built-in media server: a connection that stops sending (seen once, reading a
+            // 16 GB MKV out of a RAR set) is reopened at the same byte instead of waiting forever
+            if (!ffprobe && !ReferenceEquals(x, a) && x != a && x.StartsWith("http://127.0.0.1:", StringComparison.Ordinal) && list.Count > 0 && list[^1] == "-i")
+                list.InsertRange(list.Count - 1, ["-rw_timeout", "30000000", "-reconnect", "1", "-reconnect_on_network_error", "1", "-reconnect_delay_max", "2"]);
             if (nestedHttp)
             {
                 if (list.Count > 0 && list[^1] == "-i")

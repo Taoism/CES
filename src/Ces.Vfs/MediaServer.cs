@@ -126,6 +126,13 @@ public sealed class MediaServer : IDisposable
             }
             catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException or InvalidDataException or UnauthorizedAccessException)
             {
+                if (Trace != null)
+                {
+                    lock (Instance)
+                    {
+                        File.AppendAllText(Trace, $"{DateTime.Now:HH:mm:ss} connection ended: {ex.GetType().Name}: {ex.Message}{Environment.NewLine}");
+                    }
+                }
                 // client went away (ffmpeg closes connections when it seeks) or the file could not be read
             }
             finally
@@ -138,18 +145,37 @@ public sealed class MediaServer : IDisposable
         }
     }
 
+    // CES_SERVER_TRACE=<file>: log every file read or socket write that takes longer than 2 s (diagnostics)
+    private static readonly string? Trace = Environment.GetEnvironmentVariable("CES_SERVER_TRACE");
+
+    private static void Log(string what, long at, System.Diagnostics.Stopwatch sw)
+    {
+        if (Trace != null && sw.ElapsedMilliseconds > 2000)
+        {
+            lock (Instance)
+            {
+                File.AppendAllText(Trace, string.Create(CultureInfo.InvariantCulture, $"{DateTime.Now:HH:mm:ss} {what} at {at}: {sw.ElapsedMilliseconds} ms{Environment.NewLine}"));
+            }
+        }
+    }
+
     private static async Task CopyAsync(Stream file, NetworkStream net, long from, long count)
     {
         var buf = new byte[1 << 20];
         file.Position = from;
+        var sw = new System.Diagnostics.Stopwatch();
         while (count > 0)
         {
+            sw.Restart();
             int n = await file.ReadAsync(buf.AsMemory(0, (int)Math.Min(buf.Length, count))).ConfigureAwait(false);
+            Log("read", file.Position, sw);
             if (n <= 0)
             {
                 throw new EndOfStreamException();
             }
+            sw.Restart();
             await net.WriteAsync(buf.AsMemory(0, n)).ConfigureAwait(false);
+            Log("write", file.Position, sw);
             count -= n;
         }
     }

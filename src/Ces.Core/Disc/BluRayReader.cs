@@ -118,11 +118,25 @@ public static class BluRayReader
             titles.Add(title);
         }
 
-        // main title: longest, then most chapters
-        var main = titles.OrderByDescending(x => Math.Round(x.Duration / 10)).ThenByDescending(x => x.Chapters.Count).FirstOrDefault();
+        var main = PickMain(titles);
         if (main != null)
             main.IsMain = true;
         return titles;
+    }
+
+    /// <summary>
+    /// The main title: among the playlists that play the most distinct data (within 10 % of the largest), the
+    /// longest, then the one with the most chapters. Longest alone is fooled by decoy and loop playlists (Disney and
+    /// Marvel discs: a 6-hour playlist of small clips over and over); size alone would take the theatrical cut over
+    /// an extended one that shares its clips.
+    /// </summary>
+    internal static MediaTitle? PickMain(IReadOnlyList<MediaTitle> titles)
+    {
+        if (titles.Count == 0)
+            return null;
+        var largest = titles.Max(x => x.SizeBytes);
+        return titles.Where(x => largest <= 0 || x.SizeBytes >= largest * 0.9)
+            .OrderByDescending(x => Math.Round(x.Duration / 10)).ThenByDescending(x => x.Chapters.Count).First();
     }
 
     private static string? FindStream(string streamDir, string clip)
