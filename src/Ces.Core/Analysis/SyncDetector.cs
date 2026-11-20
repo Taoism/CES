@@ -278,6 +278,15 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
         {
             progress?.Report("Audio is not conclusive: matching frames…");
             await RescueWithPictureAsync(reference, other, speed, strong.Select(p => p.Offset).Append(result.Offset), result, ct).ConfigureAwait(false);
+            // still nothing near the audio's guesses (another cut with another soundtrack, e.g. a dubbed export
+            // version): the whole motion signatures find every part wherever it is
+            if (!result.Reliable && speeds.Count == 1)
+            {
+                progress?.Report("No match nearby: lining up the whole pictures…");
+                var mapped = new SyncResult { Speed = speed, AudioOffset = result.AudioOffset, Ivtc = result.Ivtc };
+                if (await PictureEditMapAsync(reference, other, speed, mapped, progress, ct).ConfigureAwait(false))
+                    return mapped;
+            }
             return result;
         }
 

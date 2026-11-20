@@ -51,6 +51,36 @@ public sealed class SyncRescueTests : IDisposable
         Assert.True(r.PictureOnly, r.Summary);
         Assert.InRange(r.Offset, 0.2, 0.3);
     }
+
+    [Fact]
+    public async Task AnotherCutWithAnotherSoundtrackIsMappedByThePicture()
+    {
+        var (tools, _) = await FfTools.LocateAsync();
+        if (tools == null)
+            return;
+        var a = Path.Combine(_dir, "a.mkv");
+        var b = Path.Combine(_dir, "b.mkv");
+        // the other cut leaves out 20–40 s and has its own soundtrack (a dub): nothing near the audio's guesses
+        Run(tools.FFmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "life=size=320x180:rate=24:seed=7:mold=10,trim=duration=120,format=yuv420p",
+            "-f", "lavfi", "-i", "anoisesrc=d=120:c=pink:seed=1", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "20", "-c:a", "aac", "-shortest", a);
+        Run(tools.FFmpeg, "-v", "error", "-y", "-i", a, "-f", "lavfi", "-i", "anoisesrc=d=100:c=white:seed=9", "-filter_complex",
+            "[0:v]trim=0:20,setpts=PTS-STARTPTS[v1];[0:v]trim=40:120,setpts=PTS-STARTPTS[v2];[v1][v2]concat=n=2:v=1:a=0[v]",
+            "-map", "[v]", "-map", "1:a", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "20", "-c:a", "aac", "-shortest", b);
+
+        var sa = await SourceOpener.OpenAsync(a);
+        var sb = await SourceOpener.OpenAsync(b);
+        await new MediaProber(tools).ProbeAsync(sa, sa.MainTitle!);
+        await new MediaProber(tools).ProbeAsync(sb, sb.MainTitle!);
+        var r = await new SyncDetector(tools, Path.Combine(_dir, "tmp")).DetectAsync(sa.MainTitle!, sb.MainTitle!, new SyncOptions());
+
+        Assert.True(r.Reliable, r.Summary);
+        Assert.True(r.PictureMapped, r.Summary);
+        var gap = r.Sections.FindIndex(s => s.Offset == null);
+        Assert.True(gap > 0, r.Summary);
+        Assert.InRange(r.Sections[gap].Start, 19.5, 20.5);
+        Assert.InRange(r.Sections[gap + 1].Start, 39.5, 40.5);
+        Assert.InRange(r.Sections[gap + 1].Offset!.Value, -20.1, -19.9);
+    }
 }
 
 public sealed class FrameMatchTests

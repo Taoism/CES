@@ -44,7 +44,11 @@ Open:
         -rw_timeout + reconnect, CES_SERVER_TRACE logs slow reads/writes). 3D vs 2D done (2026-11-19): 3D BD (MVC) vs
         the Blu-ray → 0.000 s, identical audio, frames match; a 3D 1080p encode → 0.000 s, its video really
         ends 101 frames (4.2 s, black + a faint fade) early, so "not in this source" for the tail is correct.
-        Still to try: a real different-cut pair (none on K: — needs material from the user). Earlier finding: a whole-film motion-signature alignment of this pair (10 s windows, FFT NCC)
+        Real different cuts (2026-11-19): Armour of God HK cut vs dubbed International cut (another
+        scan) → 24 sections, 22 cuts frame-exact, 597 s + 2 s tail missing (NFO runtimes differ by 599 s);
+        Twinkle Twinkle Lucky Stars Extended vs Remastered → 55 sections, 41 frame-exact, 726 s missing (1:47 vs
+        1:35). Plain sync used to give up there ("No reliable match": other soundtrack, nothing near the audio's
+        guesses); now it falls back to the whole picture map (integration test). Earlier finding: a whole-film motion-signature alignment of this pair (10 s windows, FFT NCC)
         shows the real edit — the DVD has everything; the transfers differ by ~70 small splices (offset creeping
         -4.9 → -39.1 s in steps of a few frames) plus a few longer cuts. The audio map (different restorations, ncc
         ≈ 0.1) invents "not in this source" sections there. Use signatures to build or verify the edit map.
