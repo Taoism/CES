@@ -188,7 +188,7 @@ public sealed partial class MainWindow
             Offset = it.Sections.FirstOrDefault(x => x.Offset != null)?.Offset ?? it.Offset,
             Speed = it.Speed,
             Synced = it.Synced,
-            Sections = it.Sections.Select(x => new SyncSection { Start = x.Start, Offset = x.Offset }).ToList(),
+            Sections = it.Sections.Select(x => new SyncSection { Start = x.Start, Offset = x.Offset, Speed = x.Speed }).ToList(),
             Video = it.Video,
             Audio = it.Audio,
             GradeFrames = it.Grade?.Frames ?? [],

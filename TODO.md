@@ -71,7 +71,13 @@ Open:
       level L−R vs L+R below −30 dB; L = R → dual mono), peak, content range; TrueHD Atmos flagged, its 7.1 bed checked.
       Hendrix set (4 discs + 8 rips): discs = rips; Electric Ladyland 2018 disc: 5.1
       track 1 upsampled from 44.1 kHz, 48 kHz bonus playlist 16-bit padded to 24. Fixed: opening a playlist inside an
-      ISO (folder walk left the image). Not yet: GUI check of the rows on screen, Compare of two mixes of one album.
+      ISO (folder walk left the image). Not yet: GUI check of the Spot rows on screen.
+- [x] Compare of two mixes of one album (2026-11-19): Ces.Core/Music/MixAligner.cs. Different mixes share no
+      waveform (audio sync: ncc 0.05–0.14, no match), so when both titles are music with the same song count, sync
+      goes song by song: onset envelope (positive log-spectral flux 125 Hz–6.25 kHz, 100/s), 8 s windows every 5 s
+      found in the other mix's song ±20 s, then piecewise lines (RANSAC over window pairs, ±30 ms) → per stretch an
+      offset and its own speed (SyncSection.Speed). Axis stereo vs mono: 12 of 13 songs (EXP is another recording),
+      the mono songs run 0.09–0.55 % off speed; stereo vs Atmos: 13 of 13, song 7 edited inside (−0.4 s at 16:53).
 - [ ] Packaging like TaoExif: Inno installer + win zip (bundled ffmpeg full + MediaInfo, updater), .deb, linux
       tarball (done: Debian 13 + Ubuntu 24.04 .deb), macOS .app.
 - [x] Results cache (path + size + mtime), 2026-11-18: Spot file results and Compare results (video/audio analysis,

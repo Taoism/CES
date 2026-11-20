@@ -69,10 +69,15 @@ public sealed class SyncResult
     public int PictureWindows { get; set; }
     public int PictureWindowsTotal { get; set; }
 
+    /// <summary>Two mixes of one album lined up song by song (one section per song, each with its own speed).</summary>
+    public List<Music.SongMatch> Songs { get; } = [];
+
     public string Summary
     {
         get
         {
+            if (Songs.Count > 0)
+                return SongSummary();
             if (Probes.Count == 0 && !PictureMapped)
                 return "No audio match found.";
             if (!Reliable)
@@ -104,6 +109,27 @@ public sealed class SyncResult
             return s;
         }
     }
+
+    private string SongSummary()
+    {
+        var matched = Songs.Count(x => x.Offset != null);
+        if (!Reliable)
+            return $"No song of the two mixes lined up ({Songs.Count} songs compared by their onsets)";
+        var s = $"Song by song (another mix of the album): {matched} of {Songs.Count} songs matched by their onsets";
+        foreach (var x in Songs)
+        {
+            s += $"\n  {x.Number,2}  {Format.Time(x.Start, false)}: " + (x.Offset is { } o
+                ? $"at {Format.Time(x.Start * x.Speed + o, false)} in this mix ({x.Start * x.Speed + o - x.Start:+0.000;-0.000;0.000} s)" + SpeedText(x.Speed)
+                : "no match (another recording or edit)");
+            foreach (var p in x.Pieces.Skip(1))
+                s += $"\n      from {Format.Time(p.Start, false)}: {p.Start * p.Speed + p.Offset - p.Start:+0.000;-0.000;0.000} s (edited inside the song)" + SpeedText(p.Speed);
+        }
+        return s;
+    }
+
+    /// <summary>", plays 0.28 % slower" when the other mix's song runs at another speed.</summary>
+    public static string SpeedText(double speed) =>
+        Math.Abs(speed - 1) < 0.0003 ? "" : $", plays {Math.Abs(1 - speed) * 100:0.00} % {(speed > 1 ? "slower" : "faster")}";
 
     public static string SpeedName(double speed) => speed switch
     {
@@ -140,6 +166,10 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
     {
         var result = new SyncResult();
         var whole = opt.WholeTitle || opt.DetectEdits;
+
+        // two mixes of one album share no waveform: line them up song by song from where the notes start
+        if (Music.MixAligner.Applies(reference, other))
+            return await SongMapAsync(reference, other, result, progress, ct).ConfigureAwait(false);
 
         // 29.97 with 3:2 pulldown against 23.976 film: remove the pulldown so frames pair one to one
         foreach (var (tel, film) in new[] { (other, reference), (reference, other) })
@@ -870,6 +900,30 @@ public sealed partial class SyncDetector(FfTools tools, string tempDir)
             }
             return o;
         }
+    }
+
+    /// <summary>One section per song of the reference: the song's offset and speed in the other mix, null when it did not line up.</summary>
+    private async Task<SyncResult> SongMapAsync(MediaTitle reference, MediaTitle other, SyncResult result, IProgress<string>? progress, CancellationToken ct)
+    {
+        var songs = await Music.MixAligner.AlignAsync(tools, reference, other, tempDir, progress, ct).ConfigureAwait(false);
+        if (songs == null)
+            return result;
+        result.Songs.AddRange(songs);
+        var matched = songs.Where(x => x.Offset != null).ToList();
+        result.Reliable = matched.Count > 0;
+        if (!result.Reliable)
+            return result;
+        foreach (var x in songs)
+        {
+            if (x.Pieces.Count == 0)
+                result.Sections.Add(new SyncSection { Start = x.Start });
+            foreach (var p in x.Pieces)
+                result.Sections.Add(new SyncSection { Start = p.Start, Offset = p.Offset, Speed = p.Speed });
+        }
+        result.Offset = matched[0].Offset!.Value;
+        result.AudioOffset = result.Offset;
+        result.Confidence = 100.0 * matched.Sum(x => x.Matched) / Math.Max(1, songs.Sum(x => x.Windows));
+        return result;
     }
 
     [GeneratedRegex(@"out_time_us=(\d+)")]

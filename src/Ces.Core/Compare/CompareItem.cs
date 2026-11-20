@@ -12,6 +12,9 @@ public sealed class SyncSection
 {
     public double Start { get; set; }
     public double? Offset { get; set; }
+
+    /// <summary>This section's own speed (a song of another mix on another tape speed), null = the item's.</summary>
+    public double? Speed { get; set; }
 }
 
 /// <summary>One column of a comparison: a source, the title picked from it and how its time maps to the reference.</summary>
@@ -72,14 +75,16 @@ public sealed class CompareItem
         if (Title.IsStill)
             return 0;
         var off = Offset;
+        var speed = Speed;
         if (Sections.Count > 0)
         {
             var sec = Sections.LastOrDefault(x => x.Start <= t) ?? Sections[0];
             if (sec.Offset is not { } o)
                 return null;
             off = o;
+            speed = sec.Speed ?? Speed;
         }
-        return t * Speed + off;
+        return t * speed + off;
     }
 
     /// <summary>Reference time of a moment in this source (inverse of <see cref="SourceTime"/>, using the base offset).</summary>
@@ -94,7 +99,7 @@ public sealed class CompareItem
         {
             if (Sections[i].Offset is not { } o)
                 continue;
-            var t = (sourceTime - o) / Speed;
+            var t = (sourceTime - o) / (Sections[i].Speed ?? Speed);
             var end = i + 1 < Sections.Count ? Sections[i + 1].Start : double.MaxValue;
             if (t >= Sections[i].Start - 0.5 && t < end + 0.5)
                 return t;
@@ -107,10 +112,13 @@ public sealed class CompareItem
     {
         if (Title.IsStill)
             return (double.NegativeInfinity, double.PositiveInfinity);
-        var first = Sections.Count > 0 ? Sections.First(s => s.Offset != null).Offset!.Value : Offset;
-        var last = Sections.Count > 0 ? Sections.Last(s => s.Offset != null).Offset!.Value : Offset;
-        return (-first / Speed, (Title.Duration - last) / Speed);
+        var first = Sections.FirstOrDefault(s => s.Offset != null);
+        var last = Sections.LastOrDefault(s => s.Offset != null);
+        return (-(first?.Offset ?? Offset) / (first?.Speed ?? Speed), (Title.Duration - (last?.Offset ?? Offset)) / (last?.Speed ?? Speed));
     }
+
+    /// <summary>The sections are the songs of another mix of an album (each with its own speed), not a different edit.</summary>
+    public bool SongMapped => Sections.Any(s => s.Speed != null);
 
     /// <summary>Short description of the time map for cards, specs and reports.</summary>
     public string MapSummary
@@ -120,7 +128,9 @@ public sealed class CompareItem
             var parts = new List<string> { $"{Offset:+0.000;-0.000;0.000} s" };
             if (Math.Abs(Speed - 1) > 1e-6)
                 parts.Add($"speed ×{Speed:0.#####}");
-            if (Sections.Count > 1 || Sections.Any(s => s.Offset == null))
+            if (SongMapped)
+                parts.Add($"song by song, {Sections.Count} stretches ({Sections.Count(s => s.Offset == null)} unmatched)");
+            else if (Sections.Count > 1 || Sections.Any(s => s.Offset == null))
                 parts.Add($"{Sections.Count} sections ({Sections.Count(s => s.Offset == null)} missing)");
             return string.Join(", ", parts);
         }

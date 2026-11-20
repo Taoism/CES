@@ -876,11 +876,15 @@ public sealed partial class MainWindow : Window
             {
                 var lines = item.Sections.Select((s, k) =>
                     $"{Format.Time(s.Start, false)} – {(k + 1 < item.Sections.Count ? Format.Time(item.Sections[k + 1].Start, false) : "end")}: " +
-                    (s.Offset is { } o ? $"{o:+0.000;-0.000;0.000} s" : "not in this source"));
+                    (s.Offset is { } o
+                        ? $"{(item.SongMapped ? s.Start * (s.Speed ?? 1) + o - s.Start : o):+0.000;-0.000;0.000} s" + (s.Speed is { } sp ? Analysis.SyncResult.SpeedText(sp) : "")
+                        : item.SongMapped ? "no match" : "not in this source"));
                 var missing = item.Sections.Count(s => s.Offset == null);
                 var edit = new TextBlock
                 {
-                    Text = $"Different edit: {item.Sections.Count} sections{(missing > 0 ? $", {missing} missing" : "")}",
+                    Text = item.SongMapped
+                        ? $"Song by song: {item.Sections.Count} stretches{(missing > 0 ? $", {missing} unmatched" : "")}"
+                        : $"Different edit: {item.Sections.Count} sections{(missing > 0 ? $", {missing} missing" : "")}",
                     FontSize = 12,
                     VerticalAlignment = VerticalAlignment.Center,
                 }.Themed(TextBlock.ForegroundProperty, "FindingWarnBrush");
