@@ -71,7 +71,13 @@ Open:
       level L−R vs L+R below −30 dB; L = R → dual mono), peak, content range; TrueHD Atmos flagged, its 7.1 bed checked.
       Hendrix set (4 discs + 8 rips): discs = rips; Electric Ladyland 2018 disc: 5.1
       track 1 upsampled from 44.1 kHz, 48 kHz bonus playlist 16-bit padded to 24. Fixed: opening a playlist inside an
-      ISO (folder walk left the image). Not yet: GUI check of the Spot rows on screen.
+      ISO (folder walk left the image). On screen (2026-11-19): one row per disc playlist and per rip in a RAR set,
+      codec / "13 tracks · 96 kHz / 24-bit · 2.0" / kbps shown; fixed: MediaInfo answers "media": null for paths
+      of 260+ characters (row failed with a JSON error) → \\?\ prefix, null skipped.
+  - [ ] Atmos rip decodes at ~0.2x real time in the GUI (ffmpeg 1 core in kernel time, GUI idle) but ~20x in the
+        CLI and from the GUI's media server directly; suspect the stdout pipe consumer (Parallel.ForEach +
+        sync-over-async in SpotView.AnalyzeOne). Needs a stack dump of the GUI to confirm.
+  - [ ] Source / Problems columns not looked at on screen (off to the right; the grid offers UIA no scrolling).
 - [x] Compare of two mixes of one album (2026-11-19): Ces.Core/Music/MixAligner.cs. Different mixes share no
       waveform (audio sync: ncc 0.05–0.14, no match), so when both titles are music with the same song count, sync
       goes song by song: onset envelope (positive log-spectral flux 125 Hz–6.25 kHz, 100/s), 8 s windows every 5 s
