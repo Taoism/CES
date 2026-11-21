@@ -99,7 +99,7 @@ re-graded and reframed "remaster", and a 720p WEB encode.</sub>
 - **Compare all** (Ctrl+Shift+A): line up, screenshots, video and audio analysis, quality metrics, remaster and subtitle
   checks in one run. It first lists the steps with a rough time for each (from duration, resolution and the options)
   and the total; steps whose results are already there start unticked. While it runs, an hourglass and "about n min
-  left" sit next to the elapsed time, and Stop ends the run after the current step. The estimates adapt to the machine
+  left" sit next to the elapsed time, and Stop halts the current step and skips the rest. The estimates adapt to the machine
   after each run.
 - **Frame-exact screenshots** of the same moment in every source: evenly spaced, random (seeded), per chapter or at given
   times; aspect correction for anamorphic video, HDR→SDR tone-mapping, optional deinterlace. The reference frame decides
