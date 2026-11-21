@@ -26,7 +26,7 @@ public static class TextReport
         {
             var it = items[i];
             sb.AppendLine(string.Create(Inv, $"[{i + 1}] {it.Name}"));
-            sb.AppendLine("    " + it.Source.Path + (it.Source.Kind != SourceKind.File ? " · " + it.Title.Name : ""));
+            sb.AppendLine("    " + ReportPath.Short(it.Source.Path) + (it.Source.Kind != SourceKind.File ? " · " + it.Title.Name : ""));
             var sped = Math.Abs(it.Speed - 1) > 1e-9;
             if (i > 0 && (Math.Abs(it.Offset) > 1e-9 || sped || it.Sections.Count > 0))
                 sb.AppendLine(string.Create(Inv, $"    offset {it.Offset:+0.000;-0.000;0.000} s{(sped ? $", speed {it.Speed:0.#####}" : "")}{(it.SongMapped ? $", song by song ({it.Sections.Count} stretches, another mix)" : it.Sections.Count > 0 ? $", {it.Sections.Count} sections (different edit)" : "")}"));
@@ -148,7 +148,7 @@ public static class TextReport
             var it = items[i];
             if (it.Source.Kind == SourceKind.File)
                 continue;
-            sb.AppendLine(string.Create(Inv, $"[{i + 1}] {it.Name} · {it.Source.Titles.Count} titles · {it.Source.Path}")).AppendLine(Rule);
+            sb.AppendLine(string.Create(Inv, $"[{i + 1}] {it.Name} · {it.Source.Titles.Count} titles · {ReportPath.Short(it.Source.Path)}")).AppendLine(Rule);
             foreach (var t in it.Source.Titles)
             {
                 var mark = t == it.Title ? "» " : "  ";

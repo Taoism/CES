@@ -37,7 +37,7 @@ public static class HtmlReport
         {
             var it = items[i];
             sb.Append("<li><span class=\"chip c").Append(i % 6).Append("\">").Append(i + 1).Append("</span> <b>").Append(H(it.Name)).Append("</b> <span class=\"muted\">")
-              .Append(H(it.Source.Path)).Append(it.Source.Kind != SourceKind.File ? " · " + H(it.Title.Name) : "").Append("</span></li>");
+              .Append(H(ReportPath.Short(it.Source.Path))).Append(it.Source.Kind != SourceKind.File ? " · " + H(it.Title.Name) : "").Append("</span></li>");
         }
         sb.Append("</ol></section>");
 
