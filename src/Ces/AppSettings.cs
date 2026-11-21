@@ -34,6 +34,9 @@ public sealed class AppSettings
     /// <summary>"Near" (±90 s), "Whole" (whole title) or "Edits" (whole title, sections for a different edit).</summary>
     public string SyncMode { get; set; } = "Near";
 
+    /// <summary>Compare all: per step, how much slower (&gt; 1) or faster this machine is than the built-in estimate.</summary>
+    public Dictionary<string, double> CompareAllFactors { get; set; } = [];
+
     public List<string> RecentSessions { get; set; } = [];
 
     /// <summary>Hardware video decoding (D3D11VA on Windows); off by default — slower than software on fast CPUs.</summary>

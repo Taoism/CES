@@ -10,6 +10,11 @@ first-frame alignment, dropped/duplicated frames, grade over time, dirt/speck an
 screenshots from synthetic sources (2026-11-16).
 
 Open:
+- [x] Compare all (2026-11-21): one button / Ctrl+Shift+A runs sync, screenshots, video, audio, metrics, remaster and
+      subtitle timing; a dialog lists the steps with rough times (Ces.Core/Compare/CompareAllPlan.cs: scaled by duration,
+      resolution, counts; per-step factors learnt from real runs in settings CompareAllFactors), steps with results
+      already unticked; hourglass (sand drains with elapsed / (elapsed + left)) + "about n min left" in the job area;
+      Stop ends after the current step; summary per step. Tested on a 3-min 1080p remux vs 720p encode pair (1:41).
 - [ ] slow.pics upload not tested live (publishes images) — try once with the user's OK
 - [x] Dolby Vision on real files (Jellyfin test clips, profiles 5 / 8.1 / 8.4, 2026-11-18): RPU read for every profile,
       mastering-only RPU (ffprobe prints no level-1 blocks) not mistaken for per-shot metadata, tidy HDR line.

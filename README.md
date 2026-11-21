@@ -96,6 +96,11 @@ re-graded and reframed "remaster", and a 720p WEB encode.</sub>
 - **Sources**: MKV, MP4, M2TS/TS, VOB and other ffmpeg-readable files; Blu-ray folders (BDMV) and DVD folders
   (VIDEO_TS), read through their own playlists/IFOs (titles, segments, chapters, stream languages, angles); ISO images,
   mounted read-only with the OS (Windows `Mount-DiskImage`, Linux `udisksctl`, macOS `hdiutil`). Unencrypted discs only.
+- **Compare all** (Ctrl+Shift+A): line up, screenshots, video and audio analysis, quality metrics, remaster and subtitle
+  checks in one run. It first lists the steps with a rough time for each (from duration, resolution and the options)
+  and the total; steps whose results are already there start unticked. While it runs, an hourglass and "about n min
+  left" sit next to the elapsed time, and Stop ends the run after the current step. The estimates adapt to the machine
+  after each run.
 - **Frame-exact screenshots** of the same moment in every source: evenly spaced, random (seeded), per chapter or at given
   times; aspect correction for anamorphic video, HDR→SDR tone-mapping, optional deinterlace. The reference frame decides
   the time and every other source is aimed at its nearest matching frame, so MPEG-TS seek overshoot and frame-grid

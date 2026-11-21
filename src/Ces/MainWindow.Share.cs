@@ -111,7 +111,7 @@ public sealed partial class MainWindow
     {
         if (_tools == null || _items.Count < 2 || !_subPick.TryGetValue(0, out var refPick))
         {
-            await MessageBox.ShowAsync(this, "Add at least two sources; source 1 needs a subtitle track.", MessageKind.Info);
+            await NotifyAsync("Add at least two sources; source 1 needs a subtitle track.", MessageKind.Info);
             return;
         }
         _subReports.Clear();

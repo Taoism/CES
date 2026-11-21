@@ -48,7 +48,7 @@ public sealed partial class MainWindow
     {
         if (_tools == null || _items.Count < 2)
         {
-            await MessageBox.ShowAsync(this, "Add the reference (source 1) and at least one other source or image.", MessageKind.Info);
+            await NotifyAsync("Add the reference (source 1) and at least one other source or image.", MessageKind.Info);
             return;
         }
         List<double> times;

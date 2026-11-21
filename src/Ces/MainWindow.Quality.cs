@@ -88,7 +88,7 @@ public sealed partial class MainWindow
     {
         if (_tools == null || _items.Count < 2)
         {
-            await MessageBox.ShowAsync(this, "Add at least two sources (a reference and something to compare with it).", MessageKind.Info);
+            await NotifyAsync("Add at least two sources (a reference and something to compare with it).", MessageKind.Info);
             return;
         }
         var m = Metric.None;
@@ -102,18 +102,18 @@ public sealed partial class MainWindow
             m |= Metric.Xpsnr;
         if (m == Metric.None)
         {
-            await MessageBox.ShowAsync(this, "Tick at least one metric.", MessageKind.Info);
+            await NotifyAsync("Tick at least one metric.", MessageKind.Info);
             return;
         }
         if (!Format.TryParseTime(_qLength.Text, out var length) || length <= 0)
         {
-            await MessageBox.ShowAsync(this, "Length must be a time in seconds (or h:mm:ss).", MessageKind.Warning);
+            await NotifyAsync("Length must be a time in seconds (or h:mm:ss).", MessageKind.Warning);
             return;
         }
         var start = double.NaN;
         if (!string.IsNullOrWhiteSpace(_qStart.Text) && !Format.TryParseTime(_qStart.Text, out start))
         {
-            await MessageBox.ShowAsync(this, "Start must be a time (h:mm:ss.fff or seconds) or empty.", MessageKind.Warning);
+            await NotifyAsync("Start must be a time (h:mm:ss.fff or seconds) or empty.", MessageKind.Warning);
             return;
         }
         _settings.MetricPsnr = m.HasFlag(Metric.Psnr);

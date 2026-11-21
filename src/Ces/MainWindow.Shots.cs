@@ -241,7 +241,7 @@ public sealed partial class MainWindow
     {
         if (_tools == null || _items.Count == 0)
         {
-            await MessageBox.ShowAsync(this, "Add at least one source first.", MessageKind.Info);
+            await NotifyAsync("Add at least one source first.", MessageKind.Info);
             return;
         }
         SaveShotSettings();
@@ -260,7 +260,7 @@ public sealed partial class MainWindow
         var dur = end - start;
         if (dur <= 1)
         {
-            await MessageBox.ShowAsync(this, "The sources do not overlap on the timeline — check the offsets.", MessageKind.Warning);
+            await NotifyAsync("The sources do not overlap on the timeline — check the offsets.", MessageKind.Warning);
             return;
         }
         List<double> times;
@@ -285,7 +285,7 @@ public sealed partial class MainWindow
                 }
                 if (times.Count == 0)
                 {
-                    await MessageBox.ShowAsync(this, "Source 1 has no chapters.", MessageKind.Info);
+                    await NotifyAsync("Source 1 has no chapters.", MessageKind.Info);
                     return;
                 }
                 break;
@@ -295,7 +295,7 @@ public sealed partial class MainWindow
                 {
                     if (!Format.TryParseTime(part, out var t))
                     {
-                        await MessageBox.ShowAsync(this, $"“{part}” is not a time (use 1:02:03.5 or seconds).", MessageKind.Warning);
+                        await NotifyAsync($"“{part}” is not a time (use 1:02:03.5 or seconds).", MessageKind.Warning);
                         return;
                     }
                     times.Add(t);
@@ -330,7 +330,7 @@ public sealed partial class MainWindow
         var title = _items[0].Title;
         if (title.Info?.Video == null)
         {
-            await MessageBox.ShowAsync(this, "Source 1 has no video.", MessageKind.Info);
+            await NotifyAsync("Source 1 has no video.", MessageKind.Info);
             return null;
         }
         if (!_keyframeScans.TryGetValue(title, out var frames))

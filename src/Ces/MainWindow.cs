@@ -167,6 +167,8 @@ public sealed partial class MainWindow : Window
                         InCompare("Add disc _folder (BDMV / VIDEO_TS)…", AddFolderAsync, new KeyGesture(Key.O, KeyModifiers.Control | KeyModifiers.Shift)),
                         InCompare("Add folder of _releases…", AddReleaseFolderAsync),
                         new Separator(),
+                        InCompare("Compare a_ll…", CompareAllAsync, new KeyGesture(Key.A, KeyModifiers.Control | KeyModifiers.Shift)),
+                        new Separator(),
                         InCompare("_Open comparison…", OpenSessionAsync),
                         InCompare("_Save comparison", () => SaveSessionAsync(false)),
                         InCompare("Save comparison _as…", () => SaveSessionAsync(true)),
@@ -206,7 +208,12 @@ public sealed partial class MainWindow : Window
 
         // status bar
         // status bar: message on the left, job state + Stop always on the right
-        _job.StopRequested += () => _cts?.Cancel();
+        _job.StopRequested += () =>
+        {
+            if (_batchRunning)
+                _batchStop = true;
+            _cts?.Cancel();
+        };
         var statusGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 10 };
         statusGrid.Children.Add(_status);
         Grid.SetColumn(_job, 1);
@@ -242,7 +249,10 @@ public sealed partial class MainWindow : Window
         var sync = new Button { Content = "Compare", Classes = { "accent" } };
         ToolTip.SetTip(sync, "Line the sources up with source 1: finds each one's time offset by matching their audio, then refines it on the picture to the exact frame.");
         sync.Click += async (_, _) => await AutoSyncAsync();
-        _busyDisabled.AddRange([addFiles, addFolder, sync]);
+        var all = new Button { Content = "Compare all…" };
+        ToolTip.SetTip(all, "Line up, screenshots, video and audio analysis, quality metrics, remaster and subtitle checks in one run — shows the steps and a rough time first (Ctrl+Shift+A).");
+        all.Click += async (_, _) => await CompareAllAsync();
+        _busyDisabled.AddRange([addFiles, addFolder, sync, all]);
         var syncMode = new ComboBox
         {
             ItemsSource = new[] { "Sync: near (±90 s)", "Sync: whole title", "Sync: whole title + edits" },
@@ -263,7 +273,7 @@ public sealed partial class MainWindow : Window
         };
         _busyDisabled.Add(syncMode);
         var srcButtons = new WrapPanel { Orientation = Orientation.Horizontal, ItemSpacing = 6, LineSpacing = 6 };
-        srcButtons.Children.AddRange([addFiles, addFolder, sync, syncMode]);
+        srcButtons.Children.AddRange([addFiles, addFolder, sync, all, syncMode]);
         var srcHeader = new TextBlock { Text = "Sources", Classes = { "h2" } };
         var hint = new TextBlock
         {
@@ -534,6 +544,7 @@ public sealed partial class MainWindow : Window
           Ctrl+L           open saved results (.cess spot results / .cesc comparison)
           Ctrl+S           save results (Spot: .cess · Compare: .cesc);  Ctrl+Shift+S  save as
           Ctrl+Shift+T     save the current Compare tab as text
+          Ctrl+Shift+A     Compare all (every check in one run, with a time estimate)
           Ctrl+E           export (Spot: CSV / text report · Compare: HTML report)
           Ctrl+Shift+O     add disc folder    Ctrl+L  open comparison    Ctrl+S  save comparison
         """;
@@ -931,7 +942,7 @@ public sealed partial class MainWindow : Window
     {
         if (_tools == null || _items.Count < 2)
         {
-            await MessageBox.ShowAsync(this, "Add at least two sources with audio.", MessageKind.Info);
+            await NotifyAsync("Add at least two sources with audio.");
             return;
         }
         var lines = new List<string>();
@@ -1016,7 +1027,10 @@ public sealed partial class MainWindow : Window
         {
             SetStatus(name + " — failed.");
             AppendLog("ERROR " + ex.Message);
-            await MessageBox.ShowAsync(this, ex.Message, MessageKind.Error, name);
+            if (_batchRunning)
+                _batchErrors.Add(ex.Message);
+            else
+                await MessageBox.ShowAsync(this, ex.Message, MessageKind.Error, name);
         }
         finally
         {
@@ -1034,6 +1048,8 @@ public sealed partial class MainWindow : Window
         Dispatcher.UIThread.Post(() =>
         {
             _job.Report(fraction);
+            if (_batchRunning)
+                _batchFraction = fraction;
         });
     }
 
@@ -1053,7 +1069,8 @@ public sealed partial class MainWindow : Window
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Handled || FocusManager?.GetFocusedElement() is TextBox)
+        // Ctrl / Alt combinations are menu shortcuts (Ctrl+S save, Ctrl+Shift+A compare all, ...)
+        if (e.Handled || FocusManager?.GetFocusedElement() is TextBox || (e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Alt)) != 0)
             return;
         if (_tabs.SelectedIndex == 0)
             e.Handled = HandleShotKey(e);

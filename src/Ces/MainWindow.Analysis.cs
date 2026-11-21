@@ -224,7 +224,7 @@ public sealed partial class MainWindow
         }
         if (jobs.Count == 0)
         {
-            await Dialogs.MessageBox.ShowAsync(this, "None of the sources has audio.", Dialogs.MessageKind.Info);
+            await NotifyAsync("None of the sources has audio.", Dialogs.MessageKind.Info);
             return;
         }
         foreach (var it in _items)
