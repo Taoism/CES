@@ -161,11 +161,42 @@ public sealed partial class MainWindow
         RefreshMetricResults();
     }
 
+    /// <summary>
+    /// The reference measured against itself, so the releases can be read against it: identical frames score the top
+    /// of the scale (VMAF 100, SSIM 1); PSNR / XPSNR are infinite there, drawn at the top of the chart.
+    /// </summary>
+    private ChartSeries? ReferenceSeries(List<ChartSeries> others, Metric metric)
+    {
+        var rf = _metrics[0].Reference;
+        var ri = _items.IndexOf(rf);
+        var xs = others.SelectMany(s => s.X).ToList();
+        if (ri < 0 || xs.Count == 0)
+            return null;
+        string label;
+        double y;
+        switch (metric)
+        {
+            case Metric.Vmaf:
+                (y, label) = (100, "reference");
+                break;
+            case Metric.Ssim:
+                (y, label) = (1, "reference");
+                break;
+            default:
+                // a little above the best measured frame, on a round number
+                var top = others.SelectMany(s => s.Y).Where(double.IsFinite).DefaultIfEmpty(50).Max();
+                (y, label) = (Math.Ceiling((top + 1) / 5) * 5, "reference");
+                break;
+        }
+        return new ChartSeries($"{ri + 1} {label}", Palette[ri % Palette.Length], [xs.Min(), xs.Max()], [y, y]) { Dashed = true, HoverText = metric is Metric.Vmaf or Metric.Ssim ? $"{y:0.##} (identical)" : "∞ (identical)" };
+    }
+
     private void RefreshMetricResults()
     {
         RefreshRanking();
         _qResults.Children.Clear();
         var series = new List<ChartSeries>();
+        var primaryMetric = Metric.None;
         foreach (var (rf, ds, res) in _metrics)
         {
             var di = _items.IndexOf(ds);
@@ -202,13 +233,16 @@ public sealed partial class MainWindow
                 panel.Children.Add(Muted("Worst frames: " + string.Join(",  ", worst.Select(w => $"{Format.Time(res.TimeOf(w.Frame))} ({w.Value:0.###})"))));
             _qResults.Children.Add(new Border { Classes = { "card" }, Child = panel });
 
-            var primary = res.Series.TryGetValue(Metric.Vmaf, out var v) ? v : res.Series.Values.First();
+            var (pm, primary) = res.Series.TryGetValue(Metric.Vmaf, out var v) ? (Metric.Vmaf, v) : (res.Series.Keys.First(), res.Series.Values.First());
+            primaryMetric = pm;
             _qChart.Title = $"{primary.Name} per frame (click to screenshot that moment)";
             var x = Enumerable.Range(0, primary.Values.Count).Select(i => res.TimeOf(i)).ToArray();
             series.Add(new ChartSeries($"{di + 1}", Palette[di % Palette.Length], x, primary.Values.ToArray()));
         }
         if (_metrics.Count == 0)
             _qResults.Children.Add(Muted("Choose the reference (the source or the best release) and press “Measure”.", 13));
+        else if (ReferenceSeries(series, primaryMetric) is { } reference)
+            series.Insert(0, reference);
         _qChart.SetSeries(series);
     }
 

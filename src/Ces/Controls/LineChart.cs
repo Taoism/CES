@@ -10,6 +10,9 @@ public sealed record ChartSeries(string Name, IBrush Color, double[] X, double[]
 {
     /// <summary>Drawn dashed (a second quantity of the same source).</summary>
     public bool Dashed { get; init; }
+
+    /// <summary>Shown in the hover readout instead of the value (a guide line, e.g. "identical").</summary>
+    public string? HoverText { get; init; }
 }
 
 /// <summary>Simple multi-series line chart with axes, legend, hover readout and click-to-pick an X value.</summary>
@@ -163,7 +166,7 @@ public sealed class LineChart : Control
             {
                 var idx = Nearest(s.X, xv);
                 if (idx >= 0)
-                    lines.Add(($"{s.Name}: {YFormat(s.Y[idx])}", s.Color));
+                    lines.Add(($"{s.Name}: {s.HoverText ?? YFormat(s.Y[idx])}", s.Color));
             }
             var fts = lines.Select(l => Text(l.Item1, 11, l.Item2)).ToList();
             var w = fts.Max(f => f.Width) + 12;
