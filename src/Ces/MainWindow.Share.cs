@@ -162,10 +162,12 @@ public sealed partial class MainWindow
             return;
         }
         var publicBox = new CheckBox { Content = "List publicly on slow.pics (otherwise only people with the link see it)" };
-        var name = new TextBox { Text = string.Join(" vs ", _items.Select(i => i.Name)) };
+        var name = new TextBox { Text = SlowPics.SuggestedName(_items) };
         var body = DialogWindow.Column(10,
             DialogWindow.Label($"Upload {rows.Count} rows × {_items.Count} screenshots ({rows.Sum(r => r.Images.Count)} PNGs) to slow.pics, a public image host? Anyone with the link can see them; you cannot delete an anonymous upload yourself."),
-            DialogWindow.Label("Comparison name"), name, publicBox);
+            DialogWindow.Label("Comparison name"), name,
+            DialogWindow.Label("No release names are uploaded. The sources are named " + string.Join(", ", SceneName.Labels(_items)) + "."),
+            publicBox);
         var dlg = new ConfirmDialog("Upload to slow.pics", body, "Upload");
         if (!await dlg.ShowDialog<bool>(this))
             return;
@@ -178,7 +180,8 @@ public sealed partial class MainWindow
                 SetProgress(p.Fraction);
                 SetStatus(p.Text);
             });
-            url = await sp.UploadAsync(name.Text?.Trim() is { Length: > 0 } n ? n : "Comparison", rows, publicBox.IsChecked == true, prog, ct);
+            // a release name typed or pasted into the box is cleaned too
+            url = await sp.UploadAsync(name.Text?.Trim() is { Length: > 0 } n ? SceneName.Title(n) : "Comparison", rows, publicBox.IsChecked == true, prog, ct);
         });
         if (url == null)
             return;

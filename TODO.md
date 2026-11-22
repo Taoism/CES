@@ -1,6 +1,6 @@
 # CES TODO
 
-CES = Compare + Spot modes, v0.3.7 (2026-11-21).
+CES = Compare + Spot modes, v0.3.8 (2026-11-21).
 
 Done: whole-title sync, PAL speed, edits, sessions, ranking, difference/flicker, detailed shots (2026-11-15);
 artefacts (grain/banding/halos/chroma), audio remaster/upmix checks, HDR10+/DV metadata, subtitles (burn-in, timing),
@@ -22,6 +22,9 @@ Open:
       already unticked; hourglass (sand drains with elapsed / (elapsed + left)) + "about n min left" in the job area;
       Stop halts the current step and skips the rest; summary per step. Tested on a 3-min 1080p remux vs 720p encode pair (1:41).
 - [ ] slow.pics upload not tested live (publishes images) — try once with the user's OK
+- [x] slow.pics uploads carry no release names (2026-11-21, Share/SceneName.cs): comparison name = the film title
+      ("Old Film (1970)", also when a release name is typed), sources "1 · Blu-ray 1080p AVC" (or a label that is not a
+      release name), captions scrubbed ("worst for source 2 · …"), files sent as 01-1.png, PNG text/time/Exif chunks dropped.
 - [x] Dolby Vision on real files (Jellyfin test clips, profiles 5 / 8.1 / 8.4, 2026-11-18): RPU read for every profile,
       mastering-only RPU (ffprobe prints no level-1 blocks) not mistaken for per-shot metadata, tidy HDR line.
   - [x] Per-shot DV values (2026-11-18): own RPU parser (Analysis/DoviRpu.cs: mapping, NLQ, DM data, extension

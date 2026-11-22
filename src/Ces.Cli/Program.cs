@@ -187,7 +187,7 @@ try
                 // an explicit flag: the user asked to publish these pictures
                 using var sp = new Ces.Share.SlowPics();
                 var prog = new Progress<(double Fraction, string Text)>(p => Console.Error.Write("\r  " + p.Text + "      "));
-                url = await sp.UploadAsync(cli.Get("title") ?? string.Join(" vs ", items.Select(i => i.Name)), Ces.Share.SlowPics.FromRows(items, rows), cli.Has("public"), prog, cts.Token);
+                url = await sp.UploadAsync(cli.Get("title") is { } t ? Ces.Share.SceneName.Title(t) : Ces.Share.SlowPics.SuggestedName(items), Ces.Share.SlowPics.FromRows(items, rows), cli.Has("public"), prog, cts.Token);
                 await Console.Error.WriteLineAsync();
                 Console.WriteLine("slow.pics: " + url);
             }
