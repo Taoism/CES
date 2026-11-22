@@ -98,16 +98,7 @@ public sealed partial class MainWindow
         }
     }
 
-    private string SpecsText()
-    {
-        var sb = new StringBuilder();
-        var rows = SpecTable.Build(_items);
-        var w = rows.Count > 0 ? rows.Max(r => r.Label.Length) + 2 : 10;
-        sb.Append(new string(' ', w)).AppendJoin(" | ", _items.Select((it, i) => $"[{i + 1}] {it.Name}")).AppendLine();
-        foreach (var r in rows)
-            sb.Append(r.Label.PadRight(w)).AppendJoin(" | ", r.Values).AppendLine();
-        return sb.ToString();
-    }
+    private string SpecsText() => Report.TextReport.Specs(_items);
 
     // ---------- discs ----------
 

@@ -17,7 +17,8 @@ public static class HtmlReport
     private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
     public static string Write(string outDir, string title, IReadOnlyList<CompareItem> items, IReadOnlyList<ShotRow> shots, IReadOnlyList<(CompareItem Reference, CompareItem Distorted, MetricResult Result)> metrics,
-        IReadOnlyList<SubtitleTimingReport>? subtitles = null, string? slowPicsUrl = null, IReadOnlyList<BdInfoSection>? bdinfo = null)
+        IReadOnlyList<SubtitleTimingReport>? subtitles = null, string? slowPicsUrl = null, IReadOnlyList<BdInfoSection>? bdinfo = null,
+        IReadOnlyList<PlainSection>? plain = null)
     {
         Directory.CreateDirectory(outDir);
         var imgDir = Path.Combine(outDir, "images");
@@ -40,6 +41,9 @@ public static class HtmlReport
               .Append(H(ReportPath.Short(it.Source.Path))).Append(it.Source.Kind != SourceKind.File ? " · " + H(it.Title.Name) : "").Append("</span></li>");
         }
         sb.Append("</ol></section>");
+
+        if (plain is { Count: > 0 })
+            sb.Append(PlainReport.ToHtml(plain));
 
         // specs
         var rows = SpecTable.Build(items);
@@ -162,6 +166,22 @@ public static class HtmlReport
         return path;
     }
 
+    /// <summary>
+    /// The whole export: index.html (with "In plain words" at the top) and its images, summary.txt in everyday words
+    /// and report.txt with the technical details. Returns the path of index.html.
+    /// </summary>
+    public static string WriteAll(string outDir, string title, IReadOnlyList<CompareItem> items, IReadOnlyList<ShotRow> shots,
+        IReadOnlyList<(CompareItem Reference, CompareItem Distorted, MetricResult Result)> metrics, IReadOnlyList<SubtitleTimingReport>? subtitles = null,
+        string? slowPicsUrl = null, IReadOnlyList<BdInfoSection>? bdinfo = null, IReadOnlyList<RankRow>? ranking = null)
+    {
+        var plain = PlainReport.Build(items, metrics, subtitles);
+        var html = Write(outDir, title, items, shots, metrics, subtitles, slowPicsUrl, bdinfo, plain);
+        var utf8 = new UTF8Encoding(false);
+        File.WriteAllText(Path.Combine(outDir, ReportArchive.SummaryName), PlainReport.ToText(title, plain), utf8);
+        File.WriteAllText(Path.Combine(outDir, ReportArchive.TextName), TextReport.Full(title, items, shots, metrics, subtitles, ranking, bdinfo), utf8);
+        return html;
+    }
+
     private static string Chart(MetricSeries s, MetricResult res)
     {
         if (s.Values.Count < 2)
@@ -230,6 +250,7 @@ public static class HtmlReport
         .shot.sbs .frames{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:6px}.shot.sbs .frames figure{display:block}
         details.bdinfo{margin:8px 0;background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:6px 10px}details.bdinfo summary{cursor:pointer}
         details.bdinfo pre{overflow-x:auto;font:12px/1.35 Cascadia Mono,Consolas,Menlo,monospace;margin:8px 0 2px}
+        .plain ul{padding-left:18px;margin:0}.plain li{margin:4px 0;font-size:15px}
         .missing{padding:40px;text-align:center;color:var(--muted);border:1px dashed var(--edge)}.chart svg{width:100%;height:160px;background:#17181b;border:1px solid var(--edge)}
         """;
 

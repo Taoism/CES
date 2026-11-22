@@ -443,32 +443,69 @@ public sealed partial class MainWindow
             await MessageBox.ShowAsync(this, "Add sources first.", MessageKind.Info);
             return;
         }
-        var start = Directory.Exists(_settings.ReportFolder) ? await StorageProvider.TryGetFolderFromPathAsync(_settings.ReportFolder) : null;
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = "Folder for the report (index.html + images)", SuggestedStartLocation = start });
-        var dir = folders.FirstOrDefault()?.TryGetLocalPath();
-        if (dir == null)
-            return;
-        _settings.ReportFolder = dir;
         var title = string.Join(" vs ", _items.Select(i => i.Name));
-        var outDir = Path.Combine(dir, SafeName("ces " + DateTime.Now.ToString("yyyy-MM-dd HHmm", CultureInfo.InvariantCulture)));
-        string? html = null;
+        var name = SafeName("ces " + string.Join(" vs ", _items.Take(3).Select(i => i.Name)) + " " + DateTime.Now.ToString("yyyy-MM-dd HHmm", CultureInfo.InvariantCulture));
+        var path = await PickReportArchiveAsync("Export report (HTML, plain-words summary and text in one archive)", name);
+        if (path == null)
+            return;
+        var ok = false;
         await RunJobAsync("Writing report", ct =>
         {
             ct.ThrowIfCancellationRequested();
-            html = HtmlReport.Write(outDir, title, _items, _rows.Select(r => r.Row).ToList(), _metrics, _subReports, _slowPicsUrl, BdInfoSections());
+            ReportArchive.Export(path, dir =>
+                HtmlReport.WriteAll(dir, title, _items, _rows.Select(r => r.Row).ToList(), _metrics, _subReports, _slowPicsUrl, BdInfoSections(), _ranking));
+            ok = true;
             return Task.CompletedTask;
         });
-        if (html != null)
+        if (ok)
         {
-            SetStatus("Report: " + html);
-            try
-            {
-                Process.Start(new ProcessStartInfo(html) { UseShellExecute = true });
-            }
-            catch (System.ComponentModel.Win32Exception)
-            {
-                await MessageBox.ShowAsync(this, "Report written to\n" + html, MessageKind.Info);
-            }
+            SetStatus("Report: " + path);
+            await ReportViewer.ShowAsync(this, path);
         }
+    }
+
+    /// <summary>Save picker for a report archive: .zip or .tar.gz (the last one used first), remembering the folder.</summary>
+    internal async Task<string?> PickReportArchiveAsync(string title, string name)
+    {
+        var tar = _settings.ReportPacking == "tar.gz";
+        FilePickerFileType zipType = new("Zip archive") { Patterns = ["*.zip"] };
+        FilePickerFileType tarType = new("tar.gz archive") { Patterns = ["*.tar.gz", "*.tgz"] };
+        var start = Directory.Exists(_settings.ReportFolder) ? await StorageProvider.TryGetFolderFromPathAsync(_settings.ReportFolder) : await StartFolderAsync();
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = title,
+            SuggestedFileName = name + (tar ? ".tar.gz" : ".zip"),
+            DefaultExtension = tar ? ".tar.gz" : ".zip",
+            FileTypeChoices = tar ? [tarType, zipType] : [zipType, tarType],
+            SuggestedStartLocation = start,
+        });
+        var path = file?.TryGetLocalPath();
+        if (path == null)
+            return null;
+        // a doubled extension from the picker, or a name typed without one
+        if (path.EndsWith(".tar.gz.zip", StringComparison.OrdinalIgnoreCase))
+            path = path[..^4];
+        else if (path.EndsWith(".zip.tar.gz", StringComparison.OrdinalIgnoreCase))
+            path = path[..^7];
+        if (ReportArchive.KindOf(path) == null)
+            path += tar ? ".tar.gz" : ".zip";
+        _settings.ReportPacking = ReportArchive.KindOf(path) == ArchiveKind.TarGz ? "tar.gz" : "zip";
+        _settings.ReportFolder = Path.GetDirectoryName(path) ?? "";
+        return path;
+    }
+
+    /// <summary>File › Open report: an exported .zip / .tar.gz, read in CES without unpacking.</summary>
+    private async Task OpenReportAsync()
+    {
+        var start = Directory.Exists(_settings.ReportFolder) ? await StorageProvider.TryGetFolderFromPathAsync(_settings.ReportFolder) : await StartFolderAsync();
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open an exported report",
+            AllowMultiple = true,
+            SuggestedStartLocation = start,
+            FileTypeFilter = [new FilePickerFileType("CES report (.zip, .tar.gz)") { Patterns = ["*.zip", "*.tar.gz", "*.tgz"] }],
+        });
+        foreach (var p in files.Select(f => f.TryGetLocalPath()).OfType<string>())
+            await ReportViewer.ShowAsync(this, p);
     }
 }

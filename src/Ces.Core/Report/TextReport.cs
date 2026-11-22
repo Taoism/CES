@@ -34,6 +34,43 @@ public static class TextReport
         return sb.AppendLine().ToString();
     }
 
+    /// <summary>The Specs table as text: one row per property, a column per source.</summary>
+    public static string Specs(IReadOnlyList<CompareItem> items)
+    {
+        var sb = new StringBuilder();
+        var rows = SpecTable.Build(items);
+        var w = rows.Count > 0 ? rows.Max(r => r.Label.Length) + 2 : 10;
+        sb.Append(' ', w).AppendJoin(" | ", items.Select((it, i) => $"[{i + 1}] {it.Name}")).AppendLine();
+        foreach (var r in rows)
+            sb.Append(r.Label.PadRight(w)).AppendJoin(" | ", r.Values).AppendLine();
+        return sb.ToString();
+    }
+
+    /// <summary>Every tab in one text file (report.txt of an export): header, specs, analyses, metrics, remaster, subtitles, discs, screenshots.</summary>
+    public static string Full(string title, IReadOnlyList<CompareItem> items, IReadOnlyList<ShotRow> shots,
+        IReadOnlyList<(CompareItem Reference, CompareItem Distorted, MetricResult Result)> metrics, IReadOnlyList<SubtitleTimingReport>? subtitles = null,
+        IReadOnlyList<RankRow>? ranking = null, IReadOnlyList<BdInfoSection>? bdinfo = null)
+    {
+        var sb = new StringBuilder(Header(title, items));
+        void Part(string name, string body)
+        {
+            if (body.StartsWith("No ", StringComparison.Ordinal) && body.Length < 60)
+                return;
+            sb.AppendLine(name.ToUpperInvariant()).AppendLine(new string('=', name.Length)).AppendLine().Append(body).AppendLine();
+        }
+        Part("Specs", Specs(items));
+        Part("Video analysis", Video(items));
+        Part("Audio analysis", Audio(items));
+        Part("Quality metrics", Quality(metrics, ranking ?? []));
+        Part("Remaster", Remaster(items));
+        Part("Subtitles", Subtitles(subtitles ?? [], items));
+        Part("Discs", Discs(items));
+        Part("Screenshots", Screenshots(items, shots));
+        foreach (var b in bdinfo ?? [])
+            Part($"BDInfo [{b.Index + 1}] {b.Name}", b.Report.TrimEnd() + Environment.NewLine);
+        return sb.ToString();
+    }
+
     /// <summary>One block of findings the way the cards show them (⚠ problem, • note).</summary>
     public static string Findings(string title, IEnumerable<Finding> findings)
     {

@@ -11,6 +11,9 @@ public sealed class AppSettings
     public string LastFolder { get; set; } = "";
     public string ReportFolder { get; set; } = "";
 
+    /// <summary>"zip" or "tar.gz": how exported reports are packed.</summary>
+    public string ReportPacking { get; set; } = "zip";
+
     // screenshots
     public int ShotCount { get; set; } = 8;
     public string ShotMode { get; set; } = "Even";

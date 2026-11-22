@@ -157,7 +157,11 @@ is detected and inverse-telecined (field matching + decimation) so frames pair o
   measured against the reference in several windows across the title, then ranked (VMAF, 1 % low, PSNR, SSIM, bitrate).
 - **Release cards** in the Quality tab: size, bitrate and picture of each release with its VMAF against source 1,
   and its value — "93 % of the best score at 40 % of its size" and VMAF points per GB.
-- **HTML report**: specs, findings, metrics charts and click/1–9 switchable screenshots.
+- **Report export** (File › Export, Ctrl+E): one `.zip` or `.tar.gz` holding the HTML report (specs, findings,
+  metrics charts and click/1–9 switchable screenshots), `summary.txt` with the comparison **in plain words** for
+  people who do not know what VMAF or a bitrate is (also at the top of the HTML report), and `report.txt` with every
+  tab as text. File › Open exported report (or dropping the archive on the window) shows it in CES straight from the
+  archive: the summary, the details and the screenshots, with the HTML version one click away in the browser.
 
 ## More screenshots
 
@@ -186,7 +190,8 @@ ces grade  <reference> <other…> [-n 8 | --at T,…] [--windows 5] [--no-tempor
                                                           (remaster: framing, grade, grade over time, frame checks)
 ces subs   <reference> <other…> [--subs eng]           (subtitle timing)
 ces rank   <reference> <release… | folder> [--windows 5] [--length 20] [--edits]
-ces report <source…> [--metrics] [--out DIR] [--bdinfo-scan | --no-bdinfo]
+ces report <source…> [--metrics] [--out DIR | report.zip | report.tar.gz] [--bdinfo-scan | --no-bdinfo]
+ces show-report <report.zip | report.tar.gz> [--full]  (the plain-words summary, or all details, from the archive)
 ces bdinfo <Blu-ray folder | ISO | RAR set> [-p 00800] [-a] [-q] [-l] [-o FILE]   (BDInfo report; no ffmpeg needed)
 ```
 

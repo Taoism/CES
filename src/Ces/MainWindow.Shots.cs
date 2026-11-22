@@ -720,7 +720,7 @@ public sealed partial class MainWindow
         SetStatus($"Saved {n} screenshots to {dir}");
     }
 
-    private static string SafeName(string s)
+    internal static string SafeName(string s)
     {
         var bad = Path.GetInvalidFileNameChars();
         var r = new string(s.Select(c => bad.Contains(c) || c == ' ' ? '_' : c).ToArray());

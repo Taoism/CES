@@ -467,9 +467,11 @@ public sealed partial class SpotView : UserControl
         var file = await sp.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = "Export spot report",
-            SuggestedFileName = "ces-spot-report.csv",
+            SuggestedFileName = "ces-spot-report.zip",
             FileTypeChoices =
             [
+                new FilePickerFileType("Report archive (.zip): CSV, details and a plain-words summary") { Patterns = ["*.zip"] },
+                new FilePickerFileType("Report archive (.tar.gz)") { Patterns = ["*.tar.gz", "*.tgz"] },
                 new FilePickerFileType("CSV (spreadsheet)") { Patterns = ["*.csv"] },
                 new FilePickerFileType("Text report with details") { Patterns = ["*.txt"] },
             ],
@@ -480,10 +482,33 @@ public sealed partial class SpotView : UserControl
             return;
         }
         var rows = _view.OfType<FileRow>().Where(r => r.IsDone).ToList();
+        if (Report.ReportArchive.KindOf(path) is not null)
+        {
+            await ExportArchiveAsync(path, rows);
+            return;
+        }
         string content = path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
             ? string.Join(Environment.NewLine, rows.Select(r => SpotReport.Text(r.Result!)))
             : SpotReport.Csv(rows);
         await File.WriteAllTextAsync(path, content, new UTF8Encoding(true), CancellationToken.None);
+    }
+
+    /// <summary>One .zip / .tar.gz: summary.txt in plain words, report.txt with the details, spot-report.csv; then shown in the viewer.</summary>
+    private async Task ExportArchiveAsync(string path, List<FileRow> rows)
+    {
+        var details = string.Join(Environment.NewLine, rows.Select(r => SpotReport.Text(r.Result!)));
+        var csv = SpotReport.Csv(rows);
+        var plain = SpotReport.Plain(rows);
+        await Task.Run(() => Report.ReportArchive.Export(path, dir =>
+        {
+            File.WriteAllText(Path.Combine(dir, Report.ReportArchive.SummaryName), plain, new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(dir, Report.ReportArchive.TextName), details, new UTF8Encoding(false));
+            File.WriteAllText(Path.Combine(dir, "spot-report.csv"), csv, new UTF8Encoding(true));
+        }), CancellationToken.None);
+        if (TopLevel.GetTopLevel(this) is Window w)
+        {
+            await Dialogs.ReportViewer.ShowAsync(w, path);
+        }
     }
 
     // ---------------------------------------------------------------- saved results (.cess)

@@ -103,6 +103,9 @@ public sealed partial class MainWindow : Window
             if (files == null)
                 return;
             var paths = files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
+            paths = await OpenReportsAsync(paths);
+            if (paths.Count == 0)
+                return;
             if (paths.FirstOrDefault(IsSavedResults) is { } saved)
                 await OpenSavedAsync(saved);
             else if (_spotMode)
@@ -141,6 +144,7 @@ public sealed partial class MainWindow : Window
                     {
                         MenuItemFor("_Open…", () => _spotMode ? _spot.OpenFolderAsync() : AddFilesAsync(), new KeyGesture(Key.O, KeyModifiers.Control)),
                         MenuItemFor("Open saved _results…", OpenSavedAsync, new KeyGesture(Key.L, KeyModifiers.Control)),
+                        MenuItemFor("Open exported re_port…", OpenReportAsync),
                         (_recentMenu = new MenuItem { Header = "_Recent" }),
                         new Separator(),
                         MenuItemFor("_Save results", () => _spotMode ? _spot.SaveResultsAsync(false) : SaveSessionAsync(false), new KeyGesture(Key.S, KeyModifiers.Control)),
@@ -586,7 +590,7 @@ public sealed partial class MainWindow : Window
         }
         SetStatus($"Ready · {tools.Version}{(tools.MediaInfo == null ? " · MediaInfo not found (HDR/codec details limited)" : "")}{(tools.HasVmaf ? "" : " · no libvmaf")}");
         if (args.Length > 0)
-            await AddPathsAsync(args.ToList());
+            await AddPathsAsync(await OpenReportsAsync(args.ToList()));
         if (Environment.GetEnvironmentVariable("CES_TOUR") is { Length: > 0 } tour && _items.Count > 0)
             await RunTourAsync(tour);
     }
@@ -672,6 +676,34 @@ public sealed partial class MainWindow : Window
             return;
         }
         await AddPathsAsync(paths);
+    }
+
+    /// <summary>Opens the exported reports among <paramref name="paths"/> in the viewer; returns the other paths.</summary>
+    private async Task<List<string>> OpenReportsAsync(List<string> paths)
+    {
+        var rest = new List<string>();
+        foreach (var p in paths)
+        {
+            if (ReportViewer.LooksLikeReport(p) && IsExportedReport(p))
+                await ReportViewer.ShowAsync(this, p);
+            else
+                rest.Add(p);
+        }
+        return rest;
+    }
+
+    /// <summary>A zip / tar.gz with summary.txt or index.html in its report folder (a zip of media files is a source).</summary>
+    private static bool IsExportedReport(string path)
+    {
+        try
+        {
+            using var b = Report.ReportArchive.Open(path);
+            return b.Has(Report.ReportArchive.SummaryName) || b.Has(Report.ReportArchive.HtmlName);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException)
+        {
+            return false;
+        }
     }
 
     private async Task<IStorageFolder?> StartFolderAsync() =>

@@ -1,6 +1,6 @@
 # CES TODO
 
-CES = Compare + Spot modes, v0.3.6 (2026-11-21).
+CES = Compare + Spot modes, v0.3.7 (2026-11-21).
 
 Done: whole-title sync, PAL speed, edits, sessions, ranking, difference/flicker, detailed shots (2026-11-15);
 artefacts (grain/banding/halos/chroma), audio remaster/upmix checks, HDR10+/DV metadata, subtitles (burn-in, timing),
@@ -10,6 +10,12 @@ first-frame alignment, dropped/duplicated frames, grade over time, dirt/speck an
 screenshots from synthetic sources (2026-11-16).
 
 Open:
+- [x] Report export as one archive (2026-11-21): File › Export writes a .zip or .tar.gz with index.html + images,
+  summary.txt (the comparison in plain words: what was compared, short answer, differences, closeness in words,
+  findings explained, glossary of the words used; also on top of the HTML) and report.txt (every tab as text).
+  File › Open exported report / drop / command line opens it in a viewer straight from the archive (summary, details,
+  screenshots, "Open in browser"). Spot export has the same archive (CSV, details, plain summary). CLI:
+  `ces report --out x.zip|x.tar.gz`, `ces show-report x.zip [--full]`.
 - [x] Compare all (2026-11-21): one button / Ctrl+Shift+A runs sync, screenshots, video, audio, metrics, remaster and
       subtitle timing; a dialog lists the steps with rough times (Ces.Core/Compare/CompareAllPlan.cs: scaled by duration,
       resolution, counts; per-step factors learnt from real runs in settings CompareAllFactors), steps with results

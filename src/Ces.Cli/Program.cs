@@ -45,6 +45,22 @@ if (args[0] == "spot")
     // no ffmpeg needed: the spot engine reads the streams itself
     return SpotCommand.Run(args[1..]);
 }
+if (args[0] == "show-report" && args.Length >= 2)
+{
+    // an exported report archive: the plain-words summary (or --full: the technical text), straight from the archive
+    try
+    {
+        using var bundle = ReportArchive.Open(args[1]);
+        var name = args.Contains("--full") ? ReportArchive.TextName : ReportArchive.SummaryName;
+        Console.Write(bundle.ReadText(name) ?? throw new InvalidDataException($"{name} is not in {args[1]}"));
+        return 0;
+    }
+    catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+    {
+        await Console.Error.WriteLineAsync("ces: " + ex.Message);
+        return 2;
+    }
+}
 if (args[0] is "--version" or "-V")
 {
     Console.WriteLine("ces " + typeof(CompareItem).Assembly.GetName().Version?.ToString(3));
@@ -354,8 +370,18 @@ try
             var shotDir = Path.Combine(temp, "shots");
             var rows = items.Any(i => i.Title.Info?.Video != null) ? await ShotsAsync(items, tools, temp, shotDir, cli, cts.Token) : [];
             var bdinfo = cli.Has("no-bdinfo") ? [] : await BdInfoSectionsAsync(items, cli.Has("bdinfo-scan"), cts.Token);
-            var html = HtmlReport.Write(outDir, cli.Get("title") ?? string.Join(" vs ", items.Select(i => i.Name)), items, rows, metrics, bdinfo: bdinfo);
-            Console.WriteLine("Report: " + html);
+            var title = cli.Get("title") ?? string.Join(" vs ", items.Select(i => i.Name));
+            if (ReportArchive.KindOf(outDir) != null)
+            {
+                // one archive: index.html + images, summary.txt (plain words), report.txt
+                ReportArchive.Export(Path.GetFullPath(outDir), dir => HtmlReport.WriteAll(dir, title, items, rows, metrics, bdinfo: bdinfo));
+                Console.WriteLine("Report: " + Path.GetFullPath(outDir));
+            }
+            else
+            {
+                var html = HtmlReport.WriteAll(outDir, title, items, rows, metrics, bdinfo: bdinfo);
+                Console.WriteLine("Report: " + html);
+            }
             break;
         }
 

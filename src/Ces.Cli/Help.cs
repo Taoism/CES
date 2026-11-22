@@ -59,9 +59,14 @@ internal static class Help
                     (tone curve, contrast, saturation, colour cast), on matched frames   -n N  --at T,…  --curve
           subs      Subtitle timing of each source against the reference (same language): shift, drift, lines found
                       --subs LANG|N    reference track (default track 1; others use the same language)
-          report    HTML report with specs, findings, screenshots (and metrics with --metrics)
-                      --out DIR  --title TEXT  -n N  --no-video  --no-audio  --no-sync
+          report    HTML report with specs, findings, screenshots (and metrics with --metrics), plus
+                    summary.txt (the comparison in plain words) and report.txt (all details as text)
+                      --out DIR | FILE.zip | FILE.tar.gz   (an archive holds the whole report; default ./ces-report)
+                      --title TEXT  -n N  --no-video  --no-audio  --no-sync
                       Blu-ray sources get a BDInfo section (quick read; --bdinfo-scan full scan, --no-bdinfo none)
+
+          show-report <report.zip|.tar.gz> [--full]
+                    print an exported report's plain-words summary (--full: the technical text) from the archive
 
         Common options
           --offset [I=]T     source I (default 2) starts T seconds later than the reference
