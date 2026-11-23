@@ -135,3 +135,22 @@ public class ReportNotesTests(ITestOutputHelper output)
         }
     }
 }
+
+public class ReportNamesTests
+{
+    [Theory]
+    [InlineData(@"X:\Media\Old.Film.1970.German.DL.1080p.BluRay.x264-ALPHA\old.film.1970.german.dl.1080p.bluray.x264-alpha.rar::old.film.1970.german.dl.1080p.bluray.x264-alpha.mkv",
+        "old.film.1970.german.dl.1080p.bluray.x264-alpha.rar › old.film.1970.german.dl.1080p.bluray.x264-alpha.mkv", "old.film.1970.german.dl.1080p.bluray.x264-alpha")]
+    [InlineData(@"X:\Media\Old.Film.1970.COMPLETE.BLURAY-BETA\old.film.1970.complete.bluray-beta.rar::OLDFILM.iso",
+        "old.film.1970.complete.bluray-beta.rar › OLDFILM.iso [BD]", "old.film.1970.complete.bluray-beta")]
+    [InlineData(@"X:\Media\Old.Film.1970.1080p.BluRay.x264-GAMMA.mkv", "Old.Film.1970.1080p.BluRay.x264-GAMMA.mkv", "old.film.1970.1080p.bluray.x264-gamma")]
+    public void ReleaseFolderNamesTheFiles(string path, string display, string expected)
+    {
+        var it = new CompareItem
+        {
+            Source = new MediaSource { Path = path, Kind = SourceKind.File, DisplayName = display },
+            Title = new MediaTitle { Name = "t" },
+        };
+        Assert.Equal(expected, ReportArchive.SourceBase(it));
+    }
+}

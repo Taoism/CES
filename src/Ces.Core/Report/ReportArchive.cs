@@ -30,7 +30,15 @@ public static class ReportArchive
     /// <summary>One source's release name for file names ("performance.1970.1080p.bluray.x264-grp").</summary>
     public static string SourceBase(Compare.CompareItem it)
     {
-        var candidates = new[] { it.Name, it.Source.DisplayName, Path.GetFileName(it.Source.Path.TrimEnd('/', '\\')) };
+        // the release folder first ("Movie.1970.1080p.BluRay.x264-GRP\movie.rar::movie.mkv" → its first part), then
+        // the parts of the shown name ("movie.rar › movie.mkv"), then the file name
+        var shortPath = ReportPath.Short(it.Source.Path);
+        var candidates = shortPath.Split("::")[0].Split('\\', '/')
+            .Concat(it.Name.Split(" › ")).Concat(it.Source.DisplayName.Split(" › "))
+            .Append(Path.GetFileName(it.Source.Path.TrimEnd('/', '\\')))
+            .Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
+        if (candidates.Length == 0)
+            return "";
         var name = candidates.FirstOrDefault(n => n.Length > 0 && Share.SceneName.LooksLikeRelease(n)) ?? candidates.FirstOrDefault(n => n.Length > 0) ?? "";
         var ext = Path.GetExtension(name);
         if (ext.ToLowerInvariant() is ".mkv" or ".mp4" or ".m2ts" or ".ts" or ".iso" or ".rar" or ".avi" or ".mpls" or ".vob" or ".ifo" or ".png" or ".jpg")
