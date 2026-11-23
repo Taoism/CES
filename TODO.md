@@ -142,5 +142,6 @@ Open:
       expander, menus, tooltips, progress); no hard-coded UI colours left in code (ThemeResources.Themed binds code-built
       controls, custom-drawn charts repaint on ActualThemeVariantChanged); title bar, message boxes and About follow the
       theme. CES_THEME=Light|Dark|System overrides the setting for one run. Dark is pixel-identical to 0.3.1 (tour diff).
-      The HTML report stays dark.
+      The HTML report follows the system's light/dark setting (2026-11-23; Auto / Dark / Light switch in its header,
+      remembered by the browser), charts included.
 - [x] Published on GitHub as Taoism/CES (v0.3.0 2026-11-16, v0.3.1 2026-11-17, v0.3.2 2026-11-18, v0.3.3 2026-11-18)

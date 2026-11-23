@@ -130,8 +130,9 @@ public class ReportNotesTests(ITestOutputHelper output)
             // both compared releases in one VMAF chart, each its own line; the remaster tone curve with its guide
             Assert.Contains("<h2>Quality metrics</h2>", page);
             Assert.Contains("VMAF per frame against 1", page);
-            Assert.Contains("stroke=\"#e0a040\"", page);
-            Assert.Contains("stroke=\"#6cc070\"", page);
+            Assert.Contains("<polyline class=\"s1\"", page);
+            Assert.Contains("<polyline class=\"s2\"", page);
+            Assert.Contains("prefers-color-scheme:light", page);
             Assert.Contains("<h2>Remaster</h2>", page);
             Assert.Contains("Tone curve", page);
             Assert.Contains("Grade over time", page);

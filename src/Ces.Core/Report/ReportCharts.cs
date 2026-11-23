@@ -279,22 +279,23 @@ public static class ReportCharts
                     continue;
                 line.Append(X(s.X[k]).ToString("0.#", Inv)).Append(',').Append(Y(s.Y[k]).ToString("0.#", Inv)).Append(' ');
             }
-            var color = s.Guide ? "#8a8c91" : Colors[s.Source % Colors.Length];
-            sb.Append("<polyline fill=\"none\" stroke=\"").Append(color).Append("\" stroke-width=\"").Append(s.Guide ? "1" : "1.6").Append('"')
+            sb.Append("<polyline class=\"").Append(Cls(s)).Append("\" fill=\"none\" stroke-width=\"").Append(s.Guide ? "1" : "1.6").Append('"')
               .Append(s.Dashed ? " stroke-dasharray=\"6 4\"" : "").Append(" stroke-linejoin=\"round\" points=\"").Append(line).Append("\"><title>")
               .Append(H(s.Name)).Append("</title></polyline>");
         }
         sb.Append("</svg><div class=\"legend\">");
         foreach (var s in c.Series)
         {
-            var color = s.Guide ? "#8a8c91" : Colors[s.Source % Colors.Length];
-            sb.Append("<span><i style=\"border-top:2px ").Append(s.Dashed ? "dashed" : "solid").Append(' ').Append(color).Append("\"></i>").Append(H(s.Name)).Append("</span>");
+            sb.Append("<span><i class=\"").Append(Cls(s)).Append(s.Dashed ? " dashed" : "").Append("\"></i>").Append(H(s.Name)).Append("</span>");
         }
         sb.Append("</div>");
         if (c.Note.Length > 0)
             sb.Append("<p class=\"muted\">").Append(H(c.Note)).Append("</p>");
         return sb.Append("</figure>").ToString();
     }
+
+    /// <summary>The line's colour class (the page's theme picks the colour): s0…s5 per source, guide for guide lines.</summary>
+    private static string Cls(ReportSeries s) => s.Guide ? "guide" : "s" + (s.Source % Colors.Length).ToString(Inv);
 
     /// <summary>About <paramref name="count"/> round tick values covering lo…hi.</summary>
     internal static double[] Ticks(double lo, double hi, int count)
