@@ -104,18 +104,54 @@ public static class HtmlReport
             sb.Append("</div></section>");
         }
 
-        // metrics
-        foreach (var (rf, ds, res) in metrics)
+        // video analysis, audio analysis: the tabs' charts, every source on its own line
+        var videoCharts = ReportCharts.Video(items);
+        if (videoCharts.Count > 0)
         {
-            sb.Append("<section><h2>Quality: ").Append(H(ds.Name)).Append(" vs ").Append(H(rf.Name)).Append("</h2><p class=\"muted\">")
-              .Append(res.Frames).Append(" frames from ").Append(Format.Time(res.Start)).Append(", reference ").Append(H(res.ReferenceGeometry))
-              .Append(res.Notes.Length > 0 ? " · " + H(res.Notes) : "").Append("</p><table class=\"specs small\"><tr><th>Metric</th><th>Mean</th><th>1% low</th><th>Min</th></tr>");
-            foreach (var (m, s) in res.Series)
-                sb.Append("<tr><td>").Append(H(s.Name)).Append("</td><td>").Append(Format.Num(s.Mean, m == Metric.Ssim ? "0.0000" : "0.00")).Append("</td><td>")
-                  .Append(Format.Num(s.Low1, m == Metric.Ssim ? "0.0000" : "0.00")).Append("</td><td>").Append(Format.Num(s.Min, m == Metric.Ssim ? "0.0000" : "0.00")).Append("</td></tr>");
+            sb.Append("<section><h2>Video analysis</h2>");
+            foreach (var c in videoCharts)
+                sb.Append(ReportCharts.Svg(c));
+            sb.Append("</section>");
+        }
+        if (ReportCharts.AudioSpectrum(items) is { } spectrum)
+            sb.Append("<section><h2>Audio analysis</h2>").Append(ReportCharts.Svg(spectrum)).Append("</section>");
+
+        // quality metrics: the numbers per pair, then one chart per metric with every compared source in it
+        if (metrics.Count > 0)
+        {
+            sb.Append("<section><h2>Quality metrics</h2><table class=\"specs small\"><tr><th></th><th>Against</th><th>Metric</th><th>Mean</th><th>1% low</th><th>Min</th><th>Frames</th></tr>");
+            foreach (var (rf, ds, res) in metrics)
+            {
+                var di = items.ToList().IndexOf(ds);
+                var first = true;
+                foreach (var (m, s) in res.Series)
+                {
+                    var f = m == Metric.Ssim ? "0.0000" : "0.00";
+                    sb.Append("<tr><td>");
+                    if (first)
+                        sb.Append("<span class=\"chip c").Append(Math.Max(0, di) % 6).Append("\">").Append(di + 1).Append("</span> ").Append(H(ds.Name));
+                    sb.Append("</td><td>").Append(first ? H(rf.Name) : "").Append("</td><td>").Append(H(s.Name)).Append("</td><td>").Append(Format.Num(s.Mean, f))
+                      .Append("</td><td>").Append(Format.Num(s.Low1, f)).Append("</td><td>").Append(Format.Num(s.Min, f)).Append("</td><td>")
+                      .Append(first ? res.Frames.ToString(Inv) + " from " + H(Format.Time(res.Start)) : "").Append("</td></tr>");
+                    first = false;
+                }
+            }
             sb.Append("</table>");
-            foreach (var (_, s) in res.Series)
-                sb.Append(Chart(s, res));
+            foreach (var c in ReportCharts.Quality(items, metrics))
+                sb.Append(ReportCharts.Svg(c));
+            sb.Append("</section>");
+        }
+
+        if (ReportCharts.Subtitles(items, subtitles) is { } subChart)
+            sb.Append("<section><h2>Subtitles</h2>").Append(ReportCharts.Svg(subChart)).Append("</section>");
+
+        // remaster: tone curve and grade over time
+        var remaster = ReportCharts.Remaster(items);
+        if (remaster.Count > 0)
+        {
+            sb.Append("<section><h2>Remaster</h2>");
+            foreach (var c in remaster)
+                sb.Append(ReportCharts.Svg(c));
             sb.Append("</section>");
         }
 
@@ -189,25 +225,6 @@ public static class HtmlReport
         return html;
     }
 
-    private static string Chart(MetricSeries s, MetricResult res)
-    {
-        if (s.Values.Count < 2)
-            return "";
-        const int w = 1000, h = 160;
-        var min = Math.Min(s.Values.Min(), s.Name == "SSIM" ? 0.9 : s.Name == "VMAF" ? 60 : 30);
-        var max = s.Name == "SSIM" ? 1.0 : s.Name == "VMAF" ? 100 : Math.Max(50, s.Values.Where(v => v < 99).DefaultIfEmpty(50).Max());
-        var step = Math.Max(1, s.Values.Count / w);
-        var pts = new StringBuilder();
-        for (var i = 0; i < s.Values.Count; i += step)
-        {
-            var x = (double)i / (s.Values.Count - 1) * w;
-            var y = h - (Math.Clamp(s.Values[i], min, max) - min) / (max - min) * h;
-            pts.Append(x.ToString("0.#", Inv)).Append(',').Append(y.ToString("0.#", Inv)).Append(' ');
-        }
-        return $"<figure class=\"chart\"><svg viewBox=\"0 0 {w} {h}\" preserveAspectRatio=\"none\" role=\"img\" aria-label=\"{H(s.Name)} per frame\"><polyline fill=\"none\" stroke=\"var(--accent)\" stroke-width=\"1.5\" vector-effect=\"non-scaling-stroke\" points=\"{pts}\"/></svg>" +
-               $"<figcaption>{H(s.Name)} per frame ({Format.Num(min, "0.##")}–{Format.Num(max, "0.##")}), {Format.Time(res.Start, false)} → {Format.Time(res.TimeOf(res.Frames), false)}</figcaption></figure>";
-    }
-
     private static string H(string s) => WebUtility.HtmlEncode(s);
 
     /// <summary>BDInfo: the quick summaries side by side, then each full report (collapsed).</summary>
@@ -259,7 +276,7 @@ public static class HtmlReport
         details.bdinfo pre{overflow-x:auto;font:12px/1.35 Cascadia Mono,Consolas,Menlo,monospace;margin:8px 0 2px}
         .notes p{max-width:980px;line-height:1.6;font-size:15px;margin:0 0 12px}
         .plain ul{padding-left:18px;margin:0}.plain li{margin:4px 0;font-size:15px}
-        .missing{padding:40px;text-align:center;color:var(--muted);border:1px dashed var(--edge)}.chart svg{width:100%;height:160px;background:#17181b;border:1px solid var(--edge)}
+        .missing{padding:40px;text-align:center;color:var(--muted);border:1px dashed var(--edge)}.chart{margin:14px 0}.chart svg{width:100%;height:auto;background:#17181b;border:1px solid var(--edge);border-radius:4px}.chart svg text{fill:var(--muted);font:12px system-ui,sans-serif}.chart svg .grid{stroke:#2a2c31;stroke-width:1}.chart svg .frame{fill:none;stroke:var(--edge)}.chart figcaption.title{font-weight:600;margin:0 0 6px}.legend{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:6px;font-size:13px;color:var(--muted)}.legend i{display:inline-block;width:22px;margin-right:6px;vertical-align:middle}
         """;
 
     private const string Js = """

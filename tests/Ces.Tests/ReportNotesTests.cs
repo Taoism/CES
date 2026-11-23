@@ -70,6 +70,7 @@ public class ReportNotesTests(ITestOutputHelper output)
         c.Temporal.Events.Add(new FrameEvent(1800, "duplicated / inserted frame"));
         c.Temporal.Events.Add(new FrameEvent(2400, "dropped frame"));
         var subs = new List<SubtitleTimingReport> { new() { Item = b, TrackLabel = "English", ReferenceEvents = 100, Matched = 56, Events = 98 } };
+        subs[0].Deltas.AddRange([(300, -0.05), (1800, -0.06), (3600, -0.04)]);
         return (a, b, c, [(a, b, Vmaf(42)), (a, c, Vmaf(11))], subs);
     }
 
@@ -124,7 +125,20 @@ public class ReportNotesTests(ITestOutputHelper output)
             Assert.Contains("Comparing the three", bundle.ReadText(bundle.Notes!));
             Assert.Contains("Comparing the three", bundle.ReadText(bundle.Summary!));
             Assert.Contains("NOTES", bundle.ReadText(bundle.Text!));
-            Assert.Contains("<h2>Notes</h2>", bundle.ReadText(ReportArchive.HtmlName));
+            var page = bundle.ReadText(ReportArchive.HtmlName)!;
+            Assert.Contains("<h2>Notes</h2>", page);
+            // both compared releases in one VMAF chart, each its own line; the remaster tone curve with its guide
+            Assert.Contains("<h2>Quality metrics</h2>", page);
+            Assert.Contains("VMAF per frame against 1", page);
+            Assert.Contains("stroke=\"#e0a040\"", page);
+            Assert.Contains("stroke=\"#6cc070\"", page);
+            Assert.Contains("<h2>Remaster</h2>", page);
+            Assert.Contains("Tone curve", page);
+            Assert.Contains("Grade over time", page);
+            Assert.Contains("<h2>Subtitles</h2>", page);
+            Assert.Contains("Subtitle timing", page);
+            if (Environment.GetEnvironmentVariable("CES_KEEP_REPORT") is { Length: > 0 } keep)
+                File.WriteAllText(keep, page);
             Assert.Contains("images/old.film.1970.complete.bluray-alpha-shot-01-1.png", bundle.Files);
             Assert.Contains("images/old.film.1970.1080p.bluray.x264-beta-shot-01-2.png", bundle.Files);
             Assert.Contains("images/old.film.1970.remastered.1080p.bluray.flac.x264-gamma-shot-01-3.png", bundle.Files);

@@ -32,6 +32,10 @@ Open:
       (MainWindow.ArchivedSession.cs: finds the releases next to the archive, in last/report/recent folders, next to
       sources already found, else asks for the release folder); viewer button "Open comparison". Subtitle timing
       results are now saved in comparisons too (SessionSubtitles). Not yet driven end to end in the GUI.
+- [x] Report charts (2026-11-23, Report/ReportCharts.cs, inline SVG in the sources' colours): Video analysis (native
+      resolution, H/V detail spectrum), Audio analysis (average spectrum), Quality metrics (one chart per metric, every
+      compared release its own line; one table for all pairs), Subtitles (shift per line), Remaster (tone curve with the
+      'same' diagonal, grade over time).
 - [ ] slow.pics upload not tested live (publishes images) — try once with the user's OK
 - [x] slow.pics uploads carry no release names (2026-11-21, Share/SceneName.cs): comparison name = the film title
       ("Old Film (1970)", also when a release name is typed), sources "1 · Blu-ray 1080p AVC" (or a label that is not a
