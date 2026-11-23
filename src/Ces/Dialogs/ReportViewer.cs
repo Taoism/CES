@@ -21,7 +21,7 @@ public sealed partial class ReportViewer : Window
     private readonly ReportBundle _bundle;
     private readonly List<Bitmap> _bitmaps = [];
 
-    [GeneratedRegex(@"^images/shot-(\d+)-(\d+)\.(png|jpg|jpeg|webp)$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^images/(?:.+-)?shot-(\d+)-(\d+)\.(png|jpg|jpeg|webp)$", RegexOptions.IgnoreCase)]
     private static partial Regex ShotName();
 
     private ReportViewer(ReportBundle bundle)
@@ -36,14 +36,16 @@ public sealed partial class ReportViewer : Window
         WindowStartupLocation = WindowStartupLocation.Manual;
 
         var tabs = new TabControl { Margin = new Thickness(8, 4, 8, 0) };
-        if (bundle.ReadText(ReportArchive.SummaryName) is { } plain)
+        if (bundle.Notes is { } nf && bundle.ReadText(nf) is { } notes)
+            tabs.Items.Add(new TabItem { Header = "Notes", Content = Scroll(Text(notes, false, 14), false) });
+        if (bundle.Summary is { } sf && bundle.ReadText(sf) is { } plain)
             tabs.Items.Add(new TabItem { Header = "In plain words", Content = Scroll(Text(plain, false, 14), false) });
-        if (bundle.ReadText(ReportArchive.TextName) is { } full)
+        if (bundle.Text is { } tf && bundle.ReadText(tf) is { } full)
             tabs.Items.Add(new TabItem { Header = "Technical details", Content = Scroll(Text(full, true, 12), true) });
         if (Screenshots() is { } shots)
             tabs.Items.Add(new TabItem { Header = "Screenshots", Content = shots });
         foreach (var extra in bundle.Files.Where(f => f.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) && !f.Contains('/')
-                                                      && f is not (ReportArchive.SummaryName or ReportArchive.TextName)))
+                                                      && f != bundle.Summary && f != bundle.Text && f != bundle.Notes))
             tabs.Items.Add(new TabItem { Header = extra, Content = Scroll(Text(bundle.ReadText(extra) ?? "", true, 12), true) });
         if (tabs.Items.Count == 0)
             tabs.Items.Add(new TabItem { Header = "Report", Content = new TextBlock { Text = "This archive has no summary or text report.", Margin = new Thickness(12), Classes = { "muted" } } });
@@ -98,7 +100,7 @@ public sealed partial class ReportViewer : Window
             await MessageBox.ShowAsync(owner, "Could not open the report:\n" + ex.Message, MessageKind.Error);
             return false;
         }
-        if (!bundle.Has(ReportArchive.SummaryName) && !bundle.Has(ReportArchive.TextName) && !bundle.Has(ReportArchive.HtmlName))
+        if (bundle.Summary == null && bundle.Text == null && !bundle.Has(ReportArchive.HtmlName))
         {
             bundle.Dispose();
             await MessageBox.ShowAsync(owner, "That archive is not a CES report (no summary.txt, report.txt or index.html in it).", MessageKind.Info);

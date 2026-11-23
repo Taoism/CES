@@ -69,12 +69,14 @@ public static class PlainReport
         return list;
     }
 
-    public static string ToText(string title, IReadOnlyList<PlainSection> sections)
+    public static string ToText(string title, IReadOnlyList<PlainSection> sections, IReadOnlyList<string>? notes = null)
     {
         var sb = new StringBuilder();
         var head = "In plain words: " + title;
         sb.AppendLine(head).AppendLine(new string('=', Math.Min(head.Length, 80)));
         sb.AppendLine("CES · " + DateTime.Now.ToString("yyyy-MM-dd HH:mm", Inv)).AppendLine();
+        if (notes is { Count: > 0 })
+            sb.AppendLine("Notes").AppendLine("-----").Append(ReportNotes.ToText(notes));
         foreach (var s in sections)
         {
             sb.AppendLine(s.Heading).AppendLine(new string('-', s.Heading.Length));
@@ -334,7 +336,7 @@ public static class PlainReport
 
     // ---------- words ----------
 
-    private static (string Name, double Value) Score(MetricResult r)
+    internal static (string Name, double Value) Score(MetricResult r)
     {
         foreach (var m in new[] { Metric.Vmaf, Metric.Ssim, Metric.Xpsnr, Metric.Psnr })
         {
@@ -392,7 +394,7 @@ public static class PlainReport
     }
 
     /// <summary>The name a sound format is sold under.</summary>
-    private static string CodecName(StreamInfo a) => a.Codec switch
+    internal static string CodecName(StreamInfo a) => a.Codec switch
     {
         "ac3" => "Dolby Digital",
         "eac3" => a.CodecDisplay.Contains("Atmos", StringComparison.OrdinalIgnoreCase) ? "Dolby Digital Plus with Atmos" : "Dolby Digital Plus",
@@ -408,7 +410,7 @@ public static class PlainReport
         _ => a.CodecDisplay,
     };
 
-    private static bool Lossless(StreamInfo a) =>
+    internal static bool Lossless(StreamInfo a) =>
         !MediaProber.IsLossy(a.Codec) || (a.Codec is "dts" or "dca" && a.Profile.Contains("MA", StringComparison.Ordinal));
 
     private static StreamInfo? BestAudio(CompareItem it) =>

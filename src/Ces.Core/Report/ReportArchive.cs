@@ -18,7 +18,39 @@ public static class ReportArchive
 {
     public const string SummaryName = "summary.txt";
     public const string TextName = "report.txt";
+    public const string NotesName = "notes.txt";
     public const string HtmlName = "index.html";
+
+    /// <summary>
+    /// The release a Compare report is named after: the reference's release name as it is laid out (disc folder or
+    /// file name, lowercased): "performance.1970.complete.bluray-grp". Files inside are "&lt;that&gt;-summary.txt" etc.
+    /// </summary>
+    public static string ReleaseBase(IReadOnlyList<Compare.CompareItem> items) => items.Count == 0 ? "" : SourceBase(items[0]);
+
+    /// <summary>One source's release name for file names ("performance.1970.1080p.bluray.x264-grp").</summary>
+    public static string SourceBase(Compare.CompareItem it)
+    {
+        var candidates = new[] { it.Name, it.Source.DisplayName, Path.GetFileName(it.Source.Path.TrimEnd('/', '\\')) };
+        var name = candidates.FirstOrDefault(n => n.Length > 0 && Share.SceneName.LooksLikeRelease(n)) ?? candidates.FirstOrDefault(n => n.Length > 0) ?? "";
+        var ext = Path.GetExtension(name);
+        if (ext.ToLowerInvariant() is ".mkv" or ".mp4" or ".m2ts" or ".ts" or ".iso" or ".rar" or ".avi" or ".mpls" or ".vob" or ".ifo" or ".png" or ".jpg")
+            name = name[..^ext.Length];
+        var sb = new StringBuilder();
+        foreach (var ch in name.Trim().ToLowerInvariant())
+        {
+            var c = char.IsWhiteSpace(ch) ? '.' : ch;
+            if (Array.IndexOf(Path.GetInvalidFileNameChars(), c) >= 0 || c is '/' or '\\' or ':' or '*' or '?' or '"' or '<' or '>' or '|')
+                continue;
+            if (c == '.' && sb.Length > 0 && sb[^1] == '.')
+                continue;
+            sb.Append(c);
+        }
+        var clean = sb.ToString().Trim('.', '-');
+        return clean.Length > 120 ? clean[..120].TrimEnd('.', '-') : clean;
+    }
+
+    /// <summary>"&lt;release&gt;-summary.txt", or plain "summary.txt" when there is no name.</summary>
+    public static string Named(string release, string file) => release.Length > 0 ? release + "-" + file : file;
 
     /// <summary>The archive kind from a file name, null when it is neither .zip nor .tar.gz / .tgz.</summary>
     public static ArchiveKind? KindOf(string path) =>
@@ -178,14 +210,28 @@ public sealed class ReportBundle : IDisposable
     /// <summary>The folder holding index.html or summary.txt (the report's own folder).</summary>
     private static string FindRoot(List<string> names)
     {
-        var marker = names.Where(n => n.EndsWith("/" + ReportArchive.HtmlName, StringComparison.OrdinalIgnoreCase) || n.Equals(ReportArchive.HtmlName, StringComparison.OrdinalIgnoreCase)
-                                      || n.EndsWith("/" + ReportArchive.SummaryName, StringComparison.OrdinalIgnoreCase) || n.Equals(ReportArchive.SummaryName, StringComparison.OrdinalIgnoreCase))
+        var marker = names.Where(n => IsFile(n, ReportArchive.HtmlName) || IsFile(n, ReportArchive.SummaryName) || IsFile(n, ReportArchive.TextName))
             .OrderBy(n => n.Count(c => c == '/')).FirstOrDefault();
         if (marker == null)
             return "";
         var cut = marker.LastIndexOf('/');
         return cut < 0 ? "" : marker[..(cut + 1)];
     }
+
+    /// <summary>"x/summary.txt", "summary.txt" or "x/&lt;release&gt;-summary.txt".</summary>
+    private static bool IsFile(string path, string file)
+    {
+        var leaf = path[(path.LastIndexOf('/') + 1)..];
+        return leaf.Equals(file, StringComparison.OrdinalIgnoreCase) || (file != ReportArchive.HtmlName && leaf.EndsWith("-" + file, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>The report-folder file for "summary.txt" / "report.txt" / "notes.txt": the plain name or "&lt;release&gt;-name".</summary>
+    public string? Find(string file) =>
+        Files.Where(f => !f.Contains('/') && IsFile(f, file)).OrderBy(f => f.Length).FirstOrDefault();
+
+    public string? Summary => Find(ReportArchive.SummaryName);
+    public string? Text => Find(ReportArchive.TextName);
+    public string? Notes => Find(ReportArchive.NotesName);
 
     private string? Relative(string name)
     {

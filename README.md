@@ -158,9 +158,13 @@ is detected and inverse-telecined (field matching + decimation) so frames pair o
 - **Release cards** in the Quality tab: size, bitrate and picture of each release with its VMAF against source 1,
   and its value — "93 % of the best score at 40 % of its size" and VMAF points per GB.
 - **Report export** (File › Export, Ctrl+E): one `.zip` or `.tar.gz` holding the HTML report (specs, findings,
-  metrics charts and click/1–9 switchable screenshots), `summary.txt` with the comparison **in plain words** for
-  people who do not know what VMAF or a bitrate is (also at the top of the HTML report), and `report.txt` with every
-  tab as text. File › Open exported report (or dropping the archive on the window) shows it in CES straight from the
+  metrics charts and click/1–9 switchable screenshots), `notes.txt` with **release notes**: the comparison written
+  out as two paragraphs of prose (closeness, master and grade, grain, size, then sound, frames, subtitles and a
+  verdict; also the Notes tab and the top of the HTML report), `summary.txt` with the comparison **in plain words** for
+  people who do not know what VMAF or a bitrate is, and `report.txt` with every tab as text. The files are named after
+  the reference release as it is laid out (`performance.1970.complete.bluray-notes.txt`, `…-summary.txt`,
+  `…-report.txt`), and each screenshot after its own source (`performance.1970.1080p.bluray.x264-grp-shot-01-2.png`).
+  File › Open exported report (or dropping the archive on the window) shows it in CES straight from the
   archive: the summary, the details and the screenshots, with the HTML version one click away in the browser.
 
 ## More screenshots
@@ -191,7 +195,7 @@ ces grade  <reference> <other…> [-n 8 | --at T,…] [--windows 5] [--no-tempor
 ces subs   <reference> <other…> [--subs eng]           (subtitle timing)
 ces rank   <reference> <release… | folder> [--windows 5] [--length 20] [--edits]
 ces report <source…> [--metrics] [--out DIR | report.zip | report.tar.gz] [--bdinfo-scan | --no-bdinfo]
-ces show-report <report.zip | report.tar.gz> [--full]  (the plain-words summary, or all details, from the archive)
+ces show-report <report.zip | report.tar.gz> [--full | --notes]  (the plain-words summary, all details, or the release notes, from the archive)
 ces bdinfo <Blu-ray folder | ISO | RAR set> [-p 00800] [-a] [-q] [-l] [-o FILE]   (BDInfo report; no ffmpeg needed)
 ```
 

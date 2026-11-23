@@ -21,6 +21,12 @@ Open:
       resolution, counts; per-step factors learnt from real runs in settings CompareAllFactors), steps with results
       already unticked; hourglass (sand drains with elapsed / (elapsed + left)) + "about n min left" in the job area;
       Stop halts the current step and skips the rest; summary per step. Tested on a 3-min 1080p remux vs 720p encode pair (1:41).
+- [x] Release notes (2026-11-23, Report/ReportNotes.cs): the comparison as two paragraphs of reviewer-style prose
+      (sources by release group; VMAF closest/lowest, master vs re-grade with contrast/tone/tint, grain ratio, size;
+      audio tracks and the only lossless one, dropped/duplicated frames, subtitle match share, verdict). Notes tab,
+      top of the HTML report and summary.txt, NOTES in report.txt, `<release>-notes.txt` in the archive. Archive files
+      named after the reference release (`<release>-summary.txt` / `-report.txt` / `-notes.txt`), screenshots after
+      their source (`<source release>-shot-01-1.png`); old archives with plain names still open. `ces show-report --notes`.
 - [ ] slow.pics upload not tested live (publishes images) — try once with the user's OK
 - [x] slow.pics uploads carry no release names (2026-11-21, Share/SceneName.cs): comparison name = the film title
       ("Old Film (1970)", also when a release name is typed), sources "1 · Blu-ray 1080p AVC" (or a label that is not a

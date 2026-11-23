@@ -18,7 +18,7 @@ public static class HtmlReport
 
     public static string Write(string outDir, string title, IReadOnlyList<CompareItem> items, IReadOnlyList<ShotRow> shots, IReadOnlyList<(CompareItem Reference, CompareItem Distorted, MetricResult Result)> metrics,
         IReadOnlyList<SubtitleTimingReport>? subtitles = null, string? slowPicsUrl = null, IReadOnlyList<BdInfoSection>? bdinfo = null,
-        IReadOnlyList<PlainSection>? plain = null)
+        IReadOnlyList<PlainSection>? plain = null, IReadOnlyList<string>? notes = null)
     {
         Directory.CreateDirectory(outDir);
         var imgDir = Path.Combine(outDir, "images");
@@ -42,6 +42,8 @@ public static class HtmlReport
         }
         sb.Append("</ol></section>");
 
+        if (notes is { Count: > 0 })
+            sb.Append(ReportNotes.ToHtml(notes));
         if (plain is { Count: > 0 })
             sb.Append(PlainReport.ToHtml(plain));
 
@@ -141,7 +143,7 @@ public static class HtmlReport
                     sb.Append("<figure class=\"f").Append(i == 0 ? " on" : "").Append("\">");
                     if (s != null && s.Error == null && File.Exists(s.ImagePath))
                     {
-                        var name = $"shot-{r + 1:00}-{i + 1}.png";
+                        var name = ReportArchive.Named(ReportArchive.SourceBase(items[i]), $"shot-{r + 1:00}-{i + 1}.png");
                         File.Copy(s.ImagePath, Path.Combine(imgDir, name), true);
                         sb.Append("<img loading=\"lazy\" src=\"images/").Append(name).Append("\" alt=\"\">");
                         sb.Append("<figcaption>").Append(H(items[i].Name)).Append(" · ").Append(s.Width).Append('×').Append(s.Height).Append(" · frame type ").Append(H(s.PictType));
@@ -175,10 +177,15 @@ public static class HtmlReport
         string? slowPicsUrl = null, IReadOnlyList<BdInfoSection>? bdinfo = null, IReadOnlyList<RankRow>? ranking = null)
     {
         var plain = PlainReport.Build(items, metrics, subtitles);
-        var html = Write(outDir, title, items, shots, metrics, subtitles, slowPicsUrl, bdinfo, plain);
+        var notes = ReportNotes.Build(items, metrics, subtitles);
+        var html = Write(outDir, title, items, shots, metrics, subtitles, slowPicsUrl, bdinfo, plain, notes);
         var utf8 = new UTF8Encoding(false);
-        File.WriteAllText(Path.Combine(outDir, ReportArchive.SummaryName), PlainReport.ToText(title, plain), utf8);
-        File.WriteAllText(Path.Combine(outDir, ReportArchive.TextName), TextReport.Full(title, items, shots, metrics, subtitles, ranking, bdinfo), utf8);
+        // named after the reference release: "<release>-summary.txt", "<release>-report.txt", "<release>-notes.txt"
+        var release = ReportArchive.ReleaseBase(items);
+        File.WriteAllText(Path.Combine(outDir, ReportArchive.Named(release, ReportArchive.SummaryName)), PlainReport.ToText(title, plain, notes), utf8);
+        File.WriteAllText(Path.Combine(outDir, ReportArchive.Named(release, ReportArchive.TextName)), TextReport.Full(title, items, shots, metrics, subtitles, ranking, bdinfo), utf8);
+        if (notes.Count > 0)
+            File.WriteAllText(Path.Combine(outDir, ReportArchive.Named(release, ReportArchive.NotesName)), title + Environment.NewLine + new string('=', Math.Min(title.Length, 80)) + Environment.NewLine + Environment.NewLine + ReportNotes.ToText(notes), utf8);
         return html;
     }
 
@@ -250,6 +257,7 @@ public static class HtmlReport
         .shot.sbs .frames{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:6px}.shot.sbs .frames figure{display:block}
         details.bdinfo{margin:8px 0;background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:6px 10px}details.bdinfo summary{cursor:pointer}
         details.bdinfo pre{overflow-x:auto;font:12px/1.35 Cascadia Mono,Consolas,Menlo,monospace;margin:8px 0 2px}
+        .notes p{max-width:980px;line-height:1.6;font-size:15px;margin:0 0 12px}
         .plain ul{padding-left:18px;margin:0}.plain li{margin:4px 0;font-size:15px}
         .missing{padding:40px;text-align:center;color:var(--muted);border:1px dashed var(--edge)}.chart svg{width:100%;height:160px;background:#17181b;border:1px solid var(--edge)}
         """;

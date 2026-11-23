@@ -312,6 +312,7 @@ public sealed partial class MainWindow : Window
         _tabs.Margin = new Thickness(4, 4, 10, 6);
         _tabs.Items.Add(new TabItem { Header = "Screenshots", Content = BuildShotsTab() });
         _tabs.Items.Add(new TabItem { Header = "Specs", Content = BuildSpecsTab() });
+        _tabs.Items.Add(new TabItem { Header = "Notes", Content = BuildNotesTab() });
         _tabs.Items.Add(new TabItem { Header = "Video analysis", Content = BuildVideoTab() });
         _tabs.Items.Add(new TabItem { Header = "Audio analysis", Content = BuildAudioTab() });
         _tabs.Items.Add(new TabItem { Header = "Quality metrics", Content = BuildQualityTab() });
@@ -698,7 +699,7 @@ public sealed partial class MainWindow : Window
         try
         {
             using var b = Report.ReportArchive.Open(path);
-            return b.Has(Report.ReportArchive.SummaryName) || b.Has(Report.ReportArchive.HtmlName);
+            return b.Summary != null || b.Has(Report.ReportArchive.HtmlName);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException)
         {

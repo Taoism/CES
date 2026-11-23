@@ -65,7 +65,7 @@ internal static class Help
                       --title TEXT  -n N  --no-video  --no-audio  --no-sync
                       Blu-ray sources get a BDInfo section (quick read; --bdinfo-scan full scan, --no-bdinfo none)
 
-          show-report <report.zip|.tar.gz> [--full]
+          show-report <report.zip|.tar.gz> [--full|--notes]
                     print an exported report's plain-words summary (--full: the technical text) from the archive
 
         Common options

@@ -58,6 +58,7 @@ public static class TextReport
                 return;
             sb.AppendLine(name.ToUpperInvariant()).AppendLine(new string('=', name.Length)).AppendLine().Append(body).AppendLine();
         }
+        Part("Notes", ReportNotes.ToText(ReportNotes.Build(items, metrics, subtitles)));
         Part("Specs", Specs(items));
         Part("Video analysis", Video(items));
         Part("Audio analysis", Audio(items));

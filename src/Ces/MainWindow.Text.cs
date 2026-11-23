@@ -49,6 +49,7 @@ public sealed partial class MainWindow
         {
             "Screenshots" => TextReport.Screenshots(_items, _rows.Select(r => r.Row).ToList()),
             "Specs" => SpecsText(),
+            "Notes" => ReportNotes.ToText(ReportNotes.Build(_items, _metrics, _subReports)),
             "Video analysis" => TextReport.Video(_items),
             "Audio analysis" => TextReport.Audio(_items),
             "Quality metrics" => TextReport.Quality(_metrics, _ranking),

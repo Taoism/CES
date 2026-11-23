@@ -51,8 +51,10 @@ if (args[0] == "show-report" && args.Length >= 2)
     try
     {
         using var bundle = ReportArchive.Open(args[1]);
-        var name = args.Contains("--full") ? ReportArchive.TextName : ReportArchive.SummaryName;
-        Console.Write(bundle.ReadText(name) ?? throw new InvalidDataException($"{name} is not in {args[1]}"));
+        var (want, found) = args.Contains("--full") ? (ReportArchive.TextName, bundle.Text)
+            : args.Contains("--notes") ? (ReportArchive.NotesName, bundle.Notes)
+            : (ReportArchive.SummaryName, bundle.Summary);
+        Console.Write((found != null ? bundle.ReadText(found) : null) ?? throw new InvalidDataException($"{want} is not in {args[1]}"));
         return 0;
     }
     catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
