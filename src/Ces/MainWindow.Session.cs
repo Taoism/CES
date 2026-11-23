@@ -39,12 +39,7 @@ public sealed partial class MainWindow
             if (path == null)
                 return;
         }
-        var s = new SessionFile();
-        foreach (var it in _items)
-            s.Sources.Add(await ToSessionSourceAsync(it));
-        s.Rows = _rows.Select(r => new SessionRow { Time = r.Row.Time, Caption = r.Row.Caption }).ToList();
-        s.Metrics = _metrics.Select(m => new SessionMetric { Reference = _items.IndexOf(m.Reference), Distorted = _items.IndexOf(m.Distorted), Result = m.Result }).ToList();
-        s.Ranking = _ranking.Select(r => new SessionRank { Item = _items.IndexOf(r.Item), Rank = r.Rank, Error = r.Error }).ToList();
+        var s = await BuildSessionAsync();
         try
         {
             await s.SaveAsync(path);
@@ -60,6 +55,19 @@ public sealed partial class MainWindow
         SetStatus("Saved " + path);
     }
 
+    /// <summary>The comparison as saved results (sources, time maps, screenshot times, analysis and metrics).</summary>
+    private async Task<SessionFile> BuildSessionAsync()
+    {
+        var s = new SessionFile();
+        foreach (var it in _items)
+            s.Sources.Add(await ToSessionSourceAsync(it));
+        s.Rows = _rows.Select(r => new SessionRow { Time = r.Row.Time, Caption = r.Row.Caption }).ToList();
+        s.Metrics = _metrics.Select(m => new SessionMetric { Reference = _items.IndexOf(m.Reference), Distorted = _items.IndexOf(m.Distorted), Result = m.Result }).ToList();
+        s.Ranking = _ranking.Select(r => new SessionRank { Item = _items.IndexOf(r.Item), Rank = r.Rank, Error = r.Error }).ToList();
+        s.Subtitles = _subReports.Where(r => _items.Contains(r.Item)).Select(r => SessionSubtitles.From(r, _items.IndexOf(r.Item))).ToList();
+        return s;
+    }
+
     private static bool IsSavedResults(string p) =>
         p.EndsWith(SessionExtension, StringComparison.OrdinalIgnoreCase) || p.EndsWith(SpotUi.SpotSession.Extension, StringComparison.OrdinalIgnoreCase);
 
@@ -69,7 +77,8 @@ public sealed partial class MainWindow
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Open saved results",
-            FileTypeFilter = [new FilePickerFileType("CES results (spot results, comparisons)") { Patterns = ["*" + SpotUi.SpotSession.Extension, "*" + SessionExtension] }, SpotUi.SpotSession.FileType, SessionType],
+            FileTypeFilter = [new FilePickerFileType("CES results (spot results, comparisons)") { Patterns = ["*" + SpotUi.SpotSession.Extension, "*" + SessionExtension, "*.zip", "*.tar.gz", "*.tgz"] }, SpotUi.SpotSession.FileType, SessionType,
+                new FilePickerFileType("Exported report with its comparison (.zip, .tar.gz)") { Patterns = ["*.zip", "*.tar.gz", "*.tgz"] }],
             SuggestedStartLocation = await StartFolderAsync(),
         });
         if ((files.Count > 0 ? files[0].TryGetLocalPath() : null) is { } p)
@@ -78,6 +87,11 @@ public sealed partial class MainWindow
 
     private async Task OpenSavedAsync(string path)
     {
+        if (Report.ReportArchive.KindOf(path) != null)
+        {
+            await OpenReportOrResultsAsync(path);
+            return;
+        }
         if (path.EndsWith(SpotUi.SpotSession.Extension, StringComparison.OrdinalIgnoreCase))
         {
             SetMode(true);
@@ -105,7 +119,7 @@ public sealed partial class MainWindow
             await LoadSessionAsync(p);
     }
 
-    private async Task LoadSessionAsync(string path)
+    private async Task LoadSessionAsync(string path, bool fromArchive = false, string? archive = null)
     {
         if (_tools == null)
             return;
@@ -119,6 +133,9 @@ public sealed partial class MainWindow
             await MessageBox.ShowAsync(this, $"Could not read {Path.GetFileName(path)}:\n{ex.Message}", MessageKind.Error);
             return;
         }
+        // a comparison from a report names its sources from the release folder down: find them on this machine
+        if (fromArchive && !await ResolveSourcesAsync(s, archive))
+            return;
         // start from a clean slate
         ClearShots();
         foreach (var it in _items.ToList())
@@ -126,6 +143,7 @@ public sealed partial class MainWindow
         _items.Clear();
         _metrics.Clear();
         _ranking = [];
+        _subReports.Clear();
         _keyframeScans.Clear();
 
         var problems = new List<string>();
@@ -161,6 +179,11 @@ public sealed partial class MainWindow
                 if (m.Result != null && map.TryGetValue(m.Reference, out var rf) && map.TryGetValue(m.Distorted, out var ds))
                     _metrics.Add((rf, ds, m.Result));
             }
+            foreach (var st in s.Subtitles)
+            {
+                if (map.TryGetValue(st.Item, out var it))
+                    _subReports.Add(st.ToReport(it));
+            }
             foreach (var r in s.Ranking)
             {
                 if (map.TryGetValue(r.Item, out var it))
@@ -168,9 +191,12 @@ public sealed partial class MainWindow
             }
             SourcesChanged();
         });
-        _sessionPath = path;
-        RememberRecent(path);
+        // a comparison from an exported report lives in a temp folder: Save asks where to keep it
+        _sessionPath = fromArchive ? null : path;
+        if (!fromArchive)
+            RememberRecent(path);
         UpdateTitle();
+        RefreshSubResults();
         if (s.Rows.Count > 0 && _items.Count > 0)
             await AddShotTimesAsync(s.Rows.Select(r => (r.Time, r.Caption)));
         if (problems.Count > 0)

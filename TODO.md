@@ -27,6 +27,11 @@ Open:
       top of the HTML report and summary.txt, NOTES in report.txt, `<release>-notes.txt` in the archive. Archive files
       named after the reference release (`<release>-summary.txt` / `-report.txt` / `-notes.txt`), screenshots after
       their source (`<source release>-shot-01-1.png`); old archives with plain names still open. `ces show-report --notes`.
+- [x] Saved results inside the report archive (2026-11-23): `<release>.cesc` (paths from the release folder down,
+      SessionFile.WithReportPaths); Ctrl+L / drop / command line on the archive opens the comparison directly
+      (MainWindow.ArchivedSession.cs: finds the releases next to the archive, in last/report/recent folders, next to
+      sources already found, else asks for the release folder); viewer button "Open comparison". Subtitle timing
+      results are now saved in comparisons too (SessionSubtitles). Not yet driven end to end in the GUI.
 - [ ] slow.pics upload not tested live (publishes images) — try once with the user's OK
 - [x] slow.pics uploads carry no release names (2026-11-21, Share/SceneName.cs): comparison name = the film title
       ("Old Film (1970)", also when a release name is typed), sources "1 · Blu-ray 1080p AVC" (or a label that is not a

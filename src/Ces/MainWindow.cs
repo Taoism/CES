@@ -686,7 +686,7 @@ public sealed partial class MainWindow : Window
         foreach (var p in paths)
         {
             if (ReportViewer.LooksLikeReport(p) && IsExportedReport(p))
-                await ReportViewer.ShowAsync(this, p);
+                await OpenReportOrResultsAsync(p);
             else
                 rest.Add(p);
         }

@@ -24,9 +24,12 @@ public sealed partial class ReportViewer : Window
     [GeneratedRegex(@"^images/(?:.+-)?shot-(\d+)-(\d+)\.(png|jpg|jpeg|webp)$", RegexOptions.IgnoreCase)]
     private static partial Regex ShotName();
 
-    private ReportViewer(ReportBundle bundle)
+    private readonly Func<string, string, Task>? _openComparison;
+
+    private ReportViewer(ReportBundle bundle, Func<string, string, Task>? openComparison)
     {
         _bundle = bundle;
+        _openComparison = openComparison;
         Title = ReportArchive.BaseName(bundle.Path) + " · CES report";
         Icon = MainWindow.AppIcon;
         Width = 1100;
@@ -52,6 +55,13 @@ public sealed partial class ReportViewer : Window
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         var where = new TextBlock { Text = bundle.Path, Classes = { "muted" }, FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        if (bundle.Session != null && _openComparison != null)
+        {
+            var compare = new Button { Content = "Open comparison" };
+            ToolTip.SetTip(compare, "Open the saved results in this report in Compare: sources, sync, screenshots and every measurement (needs the sources at their paths)");
+            compare.Click += async (_, _) => await OpenComparisonAsync();
+            buttons.Children.Add(compare);
+        }
         if (bundle.Has(ReportArchive.HtmlName))
         {
             var browser = new Button { Content = "Open in browser" };
@@ -88,7 +98,7 @@ public sealed partial class ReportViewer : Window
     }
 
     /// <summary>Opens <paramref name="path"/> in a viewer window; false (with a message) when it is not a readable report.</summary>
-    public static async Task<bool> ShowAsync(Window owner, string path)
+    public static async Task<bool> ShowAsync(Window owner, string path, Func<string, string, Task>? openComparison = null)
     {
         ReportBundle bundle;
         try
@@ -106,7 +116,7 @@ public sealed partial class ReportViewer : Window
             await MessageBox.ShowAsync(owner, "That archive is not a CES report (no summary.txt, report.txt or index.html in it).", MessageKind.Info);
             return false;
         }
-        var w = new ReportViewer(bundle);
+        var w = new ReportViewer(bundle, openComparison);
         // centred on the owner's screen (CenterOwner can land on the primary monitor)
         var scale = owner.RenderScaling;
         var ow = owner.FrameSize ?? owner.ClientSize;
@@ -185,6 +195,23 @@ public sealed partial class ReportViewer : Window
         }
         box.Children.Add(new TextBlock { Text = caption, Classes = { "muted" }, FontSize = 12 });
         return box;
+    }
+
+    /// <summary>Unpacks the saved comparison to a temporary folder and hands it to the main window.</summary>
+    private async Task OpenComparisonAsync()
+    {
+        try
+        {
+            var dir = Path.Combine(Path.GetTempPath(), "ces-reports", MainWindow.SafeName(ReportArchive.BaseName(_bundle.Path)));
+            var file = _bundle.ExtractFile(_bundle.Session!, dir);
+            var archive = _bundle.Path;
+            Close();
+            await _openComparison!(file, archive);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            await MessageBox.ShowAsync(this, "Could not open the comparison:\n" + ex.Message, MessageKind.Error);
+        }
     }
 
     private async Task OpenInBrowserAsync()

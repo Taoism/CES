@@ -451,18 +451,23 @@ public sealed partial class MainWindow
         if (path == null)
             return;
         var ok = false;
+        // the saved results go in too ("<release>.cesc"), so CES can open the comparison straight from the archive
+        var session = await BuildSessionAsync();
         await RunJobAsync("Writing report", ct =>
         {
             ct.ThrowIfCancellationRequested();
             ReportArchive.Export(path, dir =>
-                HtmlReport.WriteAll(dir, title, _items, _rows.Select(r => r.Row).ToList(), _metrics, _subReports, _slowPicsUrl, BdInfoSections(), _ranking));
+            {
+                HtmlReport.WriteAll(dir, title, _items, _rows.Select(r => r.Row).ToList(), _metrics, _subReports, _slowPicsUrl, BdInfoSections(), _ranking);
+                session.WithReportPaths().Save(Path.Combine(dir, (release.Length > 0 ? release : "comparison") + SessionExtension));
+            });
             ok = true;
             return Task.CompletedTask;
         });
         if (ok)
         {
             SetStatus("Report: " + path);
-            await ReportViewer.ShowAsync(this, path);
+            await ReportViewer.ShowAsync(this, path, OpenArchivedSessionAsync);
         }
     }
 
@@ -508,6 +513,6 @@ public sealed partial class MainWindow
             FileTypeFilter = [new FilePickerFileType("CES report (.zip, .tar.gz)") { Patterns = ["*.zip", "*.tar.gz", "*.tgz"] }],
         });
         foreach (var p in files.Select(f => f.TryGetLocalPath()).OfType<string>())
-            await ReportViewer.ShowAsync(this, p);
+            await ReportViewer.ShowAsync(this, p, OpenArchivedSessionAsync);
     }
 }

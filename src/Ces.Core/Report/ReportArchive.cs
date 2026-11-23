@@ -241,6 +241,19 @@ public sealed class ReportBundle : IDisposable
     public string? Text => Find(ReportArchive.TextName);
     public string? Notes => Find(ReportArchive.NotesName);
 
+    /// <summary>The saved comparison (.cesc) next to the report, which CES can open with its results.</summary>
+    public string? Session => Files.Where(f => !f.Contains('/') && f.EndsWith(".cesc", StringComparison.OrdinalIgnoreCase)).OrderBy(f => f.Length).FirstOrDefault();
+
+    /// <summary>Writes one file of the report to <paramref name="folder"/> and returns its path.</summary>
+    public string ExtractFile(string name, string folder)
+    {
+        var data = Read(name) ?? throw new FileNotFoundException(name + " is not in the report.");
+        Directory.CreateDirectory(folder);
+        var target = System.IO.Path.Combine(folder, System.IO.Path.GetFileName(name));
+        File.WriteAllBytes(target, data);
+        return target;
+    }
+
     private string? Relative(string name)
     {
         name = name.TrimStart('/');
