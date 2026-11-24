@@ -15,12 +15,17 @@ cd "$FIX"
 ces spot . rar/set5.part1.rar | tail -3
 ces ls rar/set4.rar
 ces info ffmpeg-l5.flac 2>&1 | head -2
-# GUI under WSLg: start it, check it is still alive after 12 s, then close it
-su -c "cd /tmp && (timeout 15 ces-gui $FIX >/tmp/ces-gui.log 2>&1; echo exit \$? >>/tmp/ces-gui.log) &" "$(getent passwd 1000 | cut -d: -f1)"
-sleep 12
-pgrep -f ces-gui >/dev/null && echo "GUI running" || { echo "GUI not running"; cat /tmp/ces-gui.log; }
-sleep 5
-tail -3 /tmp/ces-gui.log
+# GUI: start it on an invisible display (xvfb-run), check it is still alive after 12 s, then close it. No visible
+# WSLg window: it would pop up on the main screen in the middle of the user's work. Without xvfb the check is skipped.
+if command -v xvfb-run >/dev/null; then
+    su -c "cd /tmp && (timeout 15 xvfb-run -a ces-gui $FIX >/tmp/ces-gui.log 2>&1; echo exit \$? >>/tmp/ces-gui.log) &" "$(getent passwd 1000 | cut -d: -f1)"
+    sleep 12
+    pgrep -f ces-gui >/dev/null && echo "GUI running" || { echo "GUI not running"; cat /tmp/ces-gui.log; }
+    sleep 5
+    tail -3 /tmp/ces-gui.log
+else
+    echo "GUI check skipped (install xvfb to run it without a visible window)"
+fi
 apt-get purge -y -qq ces >/dev/null 2>&1
 apt-get autoremove -y -qq >/dev/null 2>&1
 dpkg -s ces >/dev/null 2>&1 && echo "still installed" || echo "purged"

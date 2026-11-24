@@ -23,11 +23,11 @@ public static class ReportArchive
 
     /// <summary>
     /// The release a Compare report is named after: the reference's release name as it is laid out (disc folder or
-    /// file name, lowercased): "performance.1970.complete.bluray-grp". Files inside are "&lt;that&gt;-summary.txt" etc.
+    /// file name, lowercased): "old.film.1970.complete.bluray-grp". Files inside are "&lt;that&gt;-summary.txt" etc.
     /// </summary>
     public static string ReleaseBase(IReadOnlyList<Compare.CompareItem> items) => items.Count == 0 ? "" : SourceBase(items[0]);
 
-    /// <summary>One source's release name for file names ("performance.1970.1080p.bluray.x264-grp").</summary>
+    /// <summary>One source's release name for file names ("old.film.1970.1080p.bluray.x264-grp").</summary>
     public static string SourceBase(Compare.CompareItem it)
     {
         // the release folder first ("Movie.1970.1080p.BluRay.x264-GRP\movie.rar::movie.mkv" → its first part), then

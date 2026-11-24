@@ -444,7 +444,7 @@ public sealed partial class MainWindow
             return;
         }
         var title = string.Join(" vs ", _items.Select(i => i.Name));
-        // named after the reference release, like the files inside ("performance.1970.complete.bluray-grp.zip")
+        // named after the reference release, like the files inside ("old.film.1970.complete.bluray-grp.zip")
         var release = ReportArchive.ReleaseBase(_items);
         var name = release.Length > 0 ? release : SafeName("ces " + string.Join(" vs ", _items.Take(3).Select(i => i.Name)) + " " + DateTime.Now.ToString("yyyy-MM-dd HHmm", CultureInfo.InvariantCulture));
         var path = await PickReportArchiveAsync("Export report (HTML, plain-words summary and text in one archive)", name);

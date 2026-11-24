@@ -162,8 +162,8 @@ is detected and inverse-telecined (field matching + decimation) so frames pair o
   out as two paragraphs of prose (closeness, master and grade, grain, size, then sound, frames, subtitles and a
   verdict; also the Notes tab and the top of the HTML report), `summary.txt` with the comparison **in plain words** for
   people who do not know what VMAF or a bitrate is, and `report.txt` with every tab as text. The files are named after
-  the reference release as it is laid out (`performance.1970.complete.bluray-notes.txt`, `…-summary.txt`,
-  `…-report.txt`), and each screenshot after its own source (`performance.1970.1080p.bluray.x264-grp-shot-01-2.png`).
+  the reference release as it is laid out (`old.film.1970.complete.bluray-grp-notes.txt`, `…-summary.txt`,
+  `…-report.txt`), and each screenshot after its own source (`old.film.1970.1080p.bluray.x264-grp-shot-01-2.png`).
   The archive also holds the **saved results** (`<release>.cesc`, with source paths from the release folder down):
   opening the archive with File › Open saved results (Ctrl+L), by dropping it or from the command line loads the
   comparison straight into Compare with every measurement; CES finds the releases next to the archive or in recent
