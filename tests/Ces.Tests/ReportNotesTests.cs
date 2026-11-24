@@ -117,6 +117,7 @@ public class ReportNotesTests(ITestOutputHelper output)
             var row = new ShotRow { Time = 100 };
             foreach (var _ in new[] { a, b, c })
                 row.Shots.Add(new ShotResult { ImagePath = png, Width = 1920, Height = 1080 });
+            a.Audio.Add(new AudioReport { TrackIndex = 0, Stream = new StreamInfo { Codec = "ac3", Channels = 2 }, SpectrogramPng = png });
             ReportArchive.Export(archive, dir => HtmlReport.WriteAll(dir, "Old Film", [a, b, c], [row], metrics, subs));
             using var bundle = ReportArchive.Open(archive);
             Assert.Equal("old.film.1970.complete.bluray-alpha-notes.txt", bundle.Notes);
@@ -143,6 +144,8 @@ public class ReportNotesTests(ITestOutputHelper output)
             Assert.Contains("images/old.film.1970.complete.bluray-alpha-shot-01-1.png", bundle.Files);
             Assert.Contains("images/old.film.1970.1080p.bluray.x264-beta-shot-01-2.png", bundle.Files);
             Assert.Contains("images/old.film.1970.remastered.1080p.bluray.flac.x264-gamma-shot-01-3.png", bundle.Files);
+            Assert.Contains("images/old.film.1970.complete.bluray-alpha-spectrogram-1-1.png", bundle.Files);
+            Assert.Contains("src=\"images/old.film.1970.complete.bluray-alpha-spectrogram-1-1.png\"", page);
         }
         finally
         {

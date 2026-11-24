@@ -87,7 +87,8 @@ public static class HtmlReport
                     foreach (var sr in subtitles?.Where(s => s.Item == it) ?? [])
                         findings.AddRange(sr.Findings.Select(f => new Finding { Area = "Subtitles · " + f.Area, Text = f.Text, Level = f.Level }));
                 }
-                if (findings.Count == 0)
+                // a source without findings still shows its spectrograms
+                if (findings.Count == 0 && !it.Audio.Any(a => a.SpectrogramPng != null && File.Exists(a.SpectrogramPng)))
                     continue;
                 sb.Append("<div class=\"card\"><h3><span class=\"chip c").Append(i % 6).Append("\">").Append(i + 1).Append("</span> ").Append(H(it.Name)).Append("</h3><ul class=\"findings\">");
                 foreach (var f in findings.OrderByDescending(f => f.Level))
@@ -95,7 +96,7 @@ public static class HtmlReport
                 sb.Append("</ul>");
                 foreach (var a in it.Audio.Where(a => a.SpectrogramPng != null && File.Exists(a.SpectrogramPng)))
                 {
-                    var name = $"spectrogram-{i + 1}-{a.TrackIndex + 1}.png";
+                    var name = ReportArchive.Named(ReportArchive.SourceBase(it), $"spectrogram-{i + 1}-{a.TrackIndex + 1}.png");
                     File.Copy(a.SpectrogramPng!, Path.Combine(imgDir, name), true);
                     sb.Append("<figure><img loading=\"lazy\" src=\"images/").Append(name).Append("\" alt=\"spectrogram\"><figcaption>Audio track ").Append(a.TrackIndex + 1).Append(" spectrogram (60 s, middle)</figcaption></figure>");
                 }
